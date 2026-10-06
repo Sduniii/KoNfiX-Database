@@ -22,6 +22,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+site-packages/
+site-packages.tar.gz
+site-packages.zip
 
 # Testing & Coverage
 .pytest_cache/
