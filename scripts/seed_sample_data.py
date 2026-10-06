@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import engine, Base, SessionLocal
-from app.api.v1.upload import _process_and_save_knxprod
+from app.api.v1.upload import _process_single_knxprod
 from scripts.create_sample_knxprod import create_sample_knxprod_archive
 
 def seed_database():
@@ -35,7 +35,7 @@ def seed_database():
                 mask_version=mask,
                 bus_current_ma=bus
             )
-            resp = _process_and_save_knxprod(data, filename, db)
+            resp = _process_single_knxprod(data, filename, db)
             print(f"Imported: {resp.manufacturer_name} -> {order_no} ({resp.filename}, {resp.file_size_bytes} Bytes)")
 
         print("Seeding completed successfully!")

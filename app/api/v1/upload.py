@@ -327,6 +327,10 @@ def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session) -> Up
         )
 
 
+# Abwaertskompatibilitaet fuer Skripte und Seeds
+_process_and_save_knxprod = _process_single_knxprod
+
+
 def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> BatchUploadResponse:
     results: List[BatchItemResult] = []
     success_count = 0
