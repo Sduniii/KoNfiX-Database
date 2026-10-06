@@ -45,8 +45,8 @@ def init_db():
                 dev.manufacturer_id = m_0008.id
             db.commit()
 
-        # Populate sample data if DB is completely fresh
-        if db.query(Device).count() == 0:
+        # Populate sample data only if explicitly enabled in configuration
+        if settings.AUTO_SEED_DEMO_DATA and db.query(Device).count() == 0:
             try:
                 from scripts.seed_sample_data import seed_database
                 seed_database()

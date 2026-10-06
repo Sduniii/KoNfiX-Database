@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     ADMIN_KEY: str = ""  # If set, required for PATCH/DELETE and batch-delete
     API_KEY: str = ""    # Legacy fallback for ADMIN_KEY
     ALLOW_PUBLIC_UPLOAD: bool = True  # If True, uploads do not require any key
+    AUTO_SEED_DEMO_DATA: bool = False  # Set to True to automatically populate demo devices on boot
+
     
     # Upload & DoS Protection Limits
     MAX_UPLOAD_SIZE_BYTES: int = 50 * 1024 * 1024  # 50 MB
