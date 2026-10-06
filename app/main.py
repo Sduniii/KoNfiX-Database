@@ -12,9 +12,8 @@ from app.config import BASE_DIR, settings
 from app.database import Base, engine
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize DB schema on startup
+def init_db():
+    # Initialize DB schema immediately
     Base.metadata.create_all(bind=engine)
 
     # Self-healing check for legacy manufacturer entries
@@ -36,11 +35,27 @@ async def lifespan(app: FastAPI):
             for dev in gira_devices:
                 dev.manufacturer_id = m_0008.id
             db.commit()
+
+        # Populate sample data if DB is completely fresh
+        if db.query(Device).count() == 0:
+            try:
+                from scripts.seed_sample_data import seed_database
+                seed_database()
+            except Exception as seed_err:
+                print("Automatic seed skipped:", seed_err)
     except Exception:
         db.rollback()
     finally:
         db.close()
 
+
+# Ensure DB schema exists on import (required for WSGI / Phusion Passenger)
+init_db()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
     yield
 
 app = FastAPI(
