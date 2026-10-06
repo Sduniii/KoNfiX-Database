@@ -18,6 +18,25 @@ def test_security_headers_present(client):
     assert response.headers.get("Permissions-Policy") == "geolocation=(), microphone=(), camera=()"
 
 
+def test_docs_csp_allows_swagger_cdn(client):
+    """Verify that Swagger UI and ReDoc receive CSP allowing necessary CDNs and inline scripts."""
+    res_docs = client.get("/docs")
+    assert res_docs.status_code == 200
+    csp_docs = res_docs.headers.get("Content-Security-Policy", "")
+    assert "https://cdn.jsdelivr.net" in csp_docs
+    assert "'unsafe-inline'" in csp_docs
+
+    res_redoc = client.get("/redoc")
+    assert res_redoc.status_code == 200
+    csp_redoc = res_redoc.headers.get("Content-Security-Policy", "")
+    assert "https://cdn.jsdelivr.net" in csp_redoc
+
+    # Regular endpoints still enforce strict script-src without cdn.jsdelivr.net
+    res_home = client.get("/")
+    assert "https://cdn.jsdelivr.net" not in res_home.headers.get("Content-Security-Policy", "")
+
+
+
 def test_cors_credentials_safety():
     """Verify that wildcard origin prevents credential reflection."""
     assert "*" in settings.ALLOWED_ORIGINS
