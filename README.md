@@ -145,19 +145,32 @@ docker compose up --build -d
 
 ---
 
-## ☁️ Kostenloses Hosting über GitHub (z. B. auf Render.com)
+## ☁️ Hosting
 
-Du brauchst **keine eigene Domain** und **keinen eigenen Server**!
+### Option A: Netcup Webhosting (Plesk mit Python & Git)
 
-1. Erstelle das GitHub-Repository `KoNfiX-Database` und pushe diesen Code:
-   ```bash
-   git remote add origin git@github.com:Sduniii/KoNfiX-Database.git
-   git push -u origin main
-   ```
-2. Registriere dich kostenlos auf **[Render.com](https://render.com)** mit deinem GitHub-Account.
-3. Klicke auf **New +** > **Blueprint** und wähle dein Repository `KoNfiX-Database` aus.
-4. Render erkennt die Datei `render.yaml` vollautomatisch und deployt deinen Service unter einer kostenlosen HTTPS-URL (z. B. `https://konfix-database.onrender.com`).
-5. Jeder zukünftige `git push` aktualisiert die Anwendung vollautomatisch.
+KoNfiX-Database ist sofort für **Netcup Webhosting** (Phusion Passenger / WSGI) vorbereitet:
+
+1. **Repository in Plesk verbinden**:
+   - Gehe im Plesk Control Panel auf **Git** -> Repository hinzufügen (`https://github.com/Sduniii/KoNfiX-Database.git`).
+   - Zielverzeichnis wählen (z. B. eine Subdomain wie `catalog.havelhanf.de` oder `/httpdocs`).
+2. **Python-App aktivieren**:
+   - Klicke im Dashboard auf **Python**.
+   - **Python-Version**: `3.11` oder `3.12`.
+   - **Anwendungsstartdatei**: `passenger_wsgi.py`.
+   - **Einstiegspunkt**: `application`.
+   - Klicke auf **pip-Pakete installieren** (installiert `requirements.txt` inkl. `a2wsgi`).
+3. **Persistenter Speicher**:
+   - Datenbank (`data/konfix_database.db`) und `.knxprod`-Dateien (`catalog_files/`) liegen direkt im Hosting-Verzeichnis und bleiben bei Updates dauerhaft erhalten.
+4. **SSL aktivieren**:
+   - Unter **SSL/TLS-Zertifikate** ein kostenloses Let's Encrypt Zertifikat zuweisen.
+
+### Option B: Render.com (Cloud Blueprint)
+
+1. Registriere dich kostenlos auf **[Render.com](https://render.com)** mit deinem GitHub-Account.
+2. Klicke auf **New +** > **Blueprint** und wähle dein Repository `KoNfiX-Database` aus.
+3. Render liest die Datei `render.yaml` vollautomatisch ein (inkl. Persistent Disk unter `/var/data`).
+
 
 ---
 
