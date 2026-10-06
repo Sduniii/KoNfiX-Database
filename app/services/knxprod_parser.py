@@ -1,9 +1,10 @@
 import io
-import os
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple
+
+from app.services.knx_master_data import resolve_manufacturer, register_custom_manufacturer
 
 @dataclass
 class ParsedApplication:
@@ -55,18 +56,71 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     except zipfile.BadZipFile as e:
         raise ValueError(f"Ungültiges .knxprod-Format: Keine gültige ZIP-Datei ({e})")
 
-    # Find XML files (usually M-xxxx.xml or project.xml or any .xml)
-    xml_files = [f for f in zf.namelist() if f.lower().endswith(".xml")]
+    # 1. Inspect knx_master.xml if present to enrich master manufacturers cache
+    for fname in zf.namelist():
+        if fname.lower().endswith("knx_master.xml"):
+            try:
+                km_root = ET.fromstring(zf.read(fname))
+                for elem in km_root.iter():
+                    if _strip_ns(elem.tag) == "Manufacturer":
+                        mid = elem.attrib.get("Id")
+                        mname = elem.attrib.get("Name")
+                        kid = elem.attrib.get("KnxManufacturerId")
+                        if mid and mname:
+                            register_custom_manufacturer(
+                                mid, mname, int(kid) if kid and kid.isdigit() else None
+                            )
+            except Exception:
+                pass
+
+    # Find XML files
+    xml_files = [f for f in zf.namelist() if f.lower().endswith(".xml") and not f.lower().endswith("knx_master.xml")]
     if not xml_files:
         raise ValueError("Ungültige .knxprod-Datei: Keine XML-Metadatendatei im Archiv gefunden")
 
-    # Prioritize M-*.xml
+    # Detect context hints across all filenames (e.g. OpenKNX detection)
+    context_hints = " ".join(zf.namelist())
+
+    # 2. Extract ApplicationPrograms across all XML files in the archive
+    app_programs_map: Dict[str, ParsedApplication] = {}
+    for f in xml_files:
+        try:
+            f_root = ET.fromstring(zf.read(f))
+            app_nodes = _find_nodes_by_local_name(f_root, "ApplicationProgram")
+            for app in app_nodes:
+                app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
+                app_name = app.attrib.get("Name") or app.attrib.get("ProgramName") or app.attrib.get("Text") or "Applikationsprogramm"
+                app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
+                mask_version = app.attrib.get("MaskVersion")
+
+                com_objs = _find_nodes_by_local_name(app, "ComObject")
+                parameters = _find_nodes_by_local_name(app, "Parameter")
+
+                if app_id:
+                    app_programs_map[app_id] = ParsedApplication(
+                        app_id=app_id,
+                        name=app_name,
+                        version=app_version,
+                        mask_version=mask_version,
+                        com_objects_count=len(com_objs),
+                        parameters_count=len(parameters),
+                    )
+        except Exception:
+            pass
+
+    # 3. Prioritize Hardware.xml, or M-*.xml
     target_xml = None
     for f in xml_files:
         basename = f.split("/")[-1].upper()
-        if basename.startswith("M-") or "MANUFACTURER" in basename or "HARDWARE" in basename:
+        if "HARDWARE" in basename:
             target_xml = f
             break
+    if not target_xml:
+        for f in xml_files:
+            basename = f.split("/")[-1].upper()
+            if basename.startswith("M-") or "MANUFACTURER" in basename or "CATALOG" in basename:
+                target_xml = f
+                break
     if not target_xml:
         target_xml = xml_files[0]
 
@@ -76,52 +130,38 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     except ET.ParseError as e:
         raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{target_xml}': {e}")
 
-    return _parse_knx_xml_root(root, target_xml)
+    # Check if target XML content has OpenKNX hints
+    if "openknx" in xml_bytes.decode("utf-8", errors="ignore").lower():
+        context_hints += " openknx"
 
-def _parse_knx_xml_root(root: ET.Element, xml_filename: str) -> ParsedKnxprod:
-    # 1. Manufacturer
+    return _parse_knx_xml_root(root, target_xml, app_programs_map, context_hints)
+
+def _parse_knx_xml_root(
+    root: ET.Element,
+    xml_filename: str,
+    app_programs_map: Dict[str, ParsedApplication],
+    context_hints: str = ""
+) -> ParsedKnxprod:
+    # 1. Manufacturer resolution
     mfg_nodes = _find_nodes_by_local_name(root, "Manufacturer")
-    mfg_id = "M-UNKNOWN"
-    mfg_name = "Unbekannter Hersteller"
+    raw_mfg_id = "M-UNKNOWN"
+    raw_mfg_name = None
 
     if mfg_nodes:
         mfg_node = mfg_nodes[0]
-        mfg_id = mfg_node.attrib.get("RefId") or mfg_node.attrib.get("Id") or mfg_id
-        mfg_name = mfg_node.attrib.get("Name") or mfg_node.attrib.get("Text") or mfg_id
+        raw_mfg_id = mfg_node.attrib.get("RefId") or mfg_node.attrib.get("Id") or raw_mfg_id
+        raw_mfg_name = mfg_node.attrib.get("Name") or mfg_node.attrib.get("Text")
     else:
-        # Check manufacturer id from filename e.g. M-00C5.xml
+        # Check manufacturer id from filename e.g. M-0083/Hardware.xml or M-00C5.xml
         for part in xml_filename.split("/"):
             if part.upper().startswith("M-"):
-                mfg_id = part.split(".")[0].upper()
-                mfg_name = f"Hersteller {mfg_id}"
+                raw_mfg_id = part.split(".")[0].upper()
                 break
 
-    # 2. Application Programs index by Id
-    app_programs_map: Dict[str, ParsedApplication] = {}
-    app_nodes = _find_nodes_by_local_name(root, "ApplicationProgram")
-    for app in app_nodes:
-        app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
-        app_name = app.attrib.get("Name") or app.attrib.get("ProgramName") or app.attrib.get("Text") or "Applikationsprogramm"
-        app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
-        mask_version = app.attrib.get("MaskVersion")
+    # Use comprehensive master data & OpenKNX resolver
+    mfg_id, mfg_name = resolve_manufacturer(raw_mfg_id, raw_mfg_name, context_hints)
 
-        # Count com objects
-        com_objs = _find_nodes_by_local_name(app, "ComObject")
-        # Count parameters
-        parameters = _find_nodes_by_local_name(app, "Parameter")
-
-        parsed_app = ParsedApplication(
-            app_id=app_id,
-            name=app_name,
-            version=app_version,
-            mask_version=mask_version,
-            com_objects_count=len(com_objs),
-            parameters_count=len(parameters),
-        )
-        if app_id:
-            app_programs_map[app_id] = parsed_app
-
-    # 3. Hardware / Products
+    # 2. Hardware / Products
     devices: List[ParsedDevice] = []
     hardware_nodes = _find_nodes_by_local_name(root, "Hardware")
 
@@ -141,6 +181,14 @@ def _parse_knx_xml_root(root: ET.Element, xml_filename: str) -> ParsedKnxprod:
         hw2prog_nodes = _find_nodes_by_local_name(hw, "Hardware2Program")
         for h2p in hw2prog_nodes:
             app_ref = h2p.attrib.get("ApplicationProgramRefId")
+            if not app_ref:
+                # In standard ETS format: <ApplicationProgramRef RefId="M-0083_A-..." />
+                for child in h2p:
+                    if _strip_ns(child.tag) in ["ApplicationProgramRef", "ApplicationProgram"]:
+                        app_ref = child.attrib.get("RefId") or child.attrib.get("Id")
+                        if app_ref:
+                            break
+
             if app_ref and app_ref in app_programs_map:
                 hw_apps.append(app_programs_map[app_ref])
 
@@ -238,5 +286,5 @@ def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
                 results.append((basename, zf.read(info)))
             except Exception:
                 pass
-    return results
 
+    return results

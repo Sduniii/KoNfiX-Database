@@ -13,11 +13,12 @@ def seed_database():
     Base.metadata.create_all(bind=engine)
 
     samples = [
-        ("M-00C5", "MDT technologies", "AKS-0816.04", "Schaltaktor 8-fach 16A", "Schaltaktor Standard", "Schalten 8f 16A", "4.2", "MV-07B0", 12.0),
+        ("M-0083", "MDT technologies", "AKS-0816.04", "Schaltaktor 8-fach 16A", "Schaltaktor Standard", "Schalten 8f 16A", "4.2", "MV-07B0", 12.0),
         ("M-0002", "ABB Stotz-Kontakt GmbH", "SA/S8.16.6.2", "Schaltaktor 8-fach 16A C-Last", "SA/S Aktor", "Schalten 8f 16A C-Last", "2.1", "MV-07B0", 10.0),
-        ("M-0083", "Gira Giersiepen GmbH", "216800", "Dimmaktor 4-fach Komfort", "Dimmaktor REG", "Dimmen 4f Komfort", "1.3", "MV-07B0", 15.0),
-        ("M-0077", "Theben AG", "RMG 8 S KNX", "Schaltaktor Grundmodul 8-fach", "RMG 8 S", "Schalten RMG 8", "3.0", "MV-07B0", 8.5),
-        ("M-0004", "JUNG", "2308 REG HRE", "Schaltaktor 8-fach Handbetätigung", "2308REG", "Schalten 8-fach Standard", "1.1", "MV-07B0", 14.0)
+        ("M-0008", "GIRA Giersiepen", "216800", "Dimmaktor 4-fach Komfort", "Dimmaktor REG", "Dimmen 4f Komfort", "1.3", "MV-07B0", 15.0),
+        ("M-0048", "Theben AG", "RMG 8 S KNX", "Schaltaktor Grundmodul 8-fach", "RMG 8 S", "Schalten RMG 8", "3.0", "MV-07B0", 8.5),
+        ("M-0004", "Albrecht Jung", "2308 REG HRE", "Schaltaktor 8-fach Handbetätigung", "2308REG", "Schalten 8-fach Standard", "1.1", "MV-07B0", 14.0),
+        ("M-00FA", "OpenKNX", "OKNX-MOD-01", "OpenKNX Universal Modul", "OpenKNX Hardware", "OpenKNX Firmware", "1.0", "MV-07B0", 5.0)
     ]
 
     db = SessionLocal()

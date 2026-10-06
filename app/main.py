@@ -16,6 +16,31 @@ from app.database import Base, engine
 async def lifespan(app: FastAPI):
     # Initialize DB schema on startup
     Base.metadata.create_all(bind=engine)
+
+    # Self-healing check for legacy manufacturer entries
+    from app.database import SessionLocal
+    from app.models import Manufacturer, Device
+    db = SessionLocal()
+    try:
+        m_0083 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0083").first()
+        if m_0083 and "gira" in m_0083.name.lower():
+            m_0083.name = "MDT technologies"
+            # Ensure Gira exists as M-0008
+            m_0008 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0008").first()
+            if not m_0008:
+                m_0008 = Manufacturer(knx_id="M-0008", name="GIRA Giersiepen")
+                db.add(m_0008)
+                db.flush()
+            # Reassign any Gira demo devices (e.g. 216800) to M-0008
+            gira_devices = db.query(Device).filter(Device.order_number == "216800").all()
+            for dev in gira_devices:
+                dev.manufacturer_id = m_0008.id
+            db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     yield
 
 app = FastAPI(

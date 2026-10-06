@@ -16,7 +16,7 @@ def test_upload_raw_octet_stream(client, sample_knxprod_bytes):
 
     data = response.json()
     assert data["status"] == "success"
-    assert data["manufacturer_id"] == "M-00C5"
+    assert data["manufacturer_id"] == "M-0083"
     assert data["manufacturer_name"] == "MDT technologies"
     assert data["filename"] == "MDT_AKS_081604.knxprod"
     assert len(data["devices_imported"]) == 1

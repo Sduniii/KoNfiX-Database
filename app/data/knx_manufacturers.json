@@ -1,0 +1,2442 @@
+{
+  "M-0001": {
+    "name": "Siemens",
+    "knx_manufacturer_id": 1
+  },
+  "M-0002": {
+    "name": "ABB",
+    "knx_manufacturer_id": 2
+  },
+  "M-0004": {
+    "name": "Albrecht Jung",
+    "knx_manufacturer_id": 4
+  },
+  "M-0005": {
+    "name": "Bticino",
+    "knx_manufacturer_id": 5
+  },
+  "M-0006": {
+    "name": "Berker",
+    "knx_manufacturer_id": 6
+  },
+  "M-0007": {
+    "name": "Busch-Jaeger Elektro",
+    "knx_manufacturer_id": 7
+  },
+  "M-0008": {
+    "name": "GIRA Giersiepen",
+    "knx_manufacturer_id": 8
+  },
+  "M-0009": {
+    "name": "Hager Electro",
+    "knx_manufacturer_id": 9
+  },
+  "M-000A": {
+    "name": "Insta GmbH",
+    "knx_manufacturer_id": 10
+  },
+  "M-000B": {
+    "name": "LEGRAND Appareillage électrique",
+    "knx_manufacturer_id": 11
+  },
+  "M-000C": {
+    "name": "Merten",
+    "knx_manufacturer_id": 12
+  },
+  "M-000E": {
+    "name": "ABB SpA-SACE Division",
+    "knx_manufacturer_id": 14
+  },
+  "M-0016": {
+    "name": "Siedle & Söhne",
+    "knx_manufacturer_id": 22
+  },
+  "M-0018": {
+    "name": "Eberle",
+    "knx_manufacturer_id": 24
+  },
+  "M-0019": {
+    "name": "GEWISS",
+    "knx_manufacturer_id": 25
+  },
+  "M-001B": {
+    "name": "Albert Ackermann",
+    "knx_manufacturer_id": 27
+  },
+  "M-001C": {
+    "name": "Schupa GmbH",
+    "knx_manufacturer_id": 28
+  },
+  "M-001D": {
+    "name": "ABB SCHWEIZ",
+    "knx_manufacturer_id": 29
+  },
+  "M-001E": {
+    "name": "Feller",
+    "knx_manufacturer_id": 30
+  },
+  "M-001F": {
+    "name": "Glamox AS",
+    "knx_manufacturer_id": 31
+  },
+  "M-0020": {
+    "name": "DEHN & SÖHNE",
+    "knx_manufacturer_id": 32
+  },
+  "M-0021": {
+    "name": "CRABTREE",
+    "knx_manufacturer_id": 33
+  },
+  "M-0022": {
+    "name": "eVoKNX",
+    "knx_manufacturer_id": 34
+  },
+  "M-0024": {
+    "name": "Paul Hochköpper",
+    "knx_manufacturer_id": 36
+  },
+  "M-0025": {
+    "name": "Altenburger Electronic",
+    "knx_manufacturer_id": 37
+  },
+  "M-0029": {
+    "name": "Grässlin",
+    "knx_manufacturer_id": 41
+  },
+  "M-002A": {
+    "name": "Simon",
+    "knx_manufacturer_id": 42
+  },
+  "M-002C": {
+    "name": "VIMAR",
+    "knx_manufacturer_id": 44
+  },
+  "M-002D": {
+    "name": "Moeller Gebäudeautomation KG",
+    "knx_manufacturer_id": 45
+  },
+  "M-002E": {
+    "name": "Eltako",
+    "knx_manufacturer_id": 46
+  },
+  "M-0031": {
+    "name": "Bosch-Siemens Haushaltsgeräte",
+    "knx_manufacturer_id": 49
+  },
+  "M-0034": {
+    "name": "RITTO GmbH&Co.KG",
+    "knx_manufacturer_id": 52
+  },
+  "M-0035": {
+    "name": "Power Controls",
+    "knx_manufacturer_id": 53
+  },
+  "M-0037": {
+    "name": "ZUMTOBEL",
+    "knx_manufacturer_id": 55
+  },
+  "M-0039": {
+    "name": "Phoenix Contact",
+    "knx_manufacturer_id": 57
+  },
+  "M-003D": {
+    "name": "WAGO Kontakttechnik",
+    "knx_manufacturer_id": 61
+  },
+  "M-003E": {
+    "name": "knXpresso",
+    "knx_manufacturer_id": 62
+  },
+  "M-0042": {
+    "name": "Wieland Electric",
+    "knx_manufacturer_id": 66
+  },
+  "M-0043": {
+    "name": "Hermann Kleinhuis",
+    "knx_manufacturer_id": 67
+  },
+  "M-0045": {
+    "name": "Stiebel Eltron",
+    "knx_manufacturer_id": 69
+  },
+  "M-0047": {
+    "name": "Tehalit",
+    "knx_manufacturer_id": 71
+  },
+  "M-0048": {
+    "name": "Theben AG",
+    "knx_manufacturer_id": 72
+  },
+  "M-0049": {
+    "name": "Wilhelm Rutenbeck",
+    "knx_manufacturer_id": 73
+  },
+  "M-004B": {
+    "name": "Winkhaus",
+    "knx_manufacturer_id": 75
+  },
+  "M-004C": {
+    "name": "Robert Bosch",
+    "knx_manufacturer_id": 76
+  },
+  "M-004E": {
+    "name": "Somfy",
+    "knx_manufacturer_id": 78
+  },
+  "M-0050": {
+    "name": "Woertz",
+    "knx_manufacturer_id": 80
+  },
+  "M-0051": {
+    "name": "Viessmann Werke",
+    "knx_manufacturer_id": 81
+  },
+  "M-0052": {
+    "name": "IMI Hydronic Engineering",
+    "knx_manufacturer_id": 82
+  },
+  "M-0053": {
+    "name": "Joh. Vaillant",
+    "knx_manufacturer_id": 83
+  },
+  "M-0055": {
+    "name": "AMP Deutschland",
+    "knx_manufacturer_id": 85
+  },
+  "M-0059": {
+    "name": "Bosch Thermotechnik GmbH",
+    "knx_manufacturer_id": 89
+  },
+  "M-005A": {
+    "name": "SEF - ECOTEC",
+    "knx_manufacturer_id": 90
+  },
+  "M-005C": {
+    "name": "DORMA GmbH + Co. KG",
+    "knx_manufacturer_id": 92
+  },
+  "M-005D": {
+    "name": "WindowMaster A/S",
+    "knx_manufacturer_id": 93
+  },
+  "M-005E": {
+    "name": "Walther Werke",
+    "knx_manufacturer_id": 94
+  },
+  "M-005F": {
+    "name": "ORAS",
+    "knx_manufacturer_id": 95
+  },
+  "M-0061": {
+    "name": "Dätwyler",
+    "knx_manufacturer_id": 97
+  },
+  "M-0062": {
+    "name": "Electrak",
+    "knx_manufacturer_id": 98
+  },
+  "M-0063": {
+    "name": "Techem",
+    "knx_manufacturer_id": 99
+  },
+  "M-0064": {
+    "name": "Schneider Electric Industries SAS",
+    "knx_manufacturer_id": 100
+  },
+  "M-0065": {
+    "name": "WHD Wilhelm Huber + Söhne",
+    "knx_manufacturer_id": 101
+  },
+  "M-0066": {
+    "name": "Bischoff Elektronik",
+    "knx_manufacturer_id": 102
+  },
+  "M-0068": {
+    "name": "JEPAZ",
+    "knx_manufacturer_id": 104
+  },
+  "M-0069": {
+    "name": "RTS Automation",
+    "knx_manufacturer_id": 105
+  },
+  "M-006A": {
+    "name": "EIBMARKT GmbH",
+    "knx_manufacturer_id": 106
+  },
+  "M-006B": {
+    "name": "WAREMA Renkhoff SE",
+    "knx_manufacturer_id": 107
+  },
+  "M-006C": {
+    "name": "Eelectron",
+    "knx_manufacturer_id": 108
+  },
+  "M-006D": {
+    "name": "Belden Wire & Cable B.V.",
+    "knx_manufacturer_id": 109
+  },
+  "M-006E": {
+    "name": "Becker-Antriebe GmbH",
+    "knx_manufacturer_id": 110
+  },
+  "M-006F": {
+    "name": "J.Stehle+Söhne GmbH",
+    "knx_manufacturer_id": 111
+  },
+  "M-0070": {
+    "name": "AGFEO",
+    "knx_manufacturer_id": 112
+  },
+  "M-0071": {
+    "name": "Zennio",
+    "knx_manufacturer_id": 113
+  },
+  "M-0072": {
+    "name": "TAPKO Technologies",
+    "knx_manufacturer_id": 114
+  },
+  "M-0073": {
+    "name": "HDL",
+    "knx_manufacturer_id": 115
+  },
+  "M-0074": {
+    "name": "Uponor",
+    "knx_manufacturer_id": 116
+  },
+  "M-0075": {
+    "name": "se Lightmanagement AG",
+    "knx_manufacturer_id": 117
+  },
+  "M-0076": {
+    "name": "Arcus-eds",
+    "knx_manufacturer_id": 118
+  },
+  "M-0077": {
+    "name": "Intesis",
+    "knx_manufacturer_id": 119
+  },
+  "M-0078": {
+    "name": "Herholdt Controls srl",
+    "knx_manufacturer_id": 120
+  },
+  "M-0079": {
+    "name": "Niko-Zublin",
+    "knx_manufacturer_id": 121
+  },
+  "M-007A": {
+    "name": "Durable Technologies",
+    "knx_manufacturer_id": 122
+  },
+  "M-007B": {
+    "name": "Innoteam",
+    "knx_manufacturer_id": 123
+  },
+  "M-007C": {
+    "name": "ise GmbH",
+    "knx_manufacturer_id": 124
+  },
+  "M-007D": {
+    "name": "TEAM FOR TRONICS",
+    "knx_manufacturer_id": 125
+  },
+  "M-007E": {
+    "name": "CIAT",
+    "knx_manufacturer_id": 126
+  },
+  "M-007F": {
+    "name": "Remeha BV",
+    "knx_manufacturer_id": 127
+  },
+  "M-0080": {
+    "name": "ESYLUX",
+    "knx_manufacturer_id": 128
+  },
+  "M-0081": {
+    "name": "BASALTE",
+    "knx_manufacturer_id": 129
+  },
+  "M-0082": {
+    "name": "Vestamatic",
+    "knx_manufacturer_id": 130
+  },
+  "M-0083": {
+    "name": "MDT technologies",
+    "knx_manufacturer_id": 131
+  },
+  "M-0084": {
+    "name": "Warendorfer Küchen GmbH",
+    "knx_manufacturer_id": 132
+  },
+  "M-0085": {
+    "name": "Video-Star",
+    "knx_manufacturer_id": 133
+  },
+  "M-0086": {
+    "name": "Sitek",
+    "knx_manufacturer_id": 134
+  },
+  "M-0087": {
+    "name": "CONTROLtronic",
+    "knx_manufacturer_id": 135
+  },
+  "M-0088": {
+    "name": "function Technology",
+    "knx_manufacturer_id": 136
+  },
+  "M-0089": {
+    "name": "AMX",
+    "knx_manufacturer_id": 137
+  },
+  "M-008A": {
+    "name": "ELDAT",
+    "knx_manufacturer_id": 138
+  },
+  "M-008B": {
+    "name": "Panasonic",
+    "knx_manufacturer_id": 139
+  },
+  "M-008C": {
+    "name": "Pulse Technologies",
+    "knx_manufacturer_id": 140
+  },
+  "M-008D": {
+    "name": "Crestron",
+    "knx_manufacturer_id": 141
+  },
+  "M-008E": {
+    "name": "STEINEL professional",
+    "knx_manufacturer_id": 142
+  },
+  "M-008F": {
+    "name": "BILTON LED Lighting",
+    "knx_manufacturer_id": 143
+  },
+  "M-0090": {
+    "name": "denro AG",
+    "knx_manufacturer_id": 144
+  },
+  "M-0091": {
+    "name": "GePro",
+    "knx_manufacturer_id": 145
+  },
+  "M-0092": {
+    "name": "preussen automation",
+    "knx_manufacturer_id": 146
+  },
+  "M-0093": {
+    "name": "Zoppas Industries",
+    "knx_manufacturer_id": 147
+  },
+  "M-0094": {
+    "name": "MACTECH",
+    "knx_manufacturer_id": 148
+  },
+  "M-0095": {
+    "name": "TECHNO-TREND",
+    "knx_manufacturer_id": 149
+  },
+  "M-0096": {
+    "name": "FS Cables",
+    "knx_manufacturer_id": 150
+  },
+  "M-0097": {
+    "name": "Delta Dore",
+    "knx_manufacturer_id": 151
+  },
+  "M-0098": {
+    "name": "Eissound",
+    "knx_manufacturer_id": 152
+  },
+  "M-0099": {
+    "name": "Cisco",
+    "knx_manufacturer_id": 153
+  },
+  "M-009A": {
+    "name": "Dinuy",
+    "knx_manufacturer_id": 154
+  },
+  "M-009B": {
+    "name": "iKNiX",
+    "knx_manufacturer_id": 155
+  },
+  "M-009C": {
+    "name": "Rademacher Geräte-Elektronik GmbH",
+    "knx_manufacturer_id": 156
+  },
+  "M-009D": {
+    "name": "EGi Electroacustica General Iberica",
+    "knx_manufacturer_id": 157
+  },
+  "M-009E": {
+    "name": "Bes – Ingenium",
+    "knx_manufacturer_id": 158
+  },
+  "M-009F": {
+    "name": "ElabNET",
+    "knx_manufacturer_id": 159
+  },
+  "M-00A0": {
+    "name": "Blumotix",
+    "knx_manufacturer_id": 160
+  },
+  "M-00A1": {
+    "name": "Hunter Douglas",
+    "knx_manufacturer_id": 161
+  },
+  "M-00A2": {
+    "name": "APRICUM",
+    "knx_manufacturer_id": 162
+  },
+  "M-00A3": {
+    "name": "TIANSU Automation",
+    "knx_manufacturer_id": 163
+  },
+  "M-00A4": {
+    "name": "Bubendorff",
+    "knx_manufacturer_id": 164
+  },
+  "M-00A5": {
+    "name": "MBS GmbH",
+    "knx_manufacturer_id": 165
+  },
+  "M-00A6": {
+    "name": "Enertex Bayern GmbH",
+    "knx_manufacturer_id": 166
+  },
+  "M-00A7": {
+    "name": "BMS",
+    "knx_manufacturer_id": 167
+  },
+  "M-00A8": {
+    "name": "Sinapsi",
+    "knx_manufacturer_id": 168
+  },
+  "M-00A9": {
+    "name": "Embedded Systems SIA",
+    "knx_manufacturer_id": 169
+  },
+  "M-00AA": {
+    "name": "KNX1",
+    "knx_manufacturer_id": 170
+  },
+  "M-00AB": {
+    "name": "Tokka",
+    "knx_manufacturer_id": 171
+  },
+  "M-00AC": {
+    "name": "NanoSense",
+    "knx_manufacturer_id": 172
+  },
+  "M-00AD": {
+    "name": "PEAR Automation GmbH",
+    "knx_manufacturer_id": 173
+  },
+  "M-00AE": {
+    "name": "DGA",
+    "knx_manufacturer_id": 174
+  },
+  "M-00AF": {
+    "name": "Lutron",
+    "knx_manufacturer_id": 175
+  },
+  "M-00B0": {
+    "name": "AIRZONE – ALTRA",
+    "knx_manufacturer_id": 176
+  },
+  "M-00B1": {
+    "name": "Lithoss Design Switches",
+    "knx_manufacturer_id": 177
+  },
+  "M-00B2": {
+    "name": "3ATEL",
+    "knx_manufacturer_id": 178
+  },
+  "M-00B3": {
+    "name": "Philips Controls",
+    "knx_manufacturer_id": 179
+  },
+  "M-00B4": {
+    "name": "VELUX A/S",
+    "knx_manufacturer_id": 180
+  },
+  "M-00B5": {
+    "name": "LOYTEC",
+    "knx_manufacturer_id": 181
+  },
+  "M-00B6": {
+    "name": "Ekinex S.p.A.",
+    "knx_manufacturer_id": 182
+  },
+  "M-00B7": {
+    "name": "SIRLAN Technologies",
+    "knx_manufacturer_id": 183
+  },
+  "M-00B8": {
+    "name": "ProKNX SAS",
+    "knx_manufacturer_id": 184
+  },
+  "M-00B9": {
+    "name": "IT GmbH",
+    "knx_manufacturer_id": 185
+  },
+  "M-00BA": {
+    "name": "RENSON",
+    "knx_manufacturer_id": 186
+  },
+  "M-00BB": {
+    "name": "HEP Group",
+    "knx_manufacturer_id": 187
+  },
+  "M-00BC": {
+    "name": "Balmart",
+    "knx_manufacturer_id": 188
+  },
+  "M-00BD": {
+    "name": "GFS GmbH",
+    "knx_manufacturer_id": 189
+  },
+  "M-00BE": {
+    "name": "Schenker Storen AG",
+    "knx_manufacturer_id": 190
+  },
+  "M-00BF": {
+    "name": "Algodue Elettronica S.r.L.",
+    "knx_manufacturer_id": 191
+  },
+  "M-00C0": {
+    "name": "ABB France",
+    "knx_manufacturer_id": 192
+  },
+  "M-00C1": {
+    "name": "maintronic",
+    "knx_manufacturer_id": 193
+  },
+  "M-00C2": {
+    "name": "Vantage",
+    "knx_manufacturer_id": 194
+  },
+  "M-00C3": {
+    "name": "Foresis",
+    "knx_manufacturer_id": 195
+  },
+  "M-00C4": {
+    "name": "Research & Production Association SEM",
+    "knx_manufacturer_id": 196
+  },
+  "M-00C5": {
+    "name": "Weinzierl Engineering GmbH",
+    "knx_manufacturer_id": 197
+  },
+  "M-00C6": {
+    "name": "Möhlenhoff Wärmetechnik GmbH",
+    "knx_manufacturer_id": 198
+  },
+  "M-00C7": {
+    "name": "PKC-GROUP Oyj",
+    "knx_manufacturer_id": 199
+  },
+  "M-00C8": {
+    "name": "B.E.G.",
+    "knx_manufacturer_id": 200
+  },
+  "M-00C9": {
+    "name": "Elsner Elektronik GmbH",
+    "knx_manufacturer_id": 201
+  },
+  "M-00CA": {
+    "name": "Siemens Building Technologies (HK/China) Ltd.",
+    "knx_manufacturer_id": 202
+  },
+  "M-00CC": {
+    "name": "Eutrac",
+    "knx_manufacturer_id": 204
+  },
+  "M-00CD": {
+    "name": "Gustav Hensel GmbH & Co. KG",
+    "knx_manufacturer_id": 205
+  },
+  "M-00CE": {
+    "name": "GARO AB",
+    "knx_manufacturer_id": 206
+  },
+  "M-00CF": {
+    "name": "Waldmann Lichttechnik",
+    "knx_manufacturer_id": 207
+  },
+  "M-00D0": {
+    "name": "SCHÜCO",
+    "knx_manufacturer_id": 208
+  },
+  "M-00D1": {
+    "name": "EMU",
+    "knx_manufacturer_id": 209
+  },
+  "M-00D2": {
+    "name": "JNet Systems AG",
+    "knx_manufacturer_id": 210
+  },
+  "M-00D3": {
+    "name": "Total Solution GmbH",
+    "knx_manufacturer_id": 211
+  },
+  "M-00D6": {
+    "name": "O.Y.L. Electronics",
+    "knx_manufacturer_id": 214
+  },
+  "M-00D7": {
+    "name": "Galax System",
+    "knx_manufacturer_id": 215
+  },
+  "M-00D8": {
+    "name": "Disch",
+    "knx_manufacturer_id": 216
+  },
+  "M-00D9": {
+    "name": "Aucoteam",
+    "knx_manufacturer_id": 217
+  },
+  "M-00DA": {
+    "name": "Luxmate Controls",
+    "knx_manufacturer_id": 218
+  },
+  "M-00DB": {
+    "name": "Danfoss",
+    "knx_manufacturer_id": 219
+  },
+  "M-00DC": {
+    "name": "AST GmbH",
+    "knx_manufacturer_id": 220
+  },
+  "M-00DE": {
+    "name": "WILA Leuchten",
+    "knx_manufacturer_id": 222
+  },
+  "M-00DF": {
+    "name": "b+b Automations- und Steuerungstechnik",
+    "knx_manufacturer_id": 223
+  },
+  "M-00E1": {
+    "name": "Lingg & Janke",
+    "knx_manufacturer_id": 225
+  },
+  "M-00E3": {
+    "name": "Sauter",
+    "knx_manufacturer_id": 227
+  },
+  "M-00E4": {
+    "name": "SIMU",
+    "knx_manufacturer_id": 228
+  },
+  "M-00E8": {
+    "name": "Theben HTS AG",
+    "knx_manufacturer_id": 232
+  },
+  "M-00E9": {
+    "name": "Amann GmbH",
+    "knx_manufacturer_id": 233
+  },
+  "M-00EA": {
+    "name": "BERG Energiekontrollsysteme GmbH",
+    "knx_manufacturer_id": 234
+  },
+  "M-00EB": {
+    "name": "Hüppe Form Sonnenschutzsysteme GmbH",
+    "knx_manufacturer_id": 235
+  },
+  "M-00ED": {
+    "name": "Oventrop KG",
+    "knx_manufacturer_id": 237
+  },
+  "M-00EE": {
+    "name": "Griesser AG",
+    "knx_manufacturer_id": 238
+  },
+  "M-00EF": {
+    "name": "IPAS GmbH",
+    "knx_manufacturer_id": 239
+  },
+  "M-00F0": {
+    "name": "elero GmbH",
+    "knx_manufacturer_id": 240
+  },
+  "M-00F1": {
+    "name": "Ardan Production and Industrial Controls Ltd.",
+    "knx_manufacturer_id": 241
+  },
+  "M-00F2": {
+    "name": "Metec Meßtechnik GmbH",
+    "knx_manufacturer_id": 242
+  },
+  "M-00F4": {
+    "name": "ELKA-Elektronik GmbH",
+    "knx_manufacturer_id": 244
+  },
+  "M-00F5": {
+    "name": "ELEKTROANLAGEN D. NAGEL",
+    "knx_manufacturer_id": 245
+  },
+  "M-00F6": {
+    "name": "Tridonic Bauelemente GmbH",
+    "knx_manufacturer_id": 246
+  },
+  "M-00F8": {
+    "name": "Stengler Gesellschaft",
+    "knx_manufacturer_id": 248
+  },
+  "M-00F9": {
+    "name": "Schneider Electric (MG)",
+    "knx_manufacturer_id": 249
+  },
+  "M-00FA": {
+    "name": "KNX Association",
+    "knx_manufacturer_id": 250
+  },
+  "M-00FB": {
+    "name": "VIVO",
+    "knx_manufacturer_id": 251
+  },
+  "M-00FC": {
+    "name": "Hugo Müller GmbH & Co KG",
+    "knx_manufacturer_id": 252
+  },
+  "M-00FD": {
+    "name": "Siemens HVAC",
+    "knx_manufacturer_id": 253
+  },
+  "M-00FE": {
+    "name": "APT",
+    "knx_manufacturer_id": 254
+  },
+  "M-0100": {
+    "name": "HighDom",
+    "knx_manufacturer_id": 256
+  },
+  "M-0101": {
+    "name": "Top Services",
+    "knx_manufacturer_id": 257
+  },
+  "M-0102": {
+    "name": "ambiHome",
+    "knx_manufacturer_id": 258
+  },
+  "M-0103": {
+    "name": "DATEC electronic AG",
+    "knx_manufacturer_id": 259
+  },
+  "M-0104": {
+    "name": "ABUS Security-Center",
+    "knx_manufacturer_id": 260
+  },
+  "M-0105": {
+    "name": "Lite-Puter",
+    "knx_manufacturer_id": 261
+  },
+  "M-0106": {
+    "name": "Tantron Electronic",
+    "knx_manufacturer_id": 262
+  },
+  "M-0107": {
+    "name": "Interra",
+    "knx_manufacturer_id": 263
+  },
+  "M-0108": {
+    "name": "DKX Tech",
+    "knx_manufacturer_id": 264
+  },
+  "M-0109": {
+    "name": "Viatron",
+    "knx_manufacturer_id": 265
+  },
+  "M-010A": {
+    "name": "Nautibus",
+    "knx_manufacturer_id": 266
+  },
+  "M-010B": {
+    "name": "ON Semiconductor",
+    "knx_manufacturer_id": 267
+  },
+  "M-010C": {
+    "name": "Longchuang",
+    "knx_manufacturer_id": 268
+  },
+  "M-010D": {
+    "name": "Air-On AG",
+    "knx_manufacturer_id": 269
+  },
+  "M-010E": {
+    "name": "ib-company GmbH",
+    "knx_manufacturer_id": 270
+  },
+  "M-010F": {
+    "name": "Sation Factory",
+    "knx_manufacturer_id": 271
+  },
+  "M-0110": {
+    "name": "Agentilo GmbH",
+    "knx_manufacturer_id": 272
+  },
+  "M-0111": {
+    "name": "Makel Elektrik",
+    "knx_manufacturer_id": 273
+  },
+  "M-0112": {
+    "name": "Helios Ventilatoren",
+    "knx_manufacturer_id": 274
+  },
+  "M-0113": {
+    "name": "Otto Solutions Pte Ltd",
+    "knx_manufacturer_id": 275
+  },
+  "M-0114": {
+    "name": "Airmaster",
+    "knx_manufacturer_id": 276
+  },
+  "M-0115": {
+    "name": "Vallox GmbH",
+    "knx_manufacturer_id": 277
+  },
+  "M-0116": {
+    "name": "Dalitek",
+    "knx_manufacturer_id": 278
+  },
+  "M-0117": {
+    "name": "ASIN",
+    "knx_manufacturer_id": 279
+  },
+  "M-0118": {
+    "name": "Bridges Intelligence Technology Inc.",
+    "knx_manufacturer_id": 280
+  },
+  "M-0119": {
+    "name": "ARBONIA",
+    "knx_manufacturer_id": 281
+  },
+  "M-011A": {
+    "name": "KERMI",
+    "knx_manufacturer_id": 282
+  },
+  "M-011B": {
+    "name": "PROLUX",
+    "knx_manufacturer_id": 283
+  },
+  "M-011C": {
+    "name": "ClicHome",
+    "knx_manufacturer_id": 284
+  },
+  "M-011D": {
+    "name": "COMMAX",
+    "knx_manufacturer_id": 285
+  },
+  "M-011E": {
+    "name": "EAE",
+    "knx_manufacturer_id": 286
+  },
+  "M-011F": {
+    "name": "Tense",
+    "knx_manufacturer_id": 287
+  },
+  "M-0120": {
+    "name": "Seyoung Electronics",
+    "knx_manufacturer_id": 288
+  },
+  "M-0121": {
+    "name": "Lifedomus",
+    "knx_manufacturer_id": 289
+  },
+  "M-0122": {
+    "name": "EUROtronic Technology GmbH",
+    "knx_manufacturer_id": 290
+  },
+  "M-0123": {
+    "name": "tci",
+    "knx_manufacturer_id": 291
+  },
+  "M-0124": {
+    "name": "Rishun Electronic",
+    "knx_manufacturer_id": 292
+  },
+  "M-0125": {
+    "name": "Zipato",
+    "knx_manufacturer_id": 293
+  },
+  "M-0126": {
+    "name": "cm-security GmbH & Co KG",
+    "knx_manufacturer_id": 294
+  },
+  "M-0127": {
+    "name": "Qing Cables",
+    "knx_manufacturer_id": 295
+  },
+  "M-0128": {
+    "name": "LABIO",
+    "knx_manufacturer_id": 296
+  },
+  "M-0129": {
+    "name": "Coster Tecnologie Elettroniche S.p.A.",
+    "knx_manufacturer_id": 297
+  },
+  "M-012A": {
+    "name": "E.G.E",
+    "knx_manufacturer_id": 298
+  },
+  "M-012B": {
+    "name": "NETxAutomation",
+    "knx_manufacturer_id": 299
+  },
+  "M-012C": {
+    "name": "tecalor",
+    "knx_manufacturer_id": 300
+  },
+  "M-012D": {
+    "name": "Urmet Electronics (Huizhou) Ltd.",
+    "knx_manufacturer_id": 301
+  },
+  "M-012E": {
+    "name": "Peiying Building Control",
+    "knx_manufacturer_id": 302
+  },
+  "M-012F": {
+    "name": "BPT S.p.A. a Socio Unico",
+    "knx_manufacturer_id": 303
+  },
+  "M-0130": {
+    "name": "Kanontec - KanonBUS",
+    "knx_manufacturer_id": 304
+  },
+  "M-0131": {
+    "name": "ISER Tech",
+    "knx_manufacturer_id": 305
+  },
+  "M-0132": {
+    "name": "Fineline",
+    "knx_manufacturer_id": 306
+  },
+  "M-0133": {
+    "name": "CP Electronics Ltd",
+    "knx_manufacturer_id": 307
+  },
+  "M-0134": {
+    "name": "Niko-Servodan A/S",
+    "knx_manufacturer_id": 308
+  },
+  "M-0135": {
+    "name": "Simon",
+    "knx_manufacturer_id": 309
+  },
+  "M-0136": {
+    "name": "GM modular pvt. Ltd.",
+    "knx_manufacturer_id": 310
+  },
+  "M-0137": {
+    "name": "FU CHENG Intelligence",
+    "knx_manufacturer_id": 311
+  },
+  "M-0138": {
+    "name": "NexKon",
+    "knx_manufacturer_id": 312
+  },
+  "M-0139": {
+    "name": "FEEL s.r.l",
+    "knx_manufacturer_id": 313
+  },
+  "M-013A": {
+    "name": "Not Assigned",
+    "knx_manufacturer_id": 314
+  },
+  "M-013B": {
+    "name": "Shenzhen Fanhai Sanjiang Electronics Co., Ltd.",
+    "knx_manufacturer_id": 315
+  },
+  "M-013C": {
+    "name": "Jiuzhou Greeble",
+    "knx_manufacturer_id": 316
+  },
+  "M-013D": {
+    "name": "Aumüller Aumatic GmbH",
+    "knx_manufacturer_id": 317
+  },
+  "M-013E": {
+    "name": "Etman Electric",
+    "knx_manufacturer_id": 318
+  },
+  "M-013F": {
+    "name": "Black Nova",
+    "knx_manufacturer_id": 319
+  },
+  "M-0140": {
+    "name": "ZidaTech AG",
+    "knx_manufacturer_id": 320
+  },
+  "M-0141": {
+    "name": "IDGS bvba",
+    "knx_manufacturer_id": 321
+  },
+  "M-0142": {
+    "name": "dakanimo",
+    "knx_manufacturer_id": 322
+  },
+  "M-0143": {
+    "name": "Trebor Automation AB",
+    "knx_manufacturer_id": 323
+  },
+  "M-0144": {
+    "name": "Satel sp. z o.o.",
+    "knx_manufacturer_id": 324
+  },
+  "M-0145": {
+    "name": "Russound, Inc.",
+    "knx_manufacturer_id": 325
+  },
+  "M-0146": {
+    "name": "Midea Heating & Ventilating Equipment CO LTD",
+    "knx_manufacturer_id": 326
+  },
+  "M-0147": {
+    "name": "Consorzio Terranuova",
+    "knx_manufacturer_id": 327
+  },
+  "M-0148": {
+    "name": "Wolf Heiztechnik GmbH",
+    "knx_manufacturer_id": 328
+  },
+  "M-0149": {
+    "name": "SONTEC",
+    "knx_manufacturer_id": 329
+  },
+  "M-014A": {
+    "name": "Belcom Cables Ltd.",
+    "knx_manufacturer_id": 330
+  },
+  "M-014B": {
+    "name": "Guangzhou SeaWin Electrical Technologies Co., Ltd.",
+    "knx_manufacturer_id": 331
+  },
+  "M-014C": {
+    "name": "Acrel",
+    "knx_manufacturer_id": 332
+  },
+  "M-014D": {
+    "name": "Franke Aquarotter GmbH",
+    "knx_manufacturer_id": 333
+  },
+  "M-014E": {
+    "name": "Orion Systems",
+    "knx_manufacturer_id": 334
+  },
+  "M-014F": {
+    "name": "Schrack Technik GmbH",
+    "knx_manufacturer_id": 335
+  },
+  "M-0150": {
+    "name": "INSPRID",
+    "knx_manufacturer_id": 336
+  },
+  "M-0151": {
+    "name": "Sunricher",
+    "knx_manufacturer_id": 337
+  },
+  "M-0152": {
+    "name": "Menred automation system(shanghai) Co.,Ltd.",
+    "knx_manufacturer_id": 338
+  },
+  "M-0153": {
+    "name": "Aurex",
+    "knx_manufacturer_id": 339
+  },
+  "M-0154": {
+    "name": "Josef Barthelme GmbH & Co. KG",
+    "knx_manufacturer_id": 340
+  },
+  "M-0155": {
+    "name": "Architecture Numerique",
+    "knx_manufacturer_id": 341
+  },
+  "M-0156": {
+    "name": "UP GROUP",
+    "knx_manufacturer_id": 342
+  },
+  "M-0157": {
+    "name": "Teknos-Avinno",
+    "knx_manufacturer_id": 343
+  },
+  "M-0158": {
+    "name": "Ningbo Dooya Mechanic & Electronic Technology",
+    "knx_manufacturer_id": 344
+  },
+  "M-0159": {
+    "name": "Thermokon Sensortechnik GmbH",
+    "knx_manufacturer_id": 345
+  },
+  "M-015A": {
+    "name": "BELIMO Automation AG",
+    "knx_manufacturer_id": 346
+  },
+  "M-015B": {
+    "name": "Zehnder Group International AG",
+    "knx_manufacturer_id": 347
+  },
+  "M-015C": {
+    "name": "sks Kinkel Elektronik",
+    "knx_manufacturer_id": 348
+  },
+  "M-015D": {
+    "name": "ECE Wurmitzer GmbH",
+    "knx_manufacturer_id": 349
+  },
+  "M-015E": {
+    "name": "LARS",
+    "knx_manufacturer_id": 350
+  },
+  "M-015F": {
+    "name": "URC",
+    "knx_manufacturer_id": 351
+  },
+  "M-0160": {
+    "name": "LightControl",
+    "knx_manufacturer_id": 352
+  },
+  "M-0161": {
+    "name": "ShenZhen YM",
+    "knx_manufacturer_id": 353
+  },
+  "M-0162": {
+    "name": "MEAN WELL Enterprises Co. Ltd.",
+    "knx_manufacturer_id": 354
+  },
+  "M-0163": {
+    "name": "OSix",
+    "knx_manufacturer_id": 355
+  },
+  "M-0164": {
+    "name": "AYPRO Technology",
+    "knx_manufacturer_id": 356
+  },
+  "M-0165": {
+    "name": "Hefei Ecolite Software",
+    "knx_manufacturer_id": 357
+  },
+  "M-0166": {
+    "name": "Enno",
+    "knx_manufacturer_id": 358
+  },
+  "M-0167": {
+    "name": "OHOSURE",
+    "knx_manufacturer_id": 359
+  },
+  "M-0168": {
+    "name": "Garefowl",
+    "knx_manufacturer_id": 360
+  },
+  "M-0169": {
+    "name": "GEZE",
+    "knx_manufacturer_id": 361
+  },
+  "M-016A": {
+    "name": "LG Electronics Inc.",
+    "knx_manufacturer_id": 362
+  },
+  "M-016B": {
+    "name": "SMC interiors",
+    "knx_manufacturer_id": 363
+  },
+  "M-016C": {
+    "name": "Not Assigned",
+    "knx_manufacturer_id": 364
+  },
+  "M-016D": {
+    "name": "SCS Cable",
+    "knx_manufacturer_id": 365
+  },
+  "M-016E": {
+    "name": "Hoval",
+    "knx_manufacturer_id": 366
+  },
+  "M-016F": {
+    "name": "CANST",
+    "knx_manufacturer_id": 367
+  },
+  "M-0170": {
+    "name": "HangZhou Berlin",
+    "knx_manufacturer_id": 368
+  },
+  "M-0171": {
+    "name": "EVN-Lichttechnik",
+    "knx_manufacturer_id": 369
+  },
+  "M-0172": {
+    "name": "rutec",
+    "knx_manufacturer_id": 370
+  },
+  "M-0173": {
+    "name": "Finder",
+    "knx_manufacturer_id": 371
+  },
+  "M-0174": {
+    "name": "Fujitsu General Limited",
+    "knx_manufacturer_id": 372
+  },
+  "M-0175": {
+    "name": "ZF Friedrichshafen AG",
+    "knx_manufacturer_id": 373
+  },
+  "M-0176": {
+    "name": "Crealed",
+    "knx_manufacturer_id": 374
+  },
+  "M-0177": {
+    "name": "Miles Magic Automation Private Limited",
+    "knx_manufacturer_id": 375
+  },
+  "M-0178": {
+    "name": "E+",
+    "knx_manufacturer_id": 376
+  },
+  "M-0179": {
+    "name": "Italcond",
+    "knx_manufacturer_id": 377
+  },
+  "M-017A": {
+    "name": "SATION",
+    "knx_manufacturer_id": 378
+  },
+  "M-017B": {
+    "name": "NewBest",
+    "knx_manufacturer_id": 379
+  },
+  "M-017C": {
+    "name": "GDS DIGITAL SYSTEMS",
+    "knx_manufacturer_id": 380
+  },
+  "M-017D": {
+    "name": "Iddero",
+    "knx_manufacturer_id": 381
+  },
+  "M-017E": {
+    "name": "MBNLED",
+    "knx_manufacturer_id": 382
+  },
+  "M-017F": {
+    "name": "VITRUM",
+    "knx_manufacturer_id": 383
+  },
+  "M-0180": {
+    "name": "ekey biometric systems GmbH",
+    "knx_manufacturer_id": 384
+  },
+  "M-0181": {
+    "name": "AMC",
+    "knx_manufacturer_id": 385
+  },
+  "M-0182": {
+    "name": "TRILUX GmbH & Co. KG",
+    "knx_manufacturer_id": 386
+  },
+  "M-0183": {
+    "name": "WExcedo",
+    "knx_manufacturer_id": 387
+  },
+  "M-0184": {
+    "name": "VEMER SPA",
+    "knx_manufacturer_id": 388
+  },
+  "M-0185": {
+    "name": "Alexander Bürkle GmbH & Co KG",
+    "knx_manufacturer_id": 389
+  },
+  "M-0186": {
+    "name": "Citron",
+    "knx_manufacturer_id": 390
+  },
+  "M-0187": {
+    "name": "Shenzhen HeGuang",
+    "knx_manufacturer_id": 391
+  },
+  "M-0188": {
+    "name": "Not Assigned",
+    "knx_manufacturer_id": 392
+  },
+  "M-0189": {
+    "name": "TRANE B.V.B.A",
+    "knx_manufacturer_id": 393
+  },
+  "M-018A": {
+    "name": "CAREL",
+    "knx_manufacturer_id": 394
+  },
+  "M-018B": {
+    "name": "Prolite Controls",
+    "knx_manufacturer_id": 395
+  },
+  "M-018C": {
+    "name": "BOSMER",
+    "knx_manufacturer_id": 396
+  },
+  "M-018D": {
+    "name": "EUCHIPS",
+    "knx_manufacturer_id": 397
+  },
+  "M-018E": {
+    "name": "connect (Thinka connect)",
+    "knx_manufacturer_id": 398
+  },
+  "M-018F": {
+    "name": "PEAKnx a DOGAWIST company ",
+    "knx_manufacturer_id": 399
+  },
+  "M-0190": {
+    "name": "ACEMATIC",
+    "knx_manufacturer_id": 400
+  },
+  "M-0191": {
+    "name": "ELAUSYS",
+    "knx_manufacturer_id": 401
+  },
+  "M-0192": {
+    "name": "ITK Engineering AG",
+    "knx_manufacturer_id": 402
+  },
+  "M-0193": {
+    "name": "INTEGRA METERING AG",
+    "knx_manufacturer_id": 403
+  },
+  "M-0194": {
+    "name": "FMS Hospitality Pte Ltd",
+    "knx_manufacturer_id": 404
+  },
+  "M-0195": {
+    "name": "Nuvo",
+    "knx_manufacturer_id": 405
+  },
+  "M-0196": {
+    "name": "u::Lux GmbH",
+    "knx_manufacturer_id": 406
+  },
+  "M-0197": {
+    "name": "Brumberg Leuchten",
+    "knx_manufacturer_id": 407
+  },
+  "M-0198": {
+    "name": "Lime",
+    "knx_manufacturer_id": 408
+  },
+  "M-0199": {
+    "name": "Great Empire International Group Co., Ltd.",
+    "knx_manufacturer_id": 409
+  },
+  "M-019A": {
+    "name": "Kavoshpishro Asia",
+    "knx_manufacturer_id": 410
+  },
+  "M-019B": {
+    "name": "V2 SpA",
+    "knx_manufacturer_id": 411
+  },
+  "M-019C": {
+    "name": "Johnson Controls",
+    "knx_manufacturer_id": 412
+  },
+  "M-019D": {
+    "name": "Arkud",
+    "knx_manufacturer_id": 413
+  },
+  "M-019E": {
+    "name": "Iridium Ltd.",
+    "knx_manufacturer_id": 414
+  },
+  "M-019F": {
+    "name": "bsmart",
+    "knx_manufacturer_id": 415
+  },
+  "M-01A0": {
+    "name": "BAB TECHNOLOGIE GmbH",
+    "knx_manufacturer_id": 416
+  },
+  "M-01A1": {
+    "name": "NICE Spa",
+    "knx_manufacturer_id": 417
+  },
+  "M-01A2": {
+    "name": "Redfish Group Pty Ltd",
+    "knx_manufacturer_id": 418
+  },
+  "M-01A3": {
+    "name": "SABIANA spa",
+    "knx_manufacturer_id": 419
+  },
+  "M-01A4": {
+    "name": "Ubee Interactive Europe",
+    "knx_manufacturer_id": 420
+  },
+  "M-01A5": {
+    "name": "Rexel",
+    "knx_manufacturer_id": 421
+  },
+  "M-01A6": {
+    "name": "Ges Teknik A.S.",
+    "knx_manufacturer_id": 422
+  },
+  "M-01A7": {
+    "name": "Ave S.p.A. ",
+    "knx_manufacturer_id": 423
+  },
+  "M-01A8": {
+    "name": "Zhuhai Ltech Technology Co., Ltd. ",
+    "knx_manufacturer_id": 424
+  },
+  "M-01A9": {
+    "name": "ARCOM",
+    "knx_manufacturer_id": 425
+  },
+  "M-01AA": {
+    "name": "VIA Technologies, Inc.",
+    "knx_manufacturer_id": 426
+  },
+  "M-01AB": {
+    "name": "FEELSMART.",
+    "knx_manufacturer_id": 427
+  },
+  "M-01AC": {
+    "name": "SUPCON",
+    "knx_manufacturer_id": 428
+  },
+  "M-01AD": {
+    "name": "MANIC",
+    "knx_manufacturer_id": 429
+  },
+  "M-01AE": {
+    "name": "TDE GmbH",
+    "knx_manufacturer_id": 430
+  },
+  "M-01AF": {
+    "name": "Nanjing Shufan Information technology Co.,Ltd.",
+    "knx_manufacturer_id": 431
+  },
+  "M-01B0": {
+    "name": "EWTech",
+    "knx_manufacturer_id": 432
+  },
+  "M-01B1": {
+    "name": "Kluger Automation GmbH",
+    "knx_manufacturer_id": 433
+  },
+  "M-01B2": {
+    "name": "JoongAng Control",
+    "knx_manufacturer_id": 434
+  },
+  "M-01B3": {
+    "name": "GreenControls Technology Sdn. Bhd.",
+    "knx_manufacturer_id": 435
+  },
+  "M-01B4": {
+    "name": "IME S.p.a.",
+    "knx_manufacturer_id": 436
+  },
+  "M-01B5": {
+    "name": "SiChuan HaoDing",
+    "knx_manufacturer_id": 437
+  },
+  "M-01B6": {
+    "name": "Mindjaga Ltd.",
+    "knx_manufacturer_id": 438
+  },
+  "M-01B7": {
+    "name": "RuiLi Smart Control",
+    "knx_manufacturer_id": 439
+  },
+  "M-01B8": {
+    "name": "CODESYS GmbH",
+    "knx_manufacturer_id": 440
+  },
+  "M-01B9": {
+    "name": "Moorgen Deutschland GmbH",
+    "knx_manufacturer_id": 441
+  },
+  "M-01BA": {
+    "name": "CULLMANN TECH",
+    "knx_manufacturer_id": 442
+  },
+  "M-01BB": {
+    "name": "Merck Window Technologies B.V. ",
+    "knx_manufacturer_id": 443
+  },
+  "M-01BC": {
+    "name": "ABEGO",
+    "knx_manufacturer_id": 444
+  },
+  "M-01BD": {
+    "name": "myGEKKO",
+    "knx_manufacturer_id": 445
+  },
+  "M-01BE": {
+    "name": "Ergo3 Sarl",
+    "knx_manufacturer_id": 446
+  },
+  "M-01BF": {
+    "name": "STmicroelectronics International N.V.",
+    "knx_manufacturer_id": 447
+  },
+  "M-01C0": {
+    "name": "cjc systems",
+    "knx_manufacturer_id": 448
+  },
+  "M-01C1": {
+    "name": "Sudoku",
+    "knx_manufacturer_id": 449
+  },
+  "M-01C3": {
+    "name": "AZ e-lite Pte Ltd",
+    "knx_manufacturer_id": 451
+  },
+  "M-01C4": {
+    "name": "Arlight",
+    "knx_manufacturer_id": 452
+  },
+  "M-01C5": {
+    "name": "Grünbeck Wasseraufbereitung GmbH",
+    "knx_manufacturer_id": 453
+  },
+  "M-01C6": {
+    "name": "Module Electronic",
+    "knx_manufacturer_id": 454
+  },
+  "M-01C7": {
+    "name": "KOPLAT",
+    "knx_manufacturer_id": 455
+  },
+  "M-01C8": {
+    "name": "Guangzhou Letour Life Technology Co., Ltd",
+    "knx_manufacturer_id": 456
+  },
+  "M-01C9": {
+    "name": "ILEVIA",
+    "knx_manufacturer_id": 457
+  },
+  "M-01CA": {
+    "name": "LN SYSTEMTEQ",
+    "knx_manufacturer_id": 458
+  },
+  "M-01CB": {
+    "name": "Hisense SmartHome",
+    "knx_manufacturer_id": 459
+  },
+  "M-01CC": {
+    "name": "Flink Automation System",
+    "knx_manufacturer_id": 460
+  },
+  "M-01CD": {
+    "name": "xxter bv",
+    "knx_manufacturer_id": 461
+  },
+  "M-01CE": {
+    "name": "lynxus technology",
+    "knx_manufacturer_id": 462
+  },
+  "M-01CF": {
+    "name": "ROBOT S.A.",
+    "knx_manufacturer_id": 463
+  },
+  "M-01D0": {
+    "name": "Shenzhen Atte Smart Life Co.,Ltd.",
+    "knx_manufacturer_id": 464
+  },
+  "M-01D1": {
+    "name": "Noblesse",
+    "knx_manufacturer_id": 465
+  },
+  "M-01D2": {
+    "name": "Advanced Devices",
+    "knx_manufacturer_id": 466
+  },
+  "M-01D3": {
+    "name": "Atrina Building Automation Co. Ltd",
+    "knx_manufacturer_id": 467
+  },
+  "M-01D4": {
+    "name": "Guangdong Daming Laffey electric Co., Ltd.",
+    "knx_manufacturer_id": 468
+  },
+  "M-01D5": {
+    "name": "Westerstrand Urfabrik AB",
+    "knx_manufacturer_id": 469
+  },
+  "M-01D6": {
+    "name": "Control4 Corporate",
+    "knx_manufacturer_id": 470
+  },
+  "M-01D7": {
+    "name": "Ontrol",
+    "knx_manufacturer_id": 471
+  },
+  "M-01D8": {
+    "name": "Starnet",
+    "knx_manufacturer_id": 472
+  },
+  "M-01D9": {
+    "name": "BETA CAVI",
+    "knx_manufacturer_id": 473
+  },
+  "M-01DA": {
+    "name": "EaseMore",
+    "knx_manufacturer_id": 474
+  },
+  "M-01DB": {
+    "name": "Vivaldi srl",
+    "knx_manufacturer_id": 475
+  },
+  "M-01DC": {
+    "name": "Gree Electric Appliances,Inc. of Zhuhai",
+    "knx_manufacturer_id": 476
+  },
+  "M-01DD": {
+    "name": "HWISCON",
+    "knx_manufacturer_id": 477
+  },
+  "M-01DE": {
+    "name": "Shanghai ELECON Intelligent Technology Co., Ltd.",
+    "knx_manufacturer_id": 478
+  },
+  "M-01DF": {
+    "name": "Kampmann",
+    "knx_manufacturer_id": 479
+  },
+  "M-01E0": {
+    "name": "Impolux GmbH / LEDIMAX",
+    "knx_manufacturer_id": 480
+  },
+  "M-01E1": {
+    "name": "Evaux",
+    "knx_manufacturer_id": 481
+  },
+  "M-01E2": {
+    "name": "Webro Cables & Connectors Limited",
+    "knx_manufacturer_id": 482
+  },
+  "M-01E3": {
+    "name": "Shanghai E-tech Solution",
+    "knx_manufacturer_id": 483
+  },
+  "M-01E4": {
+    "name": "Guangzhou HOKO Electric Co.,Ltd.",
+    "knx_manufacturer_id": 484
+  },
+  "M-01E5": {
+    "name": "LAMMIN HIGH TECH CO.,LTD",
+    "knx_manufacturer_id": 485
+  },
+  "M-01E6": {
+    "name": "Shenzhen Merrytek Technology Co., Ltd",
+    "knx_manufacturer_id": 486
+  },
+  "M-01E7": {
+    "name": "I-Luxus",
+    "knx_manufacturer_id": 487
+  },
+  "M-01E8": {
+    "name": "Elmos Semiconductor AG",
+    "knx_manufacturer_id": 488
+  },
+  "M-01E9": {
+    "name": "EmCom Technology Inc",
+    "knx_manufacturer_id": 489
+  },
+  "M-01EA": {
+    "name": "project innovations GmbH",
+    "knx_manufacturer_id": 490
+  },
+  "M-01EB": {
+    "name": "Itc",
+    "knx_manufacturer_id": 491
+  },
+  "M-01EC": {
+    "name": "ABB LV Installation Materials Company Ltd, Beijing",
+    "knx_manufacturer_id": 492
+  },
+  "M-01ED": {
+    "name": "Maico ",
+    "knx_manufacturer_id": 493
+  },
+  "M-01EF": {
+    "name": "ELAN SRL",
+    "knx_manufacturer_id": 495
+  },
+  "M-01F0": {
+    "name": "MinhHa Technology co.,Ltd",
+    "knx_manufacturer_id": 496
+  },
+  "M-01F1": {
+    "name": "Zhejiang Tianjie Industrial CORP.",
+    "knx_manufacturer_id": 497
+  },
+  "M-01F2": {
+    "name": "iAutomation Pty Limited",
+    "knx_manufacturer_id": 498
+  },
+  "M-01F3": {
+    "name": "Extron",
+    "knx_manufacturer_id": 499
+  },
+  "M-01F4": {
+    "name": "Freedompro",
+    "knx_manufacturer_id": 500
+  },
+  "M-01F5": {
+    "name": "1Home",
+    "knx_manufacturer_id": 501
+  },
+  "M-01F6": {
+    "name": "EOS Saunatechnik GmbH",
+    "knx_manufacturer_id": 502
+  },
+  "M-01F7": {
+    "name": "KUSATEK GmbH",
+    "knx_manufacturer_id": 503
+  },
+  "M-01F8": {
+    "name": "EisBär Scada",
+    "knx_manufacturer_id": 504
+  },
+  "M-01F9": {
+    "name": "AUTOMATISMI BENINCA S.P.A.",
+    "knx_manufacturer_id": 505
+  },
+  "M-01FA": {
+    "name": "Blendom",
+    "knx_manufacturer_id": 506
+  },
+  "M-01FB": {
+    "name": "Madel Air Technical diffusion",
+    "knx_manufacturer_id": 507
+  },
+  "M-01FC": {
+    "name": "NIKO",
+    "knx_manufacturer_id": 508
+  },
+  "M-01FD": {
+    "name": "Bosch Rexroth AG",
+    "knx_manufacturer_id": 509
+  },
+  "M-0200": {
+    "name": "C&M Products",
+    "knx_manufacturer_id": 512
+  },
+  "M-0201": {
+    "name": "Hörmann KG Verkaufsgesellschaft",
+    "knx_manufacturer_id": 513
+  },
+  "M-0202": {
+    "name": "Shanghai Rajayasa co.,LTD",
+    "knx_manufacturer_id": 514
+  },
+  "M-0203": {
+    "name": "SUZUKI",
+    "knx_manufacturer_id": 515
+  },
+  "M-0204": {
+    "name": "Silent Gliss International Ltd.",
+    "knx_manufacturer_id": 516
+  },
+  "M-0205": {
+    "name": "BEE Controls (ADGSC Group)",
+    "knx_manufacturer_id": 517
+  },
+  "M-0206": {
+    "name": "xDTecGmbH",
+    "knx_manufacturer_id": 518
+  },
+  "M-0207": {
+    "name": "OSRAM",
+    "knx_manufacturer_id": 519
+  },
+  "M-0208": {
+    "name": "Lebenor",
+    "knx_manufacturer_id": 520
+  },
+  "M-0209": {
+    "name": "automaneng",
+    "knx_manufacturer_id": 521
+  },
+  "M-020A": {
+    "name": "Honeywell Automation Solution control(China)",
+    "knx_manufacturer_id": 522
+  },
+  "M-020B": {
+    "name": "Hangzhou binthen Intelligence Technology Co.,Ltd",
+    "knx_manufacturer_id": 523
+  },
+  "M-020C": {
+    "name": "ETA Heiztechnik",
+    "knx_manufacturer_id": 524
+  },
+  "M-020D": {
+    "name": "DIVUS GmbH",
+    "knx_manufacturer_id": 525
+  },
+  "M-020E": {
+    "name": "Nanjing Taijiesai Intelligent Technology Co. Ltd.",
+    "knx_manufacturer_id": 526
+  },
+  "M-020F": {
+    "name": "Lunatone",
+    "knx_manufacturer_id": 527
+  },
+  "M-0210": {
+    "name": "ZHEJIANG SCTECH BUILDING INTELLIGENT",
+    "knx_manufacturer_id": 528
+  },
+  "M-0211": {
+    "name": "Foshan Qite Technology Co., Ltd.",
+    "knx_manufacturer_id": 529
+  },
+  "M-0212": {
+    "name": "NOKE",
+    "knx_manufacturer_id": 530
+  },
+  "M-0213": {
+    "name": "LANDCOM",
+    "knx_manufacturer_id": 531
+  },
+  "M-0214": {
+    "name": "Stork AS",
+    "knx_manufacturer_id": 532
+  },
+  "M-0215": {
+    "name": "Hangzhou Shendu Technology Co., Ltd.",
+    "knx_manufacturer_id": 533
+  },
+  "M-0216": {
+    "name": "CoolAutomation",
+    "knx_manufacturer_id": 534
+  },
+  "M-0217": {
+    "name": "Aprstern",
+    "knx_manufacturer_id": 535
+  },
+  "M-0218": {
+    "name": "sonnen",
+    "knx_manufacturer_id": 536
+  },
+  "M-0219": {
+    "name": "DNAKE",
+    "knx_manufacturer_id": 537
+  },
+  "M-021A": {
+    "name": "Neuberger Gebäudeautomation GmbH",
+    "knx_manufacturer_id": 538
+  },
+  "M-021B": {
+    "name": "Stiliger",
+    "knx_manufacturer_id": 539
+  },
+  "M-021C": {
+    "name": "Berghof Automation GmbH",
+    "knx_manufacturer_id": 540
+  },
+  "M-021D": {
+    "name": "Total Automation and controls GmbH",
+    "knx_manufacturer_id": 541
+  },
+  "M-021E": {
+    "name": "dovit",
+    "knx_manufacturer_id": 542
+  },
+  "M-021F": {
+    "name": "Instalighting GmbH",
+    "knx_manufacturer_id": 543
+  },
+  "M-0220": {
+    "name": "UNI-TEC",
+    "knx_manufacturer_id": 544
+  },
+  "M-0221": {
+    "name": "CasaTunes",
+    "knx_manufacturer_id": 545
+  },
+  "M-0222": {
+    "name": "EMT",
+    "knx_manufacturer_id": 546
+  },
+  "M-0223": {
+    "name": "Senfficient",
+    "knx_manufacturer_id": 547
+  },
+  "M-0224": {
+    "name": "Aurolite electrical panyu guangzhou limited",
+    "knx_manufacturer_id": 548
+  },
+  "M-0225": {
+    "name": "ABB Xiamen Smart Technology Co., Ltd.",
+    "knx_manufacturer_id": 549
+  },
+  "M-0226": {
+    "name": "Samson Electric Wire",
+    "knx_manufacturer_id": 550
+  },
+  "M-0227": {
+    "name": "T-Touching",
+    "knx_manufacturer_id": 551
+  },
+  "M-0228": {
+    "name": "Core Smart Home",
+    "knx_manufacturer_id": 552
+  },
+  "M-0229": {
+    "name": "GreenConnect Solutions SA",
+    "knx_manufacturer_id": 553
+  },
+  "M-022A": {
+    "name": "ELETTRONICA CONDUTTORI",
+    "knx_manufacturer_id": 554
+  },
+  "M-022B": {
+    "name": "MKFC",
+    "knx_manufacturer_id": 555
+  },
+  "M-022C": {
+    "name": "Automation+",
+    "knx_manufacturer_id": 556
+  },
+  "M-022D": {
+    "name": "blue and red",
+    "knx_manufacturer_id": 557
+  },
+  "M-022E": {
+    "name": "frogblue",
+    "knx_manufacturer_id": 558
+  },
+  "M-022F": {
+    "name": "SAVESOR",
+    "knx_manufacturer_id": 559
+  },
+  "M-0230": {
+    "name": "App Tech",
+    "knx_manufacturer_id": 560
+  },
+  "M-0231": {
+    "name": "sensortec AG",
+    "knx_manufacturer_id": 561
+  },
+  "M-0232": {
+    "name": "nysa technology & solutions",
+    "knx_manufacturer_id": 562
+  },
+  "M-0233": {
+    "name": "FARADITE",
+    "knx_manufacturer_id": 563
+  },
+  "M-0234": {
+    "name": "Optimus",
+    "knx_manufacturer_id": 564
+  },
+  "M-0235": {
+    "name": "KTS s.r.l.",
+    "knx_manufacturer_id": 565
+  },
+  "M-0236": {
+    "name": "Ramcro SPA",
+    "knx_manufacturer_id": 566
+  },
+  "M-0237": {
+    "name": "Wuhan WiseCreate Universe Technology Co., Ltd",
+    "knx_manufacturer_id": 567
+  },
+  "M-0238": {
+    "name": "BEMI Smart Home Ltd",
+    "knx_manufacturer_id": 568
+  },
+  "M-0239": {
+    "name": "Ardomus",
+    "knx_manufacturer_id": 569
+  },
+  "M-023A": {
+    "name": "ChangXing",
+    "knx_manufacturer_id": 570
+  },
+  "M-023B": {
+    "name": "E-Controls",
+    "knx_manufacturer_id": 571
+  },
+  "M-023C": {
+    "name": "AIB Technology",
+    "knx_manufacturer_id": 572
+  },
+  "M-023D": {
+    "name": "NVC",
+    "knx_manufacturer_id": 573
+  },
+  "M-023E": {
+    "name": "Kbox",
+    "knx_manufacturer_id": 574
+  },
+  "M-023F": {
+    "name": "CNS",
+    "knx_manufacturer_id": 575
+  },
+  "M-0240": {
+    "name": "Tyba",
+    "knx_manufacturer_id": 576
+  },
+  "M-0241": {
+    "name": "Atrel",
+    "knx_manufacturer_id": 577
+  },
+  "M-0242": {
+    "name": "Simon Electric (China) Co., LTD",
+    "knx_manufacturer_id": 578
+  },
+  "M-0243": {
+    "name": "Kordz Group",
+    "knx_manufacturer_id": 579
+  },
+  "M-0244": {
+    "name": "ND Electric",
+    "knx_manufacturer_id": 580
+  },
+  "M-0245": {
+    "name": "Controlium",
+    "knx_manufacturer_id": 581
+  },
+  "M-0246": {
+    "name": "FAMO GmbH & Co. KG",
+    "knx_manufacturer_id": 582
+  },
+  "M-0247": {
+    "name": "CDN Smart",
+    "knx_manufacturer_id": 583
+  },
+  "M-0248": {
+    "name": "Heston",
+    "knx_manufacturer_id": 584
+  },
+  "M-0249": {
+    "name": "ESLA CONEXIONES S.L.",
+    "knx_manufacturer_id": 585
+  },
+  "M-024A": {
+    "name": "Weishaupt",
+    "knx_manufacturer_id": 586
+  },
+  "M-024B": {
+    "name": "ASTRUM TECHNOLOGY",
+    "knx_manufacturer_id": 587
+  },
+  "M-024C": {
+    "name": "WUERTH ELEKTRONIK STELVIO KONTEK S.p.A.",
+    "knx_manufacturer_id": 588
+  },
+  "M-024D": {
+    "name": "NANOTECO corporation",
+    "knx_manufacturer_id": 589
+  },
+  "M-024E": {
+    "name": "Nietian",
+    "knx_manufacturer_id": 590
+  },
+  "M-024F": {
+    "name": "Sumsir",
+    "knx_manufacturer_id": 591
+  },
+  "M-0250": {
+    "name": "ORBIS TECNOLOGIA ELECTRICA SA",
+    "knx_manufacturer_id": 592
+  },
+  "M-0251": {
+    "name": "Nanjing Zhongyi IoT Technology Co., Ltd.",
+    "knx_manufacturer_id": 593
+  },
+  "M-0252": {
+    "name": "Anlips",
+    "knx_manufacturer_id": 594
+  },
+  "M-0253": {
+    "name": "GUANGDONG PAK CORPORATION CO., LTD",
+    "knx_manufacturer_id": 595
+  },
+  "M-0254": {
+    "name": "BVK Technology",
+    "knx_manufacturer_id": 596
+  },
+  "M-0255": {
+    "name": "Solomio srl",
+    "knx_manufacturer_id": 597
+  },
+  "M-0256": {
+    "name": "Domotica Labs",
+    "knx_manufacturer_id": 598
+  },
+  "M-0257": {
+    "name": "NVC International",
+    "knx_manufacturer_id": 599
+  },
+  "M-0258": {
+    "name": "BA",
+    "knx_manufacturer_id": 600
+  },
+  "M-0259": {
+    "name": "Iris Ceramica Group",
+    "knx_manufacturer_id": 601
+  },
+  "M-025A": {
+    "name": "Wireeo",
+    "knx_manufacturer_id": 602
+  },
+  "M-025B": {
+    "name": "nvclighting",
+    "knx_manufacturer_id": 603
+  },
+  "M-025C": {
+    "name": "Jinan Tian Da Sheng Information Technology Co.",
+    "knx_manufacturer_id": 604
+  },
+  "M-025D": {
+    "name": "Armiti trading",
+    "knx_manufacturer_id": 605
+  },
+  "M-025E": {
+    "name": "ELEK",
+    "knx_manufacturer_id": 606
+  },
+  "M-025F": {
+    "name": "Accordia sa",
+    "knx_manufacturer_id": 607
+  },
+  "M-0260": {
+    "name": "OURICAN",
+    "knx_manufacturer_id": 608
+  },
+  "M-0261": {
+    "name": "INLIWOSE",
+    "knx_manufacturer_id": 609
+  },
+  "M-0262": {
+    "name": "Bosch (Shanghai) Smart Life Technology Ltd.",
+    "knx_manufacturer_id": 610
+  },
+  "M-0263": {
+    "name": "SHK KNX",
+    "knx_manufacturer_id": 611
+  },
+  "M-0264": {
+    "name": "Ampio",
+    "knx_manufacturer_id": 612
+  },
+  "M-0265": {
+    "name": "Mingxing Wisdom",
+    "knx_manufacturer_id": 613
+  },
+  "M-0266": {
+    "name": "ALTEN SW GmbH",
+    "knx_manufacturer_id": 614
+  },
+  "M-0267": {
+    "name": "V.Y.C.srl",
+    "knx_manufacturer_id": 615
+  },
+  "M-0268": {
+    "name": "TERMINUS GROUP",
+    "knx_manufacturer_id": 616
+  },
+  "M-0269": {
+    "name": "Wonderful City Technology",
+    "knx_manufacturer_id": 617
+  },
+  "M-026A": {
+    "name": "QbicTechnology",
+    "knx_manufacturer_id": 618
+  },
+  "M-026B": {
+    "name": "Embedded Automation Equipment (Shanghai) Limited",
+    "knx_manufacturer_id": 619
+  },
+  "M-026C": {
+    "name": "onework",
+    "knx_manufacturer_id": 620
+  },
+  "M-026D": {
+    "name": "PL LINK",
+    "knx_manufacturer_id": 621
+  },
+  "M-026E": {
+    "name": "Fasel GmbH Elektronik",
+    "knx_manufacturer_id": 622
+  },
+  "M-026F": {
+    "name": "GoldenHome Smart",
+    "knx_manufacturer_id": 623
+  },
+  "M-0270": {
+    "name": "Goldmedal",
+    "knx_manufacturer_id": 624
+  },
+  "M-0271": {
+    "name": "Can'nX",
+    "knx_manufacturer_id": 625
+  },
+  "M-0273": {
+    "name": "EGI - Earth Goodness",
+    "knx_manufacturer_id": 627
+  },
+  "M-0274": {
+    "name": "Viega GmbH & Co. KG",
+    "knx_manufacturer_id": 628
+  },
+  "M-0275": {
+    "name": "Fredon Digital Buildings",
+    "knx_manufacturer_id": 629
+  },
+  "M-0276": {
+    "name": "Helukabel (Thailand) Co.,Ltd.",
+    "knx_manufacturer_id": 630
+  },
+  "M-0277": {
+    "name": "ACE Technology",
+    "knx_manufacturer_id": 631
+  },
+  "M-0278": {
+    "name": "MEX Electric Technology (Shanghai) Co., Ltd",
+    "knx_manufacturer_id": 632
+  },
+  "M-0279": {
+    "name": "SUMAMO",
+    "knx_manufacturer_id": 633
+  },
+  "M-027A": {
+    "name": "SVIT",
+    "knx_manufacturer_id": 634
+  },
+  "M-027B": {
+    "name": "tecget",
+    "knx_manufacturer_id": 635
+  },
+  "M-027C": {
+    "name": "Xeropoint",
+    "knx_manufacturer_id": 636
+  },
+  "M-027D": {
+    "name": "Honeywell Building Technologies",
+    "knx_manufacturer_id": 637
+  },
+  "M-027E": {
+    "name": "ComfortClick",
+    "knx_manufacturer_id": 638
+  },
+  "M-027F": {
+    "name": "DORBAS ELECTRIC",
+    "knx_manufacturer_id": 639
+  },
+  "M-0280": {
+    "name": "REMKO GmbH & Co. KG",
+    "knx_manufacturer_id": 640
+  },
+  "M-0281": {
+    "name": "Shenzhen Congxun Intelligent Technology Co., LTD",
+    "knx_manufacturer_id": 641
+  },
+  "M-0282": {
+    "name": "ANDAS",
+    "knx_manufacturer_id": 642
+  },
+  "M-0283": {
+    "name": "Hefei Chuang Yue Intelligent Technology Co.,LTD",
+    "knx_manufacturer_id": 643
+  },
+  "M-0284": {
+    "name": "Larfe",
+    "knx_manufacturer_id": 644
+  },
+  "M-0285": {
+    "name": "Dongguan Muhcci Electrical",
+    "knx_manufacturer_id": 645
+  },
+  "M-0286": {
+    "name": "STEC",
+    "knx_manufacturer_id": 646
+  },
+  "M-0287": {
+    "name": "ARIGO Software GmbH",
+    "knx_manufacturer_id": 647
+  },
+  "M-0288": {
+    "name": "Feishelec",
+    "knx_manufacturer_id": 648
+  },
+  "M-0289": {
+    "name": "GORDIC",
+    "knx_manufacturer_id": 649
+  },
+  "M-028A": {
+    "name": "Delta Electronics",
+    "knx_manufacturer_id": 650
+  },
+  "M-028B": {
+    "name": "Shanghai Lewin Intelligent Technology Co.,Ltd.",
+    "knx_manufacturer_id": 651
+  },
+  "M-028C": {
+    "name": "KG-POWER",
+    "knx_manufacturer_id": 652
+  },
+  "M-028D": {
+    "name": "Zhejiang Moorgen Intelligent Technology Co., Ltd",
+    "knx_manufacturer_id": 653
+  },
+  "M-028E": {
+    "name": "Guangdong Kanway",
+    "knx_manufacturer_id": 654
+  },
+  "M-028F": {
+    "name": "Phoenix Contact",
+    "knx_manufacturer_id": 655
+  },
+  "M-0290": {
+    "name": "RAMIREZ Engineering GmbH",
+    "knx_manufacturer_id": 656
+  },
+  "M-0291": {
+    "name": "Zhongshan Taiyang IMP&EXP. CO LTD",
+    "knx_manufacturer_id": 657
+  },
+  "M-0292": {
+    "name": "Vihan electric pvt ltd ",
+    "knx_manufacturer_id": 658
+  },
+  "M-0293": {
+    "name": "Splendid Minds GmbH",
+    "knx_manufacturer_id": 659
+  },
+  "M-0294": {
+    "name": "Estada",
+    "knx_manufacturer_id": 660
+  },
+  "M-0295": {
+    "name": "zhongyunxinzhikonggujituanyouxiangongsi",
+    "knx_manufacturer_id": 661
+  },
+  "M-0296": {
+    "name": "Stuhl Regelsysteme GmbH",
+    "knx_manufacturer_id": 662
+  },
+  "M-0297": {
+    "name": "Shenzhen Gluck Technology Co., LTD",
+    "knx_manufacturer_id": 663
+  },
+  "M-0298": {
+    "name": "Gaimex",
+    "knx_manufacturer_id": 664
+  },
+  "M-0299": {
+    "name": "B3 International S.R.L",
+    "knx_manufacturer_id": 665
+  },
+  "M-029A": {
+    "name": "MM Electro",
+    "knx_manufacturer_id": 666
+  },
+  "M-ABB2": {
+    "name": "ABB - reserved",
+    "knx_manufacturer_id": 43954
+  },
+  "M-ABB7": {
+    "name": "Busch-Jaeger Elektro - reserved",
+    "knx_manufacturer_id": 43959
+  }
+}

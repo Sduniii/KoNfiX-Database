@@ -54,7 +54,7 @@ def client(db):
 @pytest.fixture
 def sample_knxprod_bytes():
     return create_sample_knxprod_archive(
-        mfg_id="M-00C5",
+        mfg_id="M-0083",
         mfg_name="MDT technologies",
         order_number="AKS-0816.04",
         product_name="Schaltaktor 8-fach 16A",

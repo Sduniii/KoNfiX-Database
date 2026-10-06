@@ -21,7 +21,7 @@ def test_api_devices_and_manufacturers(client, sample_knxprod_bytes):
     assert len(res_search.json()["devices"]) >= 1
 
     # 3. Test filter by manufacturer
-    res_mfg = client.get("/api/v1/devices?manufacturer_id=M-00C5")
+    res_mfg = client.get("/api/v1/devices?manufacturer_id=M-0083")
     assert res_mfg.status_code == 200
     assert len(res_mfg.json()["devices"]) >= 1
 
@@ -29,7 +29,7 @@ def test_api_devices_and_manufacturers(client, sample_knxprod_bytes):
     res_all_mfg = client.get("/api/v1/manufacturers")
     assert res_all_mfg.status_code == 200
     mfgs = res_all_mfg.json()
-    assert any(m["knx_id"] == "M-00C5" for m in mfgs)
+    assert any(m["knx_id"] == "M-0083" for m in mfgs)
 
     # 5. Test stats
     res_stats = client.get("/api/v1/stats")
