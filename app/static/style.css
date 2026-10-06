@@ -490,6 +490,57 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Upload Results List */
+.upload-results-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 1rem;
+  text-align: left;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: #090d16;
+  padding: 0.5rem;
+}
+
+.upload-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.8rem;
+}
+
+.upload-result-item:last-child {
+  border-bottom: none;
+}
+
+.upload-result-item .item-name {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.upload-result-item .item-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.upload-result-item .item-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.upload-result-item .item-badge.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
 .loading-state {
   grid-column: 1 / -1;
   text-align: center;

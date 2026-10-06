@@ -204,7 +204,9 @@ function setupDropZone() {
   const dropZone = document.getElementById("dropZone");
   const fileInput = document.getElementById("fileInput");
   const uploadProgress = document.getElementById("uploadProgress");
+  const uploadSpinner = document.getElementById("uploadSpinner");
   const statusText = document.getElementById("uploadStatusText");
+  const resultsList = document.getElementById("uploadResultsList");
 
   dropZone.addEventListener("click", () => fileInput.click());
 
@@ -221,53 +223,116 @@ function setupDropZone() {
     e.preventDefault();
     dropZone.classList.remove("dragover");
     if (e.dataTransfer.files.length > 0) {
-      handleFileUpload(e.dataTransfer.files[0]);
+      handleFilesUpload(Array.from(e.dataTransfer.files));
     }
   });
 
   fileInput.addEventListener("change", () => {
     if (fileInput.files.length > 0) {
-      handleFileUpload(fileInput.files[0]);
+      handleFilesUpload(Array.from(fileInput.files));
     }
   });
 
-  async function handleFileUpload(file) {
+  async function handleFilesUpload(files) {
+    if (!files || files.length === 0) return;
+
     dropZone.style.display = "none";
     uploadProgress.style.display = "block";
-    statusText.textContent = `Sende '${file.name}' als application/octet-stream...`;
+    if (uploadSpinner) uploadSpinner.style.display = "block";
+    if (resultsList) {
+      resultsList.style.display = "none";
+      resultsList.innerHTML = "";
+    }
+
+    const fileCount = files.length;
+    statusText.textContent = fileCount === 1
+      ? `Lade '${files[0].name}' hoch und verarbeite...`
+      : `Lade ${fileCount} Dateien hoch und verarbeite...`;
 
     try {
-      // Send raw binary bytes via POST application/octet-stream!
-      const res = await fetch("/api/v1/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "X-File-Name": encodeURIComponent(file.name)
-        },
-        body: file
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Upload fehlgeschlagen");
+      let data;
+      if (fileCount === 1 && !files[0].name.toLowerCase().endsWith(".zip")) {
+        // Single knxprod file - send as raw octet-stream to /api/v1/upload
+        const file = files[0];
+        const res = await fetch("/api/v1/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-File-Name": encodeURIComponent(file.name)
+          },
+          body: file
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Upload fehlgeschlagen");
+      } else {
+        // Multiple files or ZIP archive - send to /api/v1/upload/batch
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("files", file);
+        }
+        const res = await fetch("/api/v1/upload/batch", {
+          method: "POST",
+          body: formData
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Upload fehlgeschlagen");
       }
 
-      statusText.innerHTML = `
-        <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich importiert!</span><br>
-        Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
-        Geräte: ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}
-      `;
+      if (uploadSpinner) uploadSpinner.style.display = "none";
+
+      if (data.results) {
+        // BatchUploadResponse
+        const isSuccess = data.status === "success";
+        const isPartial = data.status === "partial";
+        const statusColor = isSuccess ? "#10b981" : (isPartial ? "#f59e0b" : "#ef4444");
+        const statusIcon = isSuccess ? "✓" : (isPartial ? "⚠️" : "❌");
+
+        statusText.innerHTML = `
+          <span style="color: ${statusColor}; font-weight: 600;">${statusIcon} ${escapeHtml(data.message)}</span>
+        `;
+
+        if (resultsList) {
+          resultsList.style.display = "block";
+          resultsList.innerHTML = data.results.map(item => {
+            const itemSuccess = item.status === "success";
+            const badgeClass = itemSuccess ? "success" : "error";
+            const badgeText = itemSuccess ? "OK" : "Fehler";
+            const devCount = item.devices_imported ? item.devices_imported.length : 0;
+            const detail = itemSuccess
+              ? `${devCount} Gerät(e) indexiert`
+              : escapeHtml(item.message || "Fehler beim Import");
+
+            return `
+              <div class="upload-result-item">
+                <div>
+                  <div class="item-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</div>
+                  <small style="color: #64748b; font-size: 0.72rem;">${detail}</small>
+                </div>
+                <span class="item-badge ${badgeClass}">${badgeText}</span>
+              </div>
+            `;
+          }).join("");
+        }
+
+      } else {
+        // Single UploadResponse
+        statusText.innerHTML = `
+          <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich importiert!</span><br>
+          Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
+          Geräte: ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}
+        `;
+      }
 
       setTimeout(() => {
         document.getElementById("uploadModal").classList.remove("open");
-        dropZone.style.display = "block";
-        uploadProgress.style.display = "none";
+        resetUploadUI();
         loadStats();
         loadManufacturers();
         loadDevices();
-      }, 2500);
+      }, data.results && data.results.length > 3 ? 4000 : 2500);
 
     } catch (err) {
+      if (uploadSpinner) uploadSpinner.style.display = "none";
       statusText.innerHTML = `
         <span style="color: #ef4444; font-weight: 600;">❌ Fehler:</span><br>
         ${escapeHtml(err.message)}<br><br>
@@ -280,7 +345,17 @@ function setupDropZone() {
 function resetUploadUI() {
   document.getElementById("dropZone").style.display = "block";
   document.getElementById("uploadProgress").style.display = "none";
+  const spinner = document.getElementById("uploadSpinner");
+  if (spinner) spinner.style.display = "block";
+  const resultsList = document.getElementById("uploadResultsList");
+  if (resultsList) {
+    resultsList.style.display = "none";
+    resultsList.innerHTML = "";
+  }
+  const fileInput = document.getElementById("fileInput");
+  if (fileInput) fileInput.value = "";
 }
+
 
 function formatBytes(bytes) {
   if (!bytes) return "0 B";

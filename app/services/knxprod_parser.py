@@ -1,8 +1,9 @@
 import io
+import os
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 @dataclass
 class ParsedApplication:
@@ -208,3 +209,34 @@ def _parse_knx_xml_root(root: ET.Element, xml_filename: str) -> ParsedKnxprod:
         devices=devices,
         raw_xml_filename=xml_filename
     )
+
+
+def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
+    """
+    Inspects a ZIP archive and extracts all .knxprod files contained within it
+    (including in subfolders).
+    Ignores macOS metadata (__MACOSX) and hidden files.
+    Returns a list of (filename, bytes).
+    """
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        return []
+
+    results: List[Tuple[str, bytes]] = []
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        fname = info.filename
+        parts = fname.replace("\\", "/").split("/")
+        basename = parts[-1]
+        # Ignore macOS resource fork files, dotfiles, or __MACOSX directories
+        if any(p.startswith(".") or p == "__MACOSX" for p in parts):
+            continue
+        if basename.lower().endswith(".knxprod"):
+            try:
+                results.append((basename, zf.read(info)))
+            except Exception:
+                pass
+    return results
+

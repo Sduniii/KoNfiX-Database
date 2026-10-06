@@ -1,4 +1,5 @@
 import os
+from typing import List, Tuple, Union
 
 from fastapi import (
     APIRouter,
@@ -16,8 +17,14 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer
-from app.schemas.upload import ImportedApplication, ImportedDevice, UploadResponse
-from app.services.knxprod_parser import parse_knxprod_bytes
+from app.schemas.upload import (
+    BatchItemResult,
+    BatchUploadResponse,
+    ImportedApplication,
+    ImportedDevice,
+    UploadResponse,
+)
+from app.services.knxprod_parser import extract_knxprods_from_zip, parse_knxprod_bytes
 from app.services.storage import storage_service
 
 DB_GET_DEPENDENCY = Depends(get_db)
@@ -35,20 +42,21 @@ def verify_api_key(x_api_key: str | None = Header(None)):
 
 @router.post(
     "/upload",
-    response_model=UploadResponse,
+    response_model=Union[UploadResponse, BatchUploadResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Upload .knxprod file (raw application/octet-stream or multipart)",
+    summary="Upload .knxprod or .zip archive (raw application/octet-stream or multipart)",
     description=(
-        "Ultra-einfacher Upload für Hersteller: Sende die rohe .knxprod-Datei direkt als "
+        "Ultra-einfacher Upload für Hersteller: Sende die rohe .knxprod- oder .zip-Datei direkt als "
         "`application/octet-stream` im Body (optional mit Header `X-File-Name: ...`). "
-        "Das Backend entpackt das ZIP, parst die KNX-XML-Struktur (M-xxxx.xml) automatisch "
-        "und registriert Hersteller, Geräte, Applikationen und Metadaten in der Datenbank."
+        "Wird ein .zip-Archiv gesendet, werden alle darin enthaltenen .knxprod-Dateien automatisch "
+        "entpackt und importiert. Das Backend parst die KNX-XML-Struktur (M-xxxx.xml) und registriert "
+        "Hersteller, Geräte, Applikationen und Metadaten in der Datenbank."
     )
 )
 async def upload_knxprod(
     request: Request,
     db: Session = DB_GET_DEPENDENCY,
-    x_file_name: str | None = Header(None, description="Optionaler Dateiname der .knxprod-Datei"),
+    x_file_name: str | None = Header(None, description="Optionaler Dateiname der .knxprod- oder .zip-Datei"),
     filename: str | None = Query(None, description="Optionaler Dateiname via Query-Parameter"),
     _authorized: bool = Depends(verify_api_key)
 ):
@@ -81,17 +89,28 @@ async def upload_knxprod(
     if not file_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Keine Dateidaten empfangen. Bitte sende die Binärdaten der .knxprod-Datei."
+            detail="Keine Dateidaten empfangen. Bitte sende die Binärdaten der .knxprod- oder .zip-Datei."
         )
 
-    return _process_and_save_knxprod(file_bytes, resolved_filename, db)
+    # Check for batch ZIP archive containing .knxprod files
+    extracted_knxprods = extract_knxprods_from_zip(file_bytes)
+    if extracted_knxprods:
+        return _process_batch_knxprods(extracted_knxprods, db)
+
+    if resolved_filename.lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
+        )
+
+    return _process_single_knxprod(file_bytes, resolved_filename, db)
 
 
 @router.post(
     "/upload/form",
-    response_model=UploadResponse,
+    response_model=Union[UploadResponse, BatchUploadResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Upload .knxprod via standard Form Multipart",
+    summary="Upload .knxprod or .zip via standard Form Multipart",
     include_in_schema=False
 )
 async def upload_knxprod_form(
@@ -100,18 +119,93 @@ async def upload_knxprod_form(
     _authorized: bool = Depends(verify_api_key)
 ):
     content = await file.read()
-    return _process_and_save_knxprod(content, file.filename or "device.knxprod", db)
+    fname = file.filename or "device.knxprod"
+    extracted_knxprods = extract_knxprods_from_zip(content)
+    if extracted_knxprods:
+        return _process_batch_knxprods(extracted_knxprods, db)
+
+    if fname.lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
+        )
+
+    return _process_single_knxprod(content, fname, db)
 
 
-def _process_and_save_knxprod(file_bytes: bytes, filename: str, db: Session) -> UploadResponse:
+@router.post(
+    "/upload/batch",
+    response_model=BatchUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload multiple .knxprod or .zip files via multipart/form-data",
+    description=(
+        "Ermöglicht den gleichzeitigen Upload mehrerer .knxprod- und/oder .zip-Dateien. "
+        "ZIP-Archive werden automatisch entpackt. Alle enthaltenen .knxprod-Dateien werden "
+        "importiert und indexiert."
+    )
+)
+async def upload_knxprod_batch(
+    files: List[UploadFile] = File(..., description="Eine oder mehrere .knxprod- oder .zip-Dateien"),
+    db: Session = DB_GET_DEPENDENCY,
+    _authorized: bool = Depends(verify_api_key)
+):
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Keine Dateien zum Upload übergeben"
+        )
+
+    items_to_process: List[Tuple[str, bytes]] = []
+    failed_items: List[BatchItemResult] = []
+
+    for f in files:
+        fname = f.filename or "unknown.knxprod"
+        content = await f.read()
+        if not content:
+            failed_items.append(BatchItemResult(
+                filename=fname,
+                status="error",
+                message="Datei ist leer",
+                devices_imported=[]
+            ))
+            continue
+
+        extracted = extract_knxprods_from_zip(content)
+        if extracted:
+            items_to_process.extend(extracted)
+        elif fname.lower().endswith(".zip"):
+            failed_items.append(BatchItemResult(
+                filename=fname,
+                status="error",
+                message="ZIP-Archiv enthält keine .knxprod-Dateien",
+                devices_imported=[]
+            ))
+        else:
+            items_to_process.append((fname, content))
+
+    batch_resp = _process_batch_knxprods(items_to_process, db)
+    if failed_items:
+        batch_resp.results.extend(failed_items)
+        batch_resp.failed_count += len(failed_items)
+        batch_resp.total_files += len(failed_items)
+        if batch_resp.successful_count == 0:
+            batch_resp.status = "error"
+        else:
+            batch_resp.status = "partial"
+        batch_resp.message = (
+            f"{batch_resp.successful_count} von {batch_resp.total_files} Dateien "
+            f"erfolgreich importiert ({batch_resp.failed_count} fehlgeschlagen)"
+        )
+
+    return batch_resp
+
+
+def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadResponse:
     # 1. Parse XML and validate ZIP structure
     try:
         parsed = parse_knxprod_bytes(file_bytes)
     except ValueError as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Fehler bei der KNXProd-Verarbeitung: {e!s}"
-        )
+        raise ValueError(f"Fehler bei der KNXProd-Verarbeitung: {e!s}")
 
     # 2. Store binary file
     stored_path, sha256_hash, file_size = storage_service.save_knxprod_bytes(file_bytes, filename)
@@ -200,7 +294,7 @@ def _process_and_save_knxprod(file_bytes: bytes, filename: str, db: Session) -> 
             applications=app_responses
         ))
 
-    db.commit()
+    db.flush()
 
     return UploadResponse(
         status="success",
@@ -212,3 +306,73 @@ def _process_and_save_knxprod(file_bytes: bytes, filename: str, db: Session) -> 
         manufacturer_name=manufacturer.name,
         devices_imported=imported_devices_resp
     )
+
+
+def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session) -> UploadResponse:
+    try:
+        resp = _save_knxprod_db(file_bytes, filename, db)
+        db.commit()
+        return resp
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fehler bei der KNXProd-Verarbeitung: {e!s}"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Interner Fehler beim Speichern: {e!s}"
+        )
+
+
+def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> BatchUploadResponse:
+    results: List[BatchItemResult] = []
+    success_count = 0
+    fail_count = 0
+
+    for fname, fbytes in files:
+        savepoint = db.begin_nested()
+        try:
+            resp = _save_knxprod_db(fbytes, fname, db)
+            savepoint.commit()
+            success_count += 1
+            results.append(BatchItemResult(
+                filename=resp.filename,
+                status="success",
+                message="Erfolgreich importiert",
+                file_size_bytes=resp.file_size_bytes,
+                sha256=resp.sha256,
+                manufacturer_id=resp.manufacturer_id,
+                manufacturer_name=resp.manufacturer_name,
+                devices_imported=resp.devices_imported
+            ))
+        except Exception as e:
+            savepoint.rollback()
+            fail_count += 1
+            results.append(BatchItemResult(
+                filename=os.path.basename(fname),
+                status="error",
+                message=str(e),
+                devices_imported=[]
+            ))
+
+    if success_count > 0:
+        db.commit()
+
+    total = len(files)
+    batch_status = "success" if fail_count == 0 else ("partial" if success_count > 0 else "error")
+    msg = f"{success_count} von {total} Dateien erfolgreich importiert"
+    if fail_count > 0:
+        msg += f" ({fail_count} fehlgeschlagen)"
+
+    return BatchUploadResponse(
+        status=batch_status,
+        message=msg,
+        total_files=total,
+        successful_count=success_count,
+        failed_count=fail_count,
+        results=results
+    )
+

@@ -24,3 +24,22 @@ class UploadResponse(BaseModel):
     manufacturer_id: str
     manufacturer_name: str
     devices_imported: List[ImportedDevice]
+
+class BatchItemResult(BaseModel):
+    filename: str
+    status: str = "success"
+    message: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    sha256: Optional[str] = None
+    manufacturer_id: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    devices_imported: List[ImportedDevice] = []
+
+class BatchUploadResponse(BaseModel):
+    status: str = "success"
+    message: str
+    total_files: int
+    successful_count: int
+    failed_count: int
+    results: List[BatchItemResult]
+

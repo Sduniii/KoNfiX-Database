@@ -92,29 +92,31 @@
   <div class="modal-backdrop" id="uploadModal">
     <div class="modal">
       <div class="modal-header">
-        <h3>.knxprod Datei hochladen</h3>
+        <h3>.knxprod / .zip hochladen</h3>
         <button class="modal-close" id="closeUploadBtn">&times;</button>
       </div>
       <div class="modal-body">
         <p class="modal-desc">
-          Lade eine beliebige KNX-Produktdatenbank (<code>.knxprod</code>) hoch. Das System parst die XML-Metadaten automatisch und ordnet Hersteller, Produkte und Applikationen zu.
+          Lade eine oder mehrere KNX-Produktdatenbanken (<code>.knxprod</code>) oder ein <code>.zip</code>-Archiv hoch. Das System parst die XML-Metadaten automatisch und ordnet Hersteller, Produkte und Applikationen zu.
         </p>
 
         <div class="drop-zone" id="dropZone">
           <div class="drop-icon">📦</div>
-          <h4>.knxprod hier ablegen</h4>
-          <p>oder klicken zum Auswählen</p>
-          <input type="file" id="fileInput" accept=".knxprod,application/octet-stream,application/zip" hidden>
+          <h4>.knxprod oder .zip hier ablegen</h4>
+          <p>oder klicken zum Auswählen (auch mehrere Dateien)</p>
+          <input type="file" id="fileInput" accept=".knxprod,.zip,application/octet-stream,application/zip" multiple hidden>
         </div>
 
         <div class="upload-progress" id="uploadProgress" style="display: none;">
-          <div class="spinner"></div>
-          <p id="uploadStatusText">Analysiere KNX-XML und importiere Geräte...</p>
+          <div class="spinner" id="uploadSpinner"></div>
+          <div id="uploadStatusText">Analysiere KNX-XML und importiere Geräte...</div>
+          <div id="uploadResultsList" class="upload-results-list" style="display: none;"></div>
         </div>
 
         <div class="rest-hint">
-          <strong>Tipp für Hersteller:</strong> Upload ist auch direkt per REST möglich:<br>
-          <code>curl -X POST /api/v1/upload -H "Content-Type: application/octet-stream" --data-binary @file.knxprod</code>
+          <strong>Tipp für Automatisierung:</strong><br>
+          • Einzeldatei / ZIP: <code>curl -X POST /api/v1/upload -H "Content-Type: application/octet-stream" --data-binary @archiv.zip</code><br>
+          • Batch-Upload: <code>curl -X POST /api/v1/upload/batch -F "files=@datei1.knxprod" -F "files=@archiv.zip"</code>
         </div>
       </div>
     </div>
