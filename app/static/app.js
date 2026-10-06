@@ -378,6 +378,7 @@ function resetUploadUI() {
   if (resultsList) {
     resultsList.style.display = "none";
     resultsList.innerHTML = "";
+  }
   const fileInput = document.getElementById("fileInput");
   if (fileInput) fileInput.value = "";
   const consent = document.getElementById("uploadConsentCheckbox");
