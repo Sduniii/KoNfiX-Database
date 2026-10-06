@@ -138,10 +138,15 @@ async def test_upload_from_url_metadata_only_mode(client, sample_knxprod_bytes):
     assert res_dev.status_code == 200
     assert res_dev.json()["knxprod_file"]["source_url"] == fake_url
 
-    # Downloading the device must redirect per 302 to the remote URL since storage_path is None
-    res_dl = client.get("/api/v1/download/AKS-0816.04", follow_redirects=False)
+    # Downloading the device with redirect=true redirects to the remote URL
+    res_dl = client.get("/api/v1/download/AKS-0816.04?redirect=true", follow_redirects=False)
     assert res_dl.status_code == 302
     assert res_dl.headers["location"] == fake_url
+
+    # Downloading without redirect returns pure KoNfiX-YAML
+    res_yaml = client.get("/api/v1/download/AKS-0816.04")
+    assert res_yaml.status_code == 200
+    assert "text/yaml" in res_yaml.headers["content-type"]
 
 
 def test_batch_delete_devices(client, sample_knxprod_bytes):

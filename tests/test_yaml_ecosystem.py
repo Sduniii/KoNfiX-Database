@@ -167,3 +167,81 @@ parameters: []
     dev2 = client.get("/api/v1/devices/DIY-RELAY-4CH")
     assert dev2.status_code == 200
     assert dev2.json()["manufacturer"]["code"] == "diy-hacker"
+
+
+def test_order_number_with_slashes_yaml_viewer(client):
+    """Verify that devices with slashes in order numbers (e.g. ABB SA/S8.16.6.2) work with YAML endpoints."""
+    abb_yaml = """konfix_version: '1.0'
+manufacturer:
+  code: abb
+  name: ABB Stotz-Kontakt
+device:
+  order_number: SA/S8.16.6.2
+  name: 8-fach Schaltaktor C-Last
+application:
+  id: abb_sas816
+  name: Schalten 8f
+communication_objects:
+  - number: 1
+    name: Kanal A Schalten
+    dpt: DPT-1.001
+parameters: []
+"""
+    up_res = client.post("/api/v1/upload", content=abb_yaml.encode("utf-8"), headers={"Content-Type": "text/yaml"})
+    assert up_res.status_code == 201
+
+    # 1. Query endpoint
+    res_query = client.get("/api/v1/devices/yaml?order_number=SA/S8.16.6.2")
+    assert res_query.status_code == 200
+    assert "text/yaml" in res_query.headers["content-type"]
+    parsed = yaml.safe_load(res_query.text)
+    assert parsed["device"]["order_number"] == "SA/S8.16.6.2"
+
+    # 2. Path endpoint
+    res_path = client.get("/api/v1/devices/SA/S8.16.6.2/yaml")
+    assert res_path.status_code == 200
+    assert "text/yaml" in res_path.headers["content-type"]
+
+
+def test_database_backfill_legacy_devices():
+    """Verify that _backfill_device_yaml_specifications automatically populates yaml_content for legacy devices."""
+    from app.database import get_db, _backfill_device_yaml_specifications
+    from app.models import Device, Manufacturer, ApplicationProgram
+    from app.main import app
+
+    db = next(app.dependency_overrides[get_db]()) if get_db in app.dependency_overrides else None
+    if db:
+        mfg = Manufacturer(code="gira", name="Gira Giersiepen", knx_id="M-0008")
+        db.add(mfg)
+        db.flush()
+
+        dev = Device(
+            order_number="GIRA-2168-00",
+            name="Tastsensor 4 Komfort",
+            manufacturer_id=mfg.id,
+            yaml_content=None,
+            knxprod_file_id=None
+        )
+        db.add(dev)
+        db.flush()
+
+        app_rec = ApplicationProgram(
+            device_id=dev.id,
+            name="Tasten 4-fach",
+            app_id="gira_app_2168",
+            version="1.0"
+        )
+        db.add(app_rec)
+        db.commit()
+
+        # Run backfill
+        _backfill_device_yaml_specifications()
+
+        # Check that yaml_content was populated
+        db.refresh(dev)
+        assert dev.yaml_content is not None
+        assert "GIRA-2168-00" in dev.yaml_content
+        assert "gira" in dev.yaml_content
+        parsed = yaml.safe_load(dev.yaml_content)
+        assert parsed["device"]["order_number"] == "GIRA-2168-00"
+

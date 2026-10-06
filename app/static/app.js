@@ -266,7 +266,7 @@ function createDeviceCard(device) {
     </span>
   `).join("");
 
-  const yamlUrl = `/api/v1/devices/${encodeURIComponent(device.order_number)}/yaml`;
+  const yamlUrl = `/api/v1/devices/yaml?order_number=${encodeURIComponent(device.order_number)}`;
   const hasFile = !!device.knxprod_file || !!device.yaml_content;
   const hasSource = hasFile && !!(device.knxprod_file && device.knxprod_file.source_url);
   
@@ -1086,15 +1086,21 @@ async function openYamlViewer(orderNumber, deviceName) {
   title.textContent = `📄 ${deviceName || orderNumber}`;
   subtitle.textContent = `KoNfiX-YAML: ${orderNumber}`;
   pre.innerHTML = `<code>Lade YAML-Definition...</code>`;
-  dlBtn.href = `/api/v1/devices/${encodeURIComponent(orderNumber)}/yaml`;
+  const yamlUrl = `/api/v1/devices/yaml?order_number=${encodeURIComponent(orderNumber)}`;
+  dlBtn.href = yamlUrl;
   dlBtn.setAttribute("download", `${orderNumber}.yaml`);
 
   yamlModal.classList.add("open");
 
   try {
-    const res = await fetch(`/api/v1/devices/${encodeURIComponent(orderNumber)}/yaml`);
+    const res = await fetch(yamlUrl);
     if (!res.ok) {
-      pre.textContent = "Fehler beim Laden der YAML-Definition.";
+      let errDetail = "Fehler beim Laden der YAML-Definition.";
+      try {
+        const errJson = await res.json();
+        if (errJson && errJson.detail) errDetail = errJson.detail;
+      } catch (_) {}
+      pre.textContent = errDetail;
       return;
     }
     const yamlText = await res.text();
