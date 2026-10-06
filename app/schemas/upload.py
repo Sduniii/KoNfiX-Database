@@ -21,6 +21,7 @@ class UploadResponse(BaseModel):
     filename: str
     file_size_bytes: int
     sha256: str
+    source_url: Optional[str] = None
     manufacturer_id: str
     manufacturer_name: str
     devices_imported: List[ImportedDevice]
@@ -31,6 +32,7 @@ class BatchItemResult(BaseModel):
     message: Optional[str] = None
     file_size_bytes: Optional[int] = None
     sha256: Optional[str] = None
+    source_url: Optional[str] = None
     manufacturer_id: Optional[str] = None
     manufacturer_name: Optional[str] = None
     devices_imported: List[ImportedDevice] = []

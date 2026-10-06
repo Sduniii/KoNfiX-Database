@@ -16,6 +16,15 @@ def init_db():
     # Initialize DB schema immediately
     Base.metadata.create_all(bind=engine)
 
+    # Self-healing migration: Add source_url column if not present in legacy SQLite DBs
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE knxprod_files ADD COLUMN source_url VARCHAR(1024)"))
+            conn.commit()
+    except Exception:
+        pass  # Column already exists
+
     # Self-healing check for legacy manufacturer entries
     from app.database import SessionLocal
     from app.models import Manufacturer, Device
@@ -67,12 +76,18 @@ app = FastAPI(
 ### Features
 * **Zero-Config Upload für Hersteller**: `POST /api/v1/upload` mit `Content-Type: application/octet-stream` (automatische XML-Erkennung).
 * **Download per POST**: `POST /api/v1/download` mit Filterkriterien gibt direkt die `.knxprod`-Datei als `application/octet-stream` zurück.
-* **Klassischer Download per GET**: `GET /api/v1/download/{{order_number}}`.
+* **Klassischer Download per GET**: `GET /api/v1/download/{{order_number}}` (optional `?redirect=true` zur Hersteller-Original-URL).
 * **Geräte- & Herstellersuche**: Volltextsuche und Filterung via `GET /api/v1/devices` und `GET /api/v1/manufacturers`.
+
+### Rechtlicher Hinweis & Disclaimer (§ 23 MarkenG)
+* **Unabhängiges Projekt**: KoNfiX ist ein unabhängiges Open-Source-Projekt und steht in keiner geschäftlichen Beziehung zur KNX Association cvba oder den gelisteten Herstellern.
+* **Markenzeichen**: KNX® ist ein eingetragenes Warenzeichen der KNX Association cvba. Alle genannten Produkt- und Herstellernamen dienen ausschließlich der Identifikation und technischen Kompatibilitätsbeschreibung.
+* **Notice-and-Takedown**: Rechteinhaber können Löschungsanfragen jederzeit an `{settings.LEGAL_CONTACT_EMAIL}` richten.
     """,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
+
     openapi_url="/openapi.json"
 )
 

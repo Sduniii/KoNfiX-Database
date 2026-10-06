@@ -119,11 +119,14 @@ async def upload_knxprod(
     db: Session = DB_GET_DEPENDENCY,
     x_file_name: str | None = Header(None, description="Optionaler Dateiname der .knxprod- oder .zip-Datei"),
     filename: str | None = Query(None, description="Optionaler Dateiname via Query-Parameter"),
+    x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
+    source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
     _authorized: bool = Depends(verify_api_key)
 ):
     content_type = request.headers.get("content-type", "").lower()
     file_bytes: bytes = b""
     resolved_filename = unquote(x_file_name) if x_file_name else (filename or "device.knxprod")
+    resolved_source_url = unquote(x_source_url) if x_source_url else source_url
 
     if "application/octet-stream" in content_type or not content_type:
         # Raw binary streaming body with size cap
@@ -177,7 +180,7 @@ async def upload_knxprod(
             detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
         )
 
-    return _process_single_knxprod(file_bytes, resolved_filename, db)
+    return _process_single_knxprod(file_bytes, resolved_filename, db, source_url=resolved_source_url)
 
 
 @router.post(
@@ -190,10 +193,13 @@ async def upload_knxprod(
 async def upload_knxprod_form(
     file: UploadFile = FILE_OPEN,  
     db: Session = DB_GET_DEPENDENCY,
+    x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
+    source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
     _authorized: bool = Depends(verify_api_key)
 ):
     content = await _read_upload_file_capped(file)
     fname = file.filename or "device.knxprod"
+    resolved_source_url = unquote(x_source_url) if x_source_url else source_url
     try:
         extracted_knxprods = extract_knxprods_from_zip(content)
     except ValueError as e:
@@ -211,7 +217,7 @@ async def upload_knxprod_form(
             detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
         )
 
-    return _process_single_knxprod(content, fname, db)
+    return _process_single_knxprod(content, fname, db, source_url=resolved_source_url)
 
 
 
@@ -302,7 +308,7 @@ async def upload_knxprod_batch(
     return batch_resp
 
 
-def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadResponse:
+def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session, source_url: str | None = None) -> UploadResponse:
     # 1. Parse XML and validate ZIP structure
     try:
         parsed = parse_knxprod_bytes(file_bytes)
@@ -321,9 +327,13 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadRes
             file_size_bytes=file_size,
             sha256=sha256_hash,
             storage_path=stored_path,
-            mime_type="application/octet-stream"
+            mime_type="application/octet-stream",
+            source_url=source_url
         )
         db.add(knx_file_rec)
+        db.flush()
+    elif source_url and not knx_file_rec.source_url:
+        knx_file_rec.source_url = source_url
         db.flush()
 
     # 4. Check or create Manufacturer
@@ -405,15 +415,16 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadRes
         filename=knx_file_rec.filename,
         file_size_bytes=file_size,
         sha256=sha256_hash,
+        source_url=knx_file_rec.source_url,
         manufacturer_id=manufacturer.knx_id,
         manufacturer_name=manufacturer.name,
         devices_imported=imported_devices_resp
     )
 
 
-def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session) -> UploadResponse:
+def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session, source_url: str | None = None) -> UploadResponse:
     try:
-        resp = _save_knxprod_db(file_bytes, filename, db)
+        resp = _save_knxprod_db(file_bytes, filename, db, source_url=source_url)
         db.commit()
         return resp
     except ValueError as e:
@@ -452,6 +463,7 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
                 message="Erfolgreich importiert",
                 file_size_bytes=resp.file_size_bytes,
                 sha256=resp.sha256,
+                source_url=resp.source_url,
                 manufacturer_id=resp.manufacturer_id,
                 manufacturer_name=resp.manufacturer_name,
                 devices_imported=resp.devices_imported

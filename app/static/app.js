@@ -36,6 +36,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeDetailBtn = document.getElementById("closeDetailBtn");
   closeDetailBtn.addEventListener("click", () => detailModal.classList.remove("open"));
 
+  // Legal modal controls
+  const legalModal = document.getElementById("legalModal");
+  const openLegalBtn = document.getElementById("openLegalBtn");
+  const closeLegalBtn = document.getElementById("closeLegalBtn");
+  if (openLegalBtn && legalModal) {
+    openLegalBtn.addEventListener("click", () => legalModal.classList.add("open"));
+  }
+  if (closeLegalBtn && legalModal) {
+    closeLegalBtn.addEventListener("click", () => legalModal.classList.remove("open"));
+  }
+
   // Drag and drop setup
   setupDropZone();
 });
@@ -192,10 +203,21 @@ function showRestDetails(device) {
     <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">2. Download per GET (application/octet-stream):</h4>
     <div class="code-block">${escapeHtml(getCurl)}</div>
 
+    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">3. Download mit Hersteller-Redirect (HTTP 302):</h4>
+    <div class="code-block">${escapeHtml(`curl -L "${baseUrl}/api/v1/download/${device.order_number}?redirect=true"`)}</div>
+
     ${device.knxprod_file ? `
       <div style="margin-top: 1.25rem; font-size: 0.8rem; color: #94a3b8;">
         <strong>SHA256 Prüfsumme:</strong><br>
         <code style="color: #38bdf8; font-family: monospace;">${device.knxprod_file.sha256}</code>
+        ${device.knxprod_file.source_url ? `
+          <div style="margin-top: 0.5rem;">
+            <strong>Hersteller-Quelle:</strong><br>
+            <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; word-break: break-all;">
+              ${escapeHtml(device.knxprod_file.source_url)}
+            </a>
+          </div>
+        ` : ''}
       </div>
     ` : ''}
   `;
@@ -211,7 +233,14 @@ function setupDropZone() {
   const statusText = document.getElementById("uploadStatusText");
   const resultsList = document.getElementById("uploadResultsList");
 
-  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("click", () => {
+    const consent = document.getElementById("uploadConsentCheckbox");
+    if (consent && !consent.checked) {
+      alert("Bitte bestätigen Sie vor der Dateiauswahl das Berechtigungs-Häkchen.");
+      return;
+    }
+    fileInput.click();
+  });
 
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -238,6 +267,13 @@ function setupDropZone() {
 
   async function handleFilesUpload(files) {
     if (!files || files.length === 0) return;
+
+    const consent = document.getElementById("uploadConsentCheckbox");
+    if (consent && !consent.checked) {
+      alert("Bitte bestätigen Sie vor dem Upload die rechtliche Berechtigung bzw. die freie Verfügbarkeit der Datei.");
+      if (fileInput) fileInput.value = "";
+      return;
+    }
 
     dropZone.style.display = "none";
     uploadProgress.style.display = "block";
@@ -342,9 +378,10 @@ function resetUploadUI() {
   if (resultsList) {
     resultsList.style.display = "none";
     resultsList.innerHTML = "";
-  }
   const fileInput = document.getElementById("fileInput");
   if (fileInput) fileInput.value = "";
+  const consent = document.getElementById("uploadConsentCheckbox");
+  if (consent) consent.checked = false;
 }
 
 

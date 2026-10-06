@@ -31,12 +31,17 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["*"]
     CORS_ALLOW_CREDENTIALS: bool = False
 
+    # Legal & Compliance
+    LEGAL_CONTACT_EMAIL: str = "legal@konfix.sduni.de"
+    PREFER_SOURCE_REDIRECT: bool = False
+
     @property
     def cors_credentials_safe(self) -> bool:
         # According to CORS spec, allow_credentials cannot be True if '*' is in allowed origins
         if "*" in self.ALLOWED_ORIGINS:
             return False
         return self.CORS_ALLOW_CREDENTIALS
+
 
 settings = Settings()
 

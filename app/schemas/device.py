@@ -9,6 +9,7 @@ class KnxprodFileInfo(BaseModel):
     filename: str
     file_size_bytes: int
     sha256: str
+    source_url: Optional[str] = None
     uploaded_at: datetime
     download_url: str
 

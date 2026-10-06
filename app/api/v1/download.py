@@ -1,15 +1,16 @@
-import os
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from pathlib import Path
 
+from app.config import settings
 from app.database import get_db
 from app.models import Device, KnxprodFile, Manufacturer
 from app.schemas.download import DownloadRequest
 from app.services.storage import storage_service
 
 router = APIRouter(tags=["Download (.knxprod)"])
+
 
 @router.post(
     "/download",
@@ -68,12 +69,15 @@ def download_knxprod_post(
 
 @router.get(
     "/download/{order_number}",
-    response_class=FileResponse,
     summary="Download .knxprod via GET (application/octet-stream)",
-    description="Klassischer Download per HTTP GET anhand der Bestellnummer."
+    description=(
+        "Klassischer Download per HTTP GET anhand der Bestellnummer. "
+        "Mit Parameter ?redirect=true wird bei hinterlegter Hersteller-URL direkt per HTTP 302 weitergeleitet."
+    )
 )
 def download_knxprod_get(
     order_number: str,
+    redirect: bool = Query(False, description="Falls vorhanden, direkt zur offiziellen Hersteller-Download-URL per HTTP 302 weiterleiten"),
     db: Session = Depends(get_db)
 ):
     device = db.query(Device).join(Device.knxprod_file).filter(
@@ -86,12 +90,11 @@ def download_knxprod_get(
             detail=f"Keine .knxprod-Datei für Bestellnummer '{order_number}' gefunden."
         )
 
-    return _serve_file(device.knxprod_file, device.order_number)
+    return _serve_file(device.knxprod_file, device.order_number, prefer_redirect=redirect)
 
 
 @router.get(
     "/knxprod/{file_id}/download",
-    response_class=FileResponse,
     summary="Download .knxprod by file ID",
     include_in_schema=False
 )
@@ -102,7 +105,11 @@ def download_by_file_id(file_id: int, db: Session = Depends(get_db)):
     return _serve_file(file_rec, f"file_{file_id}")
 
 
-def _serve_file(file_rec: KnxprodFile, order_number: str) -> FileResponse:
+def _serve_file(file_rec: KnxprodFile, order_number: str, prefer_redirect: bool = False) -> Response:
+    should_redirect = prefer_redirect or settings.PREFER_SOURCE_REDIRECT
+    if should_redirect and file_rec.source_url:
+        return RedirectResponse(url=file_rec.source_url, status_code=status.HTTP_302_FOUND)
+
     try:
         file_path = storage_service.get_file_path(file_rec.storage_path)
     except ValueError:
@@ -112,6 +119,9 @@ def _serve_file(file_rec: KnxprodFile, order_number: str) -> FileResponse:
         )
 
     if not file_path.exists():
+        # Fallback to source_url if file was not stored locally (e.g. metadata-only catalog mode)
+        if file_rec.source_url:
+            return RedirectResponse(url=file_rec.source_url, status_code=status.HTTP_302_FOUND)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Die physische .knxprod-Datei wurde auf dem Server nicht gefunden."

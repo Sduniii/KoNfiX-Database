@@ -100,6 +100,13 @@
           Lade eine oder mehrere KNX-Produktdatenbanken (<code>.knxprod</code>) oder ein <code>.zip</code>-Archiv hoch. Das System parst die XML-Metadaten automatisch und ordnet Hersteller, Produkte und Applikationen zu.
         </p>
 
+        <div class="consent-box" style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+          <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
+            <input type="checkbox" id="uploadConsentCheckbox" style="margin-top: 0.2rem; cursor: pointer;">
+            <span>Ich bestätige, dass ich berechtigt bin, diese Gerätedatei hochzuladen oder dass es sich um vom Hersteller öffentlich und frei bereitgestellte KNX-Produktdatenbanken handelt.</span>
+          </label>
+        </div>
+
         <div class="drop-zone" id="dropZone">
           <div class="drop-icon">📦</div>
           <h4>.knxprod oder .zip hier ablegen</h4>
@@ -135,12 +142,48 @@
     </div>
   </div>
 
+  <!-- Legal Disclaimer Modal -->
+  <div class="modal-backdrop" id="legalModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Rechtliche Hinweise &amp; Disclaimer</h3>
+        <button class="modal-close" id="closeLegalBtn">&times;</button>
+      </div>
+      <div class="modal-body" style="line-height: 1.6; color: #cbd5e1; font-size: 0.9rem;">
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">1. Markenzeichen und Kompatibilität (§ 23 MarkenG)</h4>
+        <p style="margin-bottom: 1rem;">
+          KNX® und das KNX-Logo sind eingetragene Marken der KNX Association cvba, Brüssel. 
+          Dieses Projekt (&bdquo;KoNfiX-Database&ldquo;) ist ein unabhängiges Open-Source-Katalogsystem und steht in keiner geschäftlichen Verbindung, Partnerschaft oder offiziellen Beziehung zur KNX Association cvba oder den gelisteten Herstellern. 
+          Die Nennung von Marken, Herstellernamen und Produktbezeichnungen erfolgt ausschließlich zur sachgerechten Identifikation und Interoperabilitätsbestimmung im Sinne von § 23 MarkenG.
+        </p>
+
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">2. Zweck und Herkunft der Produktdaten</h4>
+        <p style="margin-bottom: 1rem;">
+          Die in dieser Datenbank indexierten Metadaten und <code>.knxprod</code>-Dateien dienen der technischen Parametrierung von Gebäudeautomationsanlagen. 
+          Sofern eine offizielle Hersteller-URL hinterlegt ist, leitet der Download-Endpunkt bevorzugt direkt auf den originalen CDN/Server des jeweiligen Herstellers weiter.
+        </p>
+
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">3. Notice-and-Takedown-Verfahren (Rechteinhaber)</h4>
+        <p style="margin-bottom: 1rem;">
+          Sollten Sie Rechteinhaber eines gelisteten Produkts sein und der Bereitstellung oder Verlinkung widersprechen wollen, senden Sie bitte eine formlose Mitteilung an:
+        </p>
+        <div class="code-block" style="display: inline-block; padding: 0.5rem 1rem; margin-bottom: 1rem; color: #38bdf8;">
+          legal@konfix.sduni.de
+        </div>
+        <p>
+          Wir prüfen eingehende Meldungen unverzüglich und entfernen beanstandete Dateien bzw. Einträge innerhalb kürzester Frist (&bdquo;Notice and Takedown&ldquo;).
+        </p>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
     <div class="container footer-content">
       <p>KoNfiX-Database &copy; 2026 &bull; KNX-kompatibles REST-Katalogsystem (AGPL-3.0)</p>
       <div class="footer-links">
         <a href="/docs">OpenAPI Spec</a>
         <a href="/api/v1/devices">JSON API</a>
+        <button id="openLegalBtn" style="background: none; border: none; color: inherit; font-size: inherit; cursor: pointer; text-decoration: underline; padding: 0;">Rechtliche Hinweise &amp; Disclaimer</button>
         <a href="https://github.com" target="_blank">GitHub Repository</a>
       </div>
     </div>

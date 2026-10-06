@@ -27,6 +27,7 @@ def _to_device_response(d: Device) -> DeviceResponse:
             filename=d.knxprod_file.filename,
             file_size_bytes=d.knxprod_file.file_size_bytes,
             sha256=d.knxprod_file.sha256,
+            source_url=d.knxprod_file.source_url,
             uploaded_at=d.knxprod_file.uploaded_at,
             download_url=f"/api/v1/download/{d.order_number}"
         )

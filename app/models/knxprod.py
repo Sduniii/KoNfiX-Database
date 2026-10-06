@@ -11,7 +11,9 @@ class KnxprodFile(Base):
     file_size_bytes = Column(BigInteger, nullable=False)
     sha256 = Column(String(64), unique=True, index=True, nullable=False)
     storage_path = Column(String(512), nullable=False)
+    source_url = Column(String(1024), nullable=True)
     mime_type = Column(String(64), default="application/octet-stream")
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     devices = relationship("Device", back_populates="knxprod_file")
+
