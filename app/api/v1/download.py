@@ -103,7 +103,14 @@ def download_by_file_id(file_id: int, db: Session = Depends(get_db)):
 
 
 def _serve_file(file_rec: KnxprodFile, order_number: str) -> FileResponse:
-    file_path = storage_service.get_file_path(file_rec.storage_path)
+    try:
+        file_path = storage_service.get_file_path(file_rec.storage_path)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Zugriff verweigert: Ungültiger Dateipfad."
+        )
+
     if not file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

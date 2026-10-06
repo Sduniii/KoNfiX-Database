@@ -21,8 +21,22 @@ class Settings(BaseSettings):
     # Security / Upload protection (empty = open upload for all manufacturers)
     API_KEY: str = ""
     
+    # Upload & DoS Protection Limits
+    MAX_UPLOAD_SIZE_BYTES: int = 50 * 1024 * 1024  # 50 MB
+    MAX_ZIP_EXTRACTED_BYTES: int = 200 * 1024 * 1024  # 200 MB total uncompressed
+    MAX_ZIP_FILES: int = 500  # Max entries in a zip archive
+    MAX_XML_PARSE_BYTES: int = 20 * 1024 * 1024  # 20 MB max single XML file
+    
     # CORS
     ALLOWED_ORIGINS: list[str] = ["*"]
+    CORS_ALLOW_CREDENTIALS: bool = False
+
+    @property
+    def cors_credentials_safe(self) -> bool:
+        # According to CORS spec, allow_credentials cannot be True if '*' is in allowed origins
+        if "*" in self.ALLOWED_ORIGINS:
+            return False
+        return self.CORS_ALLOW_CREDENTIALS
 
 settings = Settings()
 

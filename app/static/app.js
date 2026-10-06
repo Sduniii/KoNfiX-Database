@@ -119,14 +119,15 @@ function createDeviceCard(device) {
   const card = document.createElement("div");
   card.className = "device-card";
 
-  const appPills = device.applications.map(app => `
-    <span class="app-pill" title="Mask: ${app.mask_version || 'N/A'}, ComObjects: ${app.com_objects_count}">
+  const appPills = (device.applications || []).map(app => `
+    <span class="app-pill" title="Mask: ${escapeHtml(app.mask_version || 'N/A')}, ComObjects: ${app.com_objects_count}">
       ⚙️ ${escapeHtml(app.name)} ${app.version ? 'v' + escapeHtml(app.version) : ''}
     </span>
   `).join("");
 
+  const downloadUrl = `/api/v1/download/${encodeURIComponent(device.order_number)}`;
   const downloadBtn = device.knxprod_file ? `
-    <a href="/api/v1/download/${encodeURIComponent(device.order_number)}" class="btn btn-primary btn-sm" download>
+    <a href="${downloadUrl}" class="btn btn-primary btn-sm" download>
       ⬇️ .knxprod Download
     </a>
   ` : `<span class="badge">Keine Datei</span>`;
@@ -134,7 +135,7 @@ function createDeviceCard(device) {
   card.innerHTML = `
     <div class="card-top">
       <div>
-        <span class="badge badge-mfg">${escapeHtml(device.manufacturer.name)}</span>
+        <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
       </div>
       <span class="order-badge">${escapeHtml(device.order_number)}</span>
     </div>
@@ -143,7 +144,7 @@ function createDeviceCard(device) {
     
     <div class="card-specs">
       ${device.hardware_version ? `<span class="spec-item">HW: <strong>v${escapeHtml(device.hardware_version)}</strong></span>` : ''}
-      ${device.bus_current_ma ? `<span class="spec-item">Bus: <strong>${device.bus_current_ma} mA</strong></span>` : ''}
+      ${device.bus_current_ma != null ? `<span class="spec-item">Bus: <strong>${device.bus_current_ma} mA</strong></span>` : ''}
       ${device.knxprod_file ? `<span class="spec-item">Größe: <strong>${formatBytes(device.knxprod_file.file_size_bytes)}</strong></span>` : ''}
     </div>
 
@@ -153,11 +154,14 @@ function createDeviceCard(device) {
 
     <div class="card-actions">
       ${downloadBtn}
-      <button class="btn btn-secondary btn-sm" onclick='showRestDetails(${JSON.stringify(device)})'>
-        💻 REST Info
-      </button>
     </div>
   `;
+
+  const restBtn = document.createElement("button");
+  restBtn.className = "btn btn-secondary btn-sm";
+  restBtn.textContent = "💻 REST Info";
+  restBtn.addEventListener("click", () => showRestDetails(device));
+  card.querySelector(".card-actions").appendChild(restBtn);
 
   return card;
 }
@@ -319,8 +323,12 @@ function setupDropZone() {
       statusText.innerHTML = `
         <span style="color: #ef4444; font-weight: 600;">❌ Fehler:</span><br>
         ${escapeHtml(err.message)}<br><br>
-        <button class="btn btn-secondary btn-sm" onclick="resetUploadUI()">Erneut versuchen</button>
       `;
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "btn btn-secondary btn-sm";
+      retryBtn.textContent = "Erneut versuchen";
+      retryBtn.addEventListener("click", resetUploadUI);
+      statusText.appendChild(retryBtn);
     }
   }
 }

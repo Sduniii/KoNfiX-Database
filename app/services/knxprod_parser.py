@@ -1,9 +1,14 @@
 import io
 import zipfile
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple
 
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
+
+from app.config import settings
 from app.services.knx_master_data import resolve_manufacturer, register_custom_manufacturer
 
 @dataclass
@@ -46,6 +51,47 @@ def _find_nodes_by_local_name(element: ET.Element, local_name: str) -> List[ET.E
             results.append(elem)
     return results
 
+def _validate_zip_archive(zf: zipfile.ZipFile) -> None:
+    """
+    Validates zip archive against zip bombs, path traversal (zip slip), and resource exhaustion.
+    """
+    infolist = zf.infolist()
+    if len(infolist) > settings.MAX_ZIP_FILES:
+        raise ValueError(f"Sicherheitswarnung: Archiv enthält zu viele Einträge ({len(infolist)} > {settings.MAX_ZIP_FILES})")
+
+    total_uncompressed = 0
+    for info in infolist:
+        fname = info.filename.replace("\\", "/")
+        # Path traversal check
+        if fname.startswith("/") or ".." in fname.split("/"):
+            raise ValueError(f"Sicherheitswarnung: Unzulässiger Pfad im Archiv ('{info.filename}')")
+
+        # Zip bomb / single file size check
+        if info.file_size > settings.MAX_ZIP_EXTRACTED_BYTES:
+            raise ValueError(f"Sicherheitswarnung: Datei '{info.filename}' überschreitet maximal zulässige Größe")
+
+        total_uncompressed += info.file_size
+        if total_uncompressed > settings.MAX_ZIP_EXTRACTED_BYTES:
+            raise ValueError("Sicherheitswarnung: Entpackte Gesamtdaten des Archivs überschreiten das Limit")
+
+        # Compression ratio check for non-trivial uncompressed sizes
+        if info.file_size > 5 * 1024 * 1024 and info.compress_size > 0:
+            ratio = info.file_size / info.compress_size
+            if ratio > 100:
+                raise ValueError(f"Sicherheitswarnung: Verdächtig hohe Kompressionsrate bei '{info.filename}'")
+
+def _safe_parse_xml(xml_bytes: bytes, filename: str) -> ET.Element:
+    """
+    Safely parses XML bytes with size limit enforcement and defusedxml protection.
+    """
+    if len(xml_bytes) > settings.MAX_XML_PARSE_BYTES:
+        raise ValueError(f"XML-Datei '{filename}' ist zu groß ({len(xml_bytes)} Bytes > {settings.MAX_XML_PARSE_BYTES} Bytes)")
+    try:
+        return ET.fromstring(xml_bytes)
+    except Exception as e:
+        raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{filename}': {e}")
+
+
 def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     """
     Extracts XML files from the .knxprod ZIP archive and parses
@@ -56,11 +102,14 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     except zipfile.BadZipFile as e:
         raise ValueError(f"Ungültiges .knxprod-Format: Keine gültige ZIP-Datei ({e})")
 
+    # Validate archive against zip bombs, path traversal, resource exhaustion
+    _validate_zip_archive(zf)
+
     # 1. Inspect knx_master.xml if present to enrich master manufacturers cache
     for fname in zf.namelist():
         if fname.lower().endswith("knx_master.xml"):
             try:
-                km_root = ET.fromstring(zf.read(fname))
+                km_root = _safe_parse_xml(zf.read(fname), fname)
                 for elem in km_root.iter():
                     if _strip_ns(elem.tag) == "Manufacturer":
                         mid = elem.attrib.get("Id")
@@ -85,7 +134,7 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     app_programs_map: Dict[str, ParsedApplication] = {}
     for f in xml_files:
         try:
-            f_root = ET.fromstring(zf.read(f))
+            f_root = _safe_parse_xml(zf.read(f), f)
             app_nodes = _find_nodes_by_local_name(f_root, "ApplicationProgram")
             for app in app_nodes:
                 app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
@@ -125,13 +174,11 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
         target_xml = xml_files[0]
 
     xml_bytes = zf.read(target_xml)
-    try:
-        root = ET.fromstring(xml_bytes)
-    except ET.ParseError as e:
-        raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{target_xml}': {e}")
+    root = _safe_parse_xml(xml_bytes, target_xml)
 
     # Check if target XML content has OpenKNX hints
     if "openknx" in xml_bytes.decode("utf-8", errors="ignore").lower():
+        context_hints += " openknx"
         context_hints += " openknx"
 
     return _parse_knx_xml_root(root, target_xml, app_programs_map, context_hints)
@@ -270,6 +317,9 @@ def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
         zf = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile:
         return []
+
+    # Validate archive against zip bombs and path traversal
+    _validate_zip_archive(zf)
 
     results: List[Tuple[str, bytes]] = []
     for info in zf.infolist():

@@ -1,4 +1,6 @@
+import logging
 import os
+import secrets
 from typing import List, Tuple, Union
 from urllib.parse import unquote
 
@@ -28,18 +30,76 @@ from app.schemas.upload import (
 from app.services.knxprod_parser import extract_knxprods_from_zip, parse_knxprod_bytes
 from app.services.storage import storage_service
 
+logger = logging.getLogger(__name__)
+
 DB_GET_DEPENDENCY = Depends(get_db)
 FILE_OPEN = File(..., description="Die .knxprod-Datei als Binärdatei (Multipart-Formularfeld 'file')")
 
 router = APIRouter(tags=["Upload (.knxprod)"])
 
-def verify_api_key(x_api_key: str | None = Header(None)):
-    if settings.API_KEY and x_api_key != settings.API_KEY:
+def verify_api_key(
+    x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None)
+):
+    if not settings.API_KEY:
+        return True
+
+    token = x_api_key
+    if not token and authorization:
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+        else:
+            token = authorization.strip()
+
+    if not token or not secrets.compare_digest(token, settings.API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Ungültiger oder fehlender X-API-Key"
+            detail="Ungültiger oder fehlender API-Key (Header 'X-API-Key' oder 'Authorization: Bearer <token>')"
         )
     return True
+
+
+async def _read_request_body_capped(request: Request, max_bytes: int | None = None) -> bytes:
+    limit = max_bytes if max_bytes is not None else settings.MAX_UPLOAD_SIZE_BYTES
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit():
+        if int(content_length) > limit:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Upload überschreitet das Limit von {limit // (1024 * 1024) or 1} MB"
+            )
+
+    chunks = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Upload überschreitet das Limit von {limit // (1024 * 1024) or 1} MB"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def _read_upload_file_capped(file: UploadFile, max_bytes: int | None = None) -> bytes:
+    limit = max_bytes if max_bytes is not None else settings.MAX_UPLOAD_SIZE_BYTES
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Datei '{file.filename or 'upload'}' überschreitet das Limit von {limit // (1024 * 1024) or 1} MB"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 
 @router.post(
     "/upload",
@@ -66,13 +126,22 @@ async def upload_knxprod(
     resolved_filename = unquote(x_file_name) if x_file_name else (filename or "device.knxprod")
 
     if "application/octet-stream" in content_type or not content_type:
-        # Raw binary streaming body
-        file_bytes = await request.body()
+        # Raw binary streaming body with size cap
+        file_bytes = await _read_request_body_capped(request)
     elif "multipart/form-data" in content_type:
         form = await request.form()
         upload_field = form.get("file")
         if upload_field and hasattr(upload_field, "read"):
-            file_bytes = await upload_field.read()
+            if isinstance(upload_field, UploadFile):
+                file_bytes = await _read_upload_file_capped(upload_field)
+            else:
+                raw_data = await upload_field.read()
+                if len(raw_data) > settings.MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Upload überschreitet das Limit von {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB"
+                    )
+                file_bytes = raw_data
             if hasattr(upload_field, "filename") and upload_field.filename:
                 resolved_filename = upload_field.filename
         else:
@@ -82,7 +151,7 @@ async def upload_knxprod(
             )
     else:
         # Fallback: attempt to read raw body anyway (e.g. application/zip, application/x-zip-compressed)
-        file_bytes = await request.body()
+        file_bytes = await _read_request_body_capped(request)
 
     if not file_bytes:
         raise HTTPException(
@@ -91,7 +160,14 @@ async def upload_knxprod(
         )
 
     # Check for batch ZIP archive containing .knxprod files
-    extracted_knxprods = extract_knxprods_from_zip(file_bytes)
+    try:
+        extracted_knxprods = extract_knxprods_from_zip(file_bytes)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
     if extracted_knxprods:
         return _process_batch_knxprods(extracted_knxprods, db)
 
@@ -116,9 +192,16 @@ async def upload_knxprod_form(
     db: Session = DB_GET_DEPENDENCY,
     _authorized: bool = Depends(verify_api_key)
 ):
-    content = await file.read()
+    content = await _read_upload_file_capped(file)
     fname = file.filename or "device.knxprod"
-    extracted_knxprods = extract_knxprods_from_zip(content)
+    try:
+        extracted_knxprods = extract_knxprods_from_zip(content)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
     if extracted_knxprods:
         return _process_batch_knxprods(extracted_knxprods, db)
 
@@ -129,6 +212,7 @@ async def upload_knxprod_form(
         )
 
     return _process_single_knxprod(content, fname, db)
+
 
 
 @router.post(
@@ -158,7 +242,17 @@ async def upload_knxprod_batch(
 
     for f in files:
         fname = f.filename or "unknown.knxprod"
-        content = await f.read()
+        try:
+            content = await _read_upload_file_capped(f)
+        except HTTPException as he:
+            failed_items.append(BatchItemResult(
+                filename=fname,
+                status="error",
+                message=he.detail,
+                devices_imported=[]
+            ))
+            continue
+
         if not content:
             failed_items.append(BatchItemResult(
                 filename=fname,
@@ -168,7 +262,17 @@ async def upload_knxprod_batch(
             ))
             continue
 
-        extracted = extract_knxprods_from_zip(content)
+        try:
+            extracted = extract_knxprods_from_zip(content)
+        except ValueError as ve:
+            failed_items.append(BatchItemResult(
+                filename=fname,
+                status="error",
+                message=str(ve),
+                devices_imported=[]
+            ))
+            continue
+
         if extracted:
             items_to_process.extend(extracted)
         elif fname.lower().endswith(".zip"):
@@ -211,8 +315,9 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadRes
     # 3. Check or create KnxprodFile record
     knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
     if not knx_file_rec:
+        from app.services.storage import sanitize_filename
         knx_file_rec = KnxprodFile(
-            filename=os.path.basename(filename),
+            filename=sanitize_filename(filename),
             file_size_bytes=file_size,
             sha256=sha256_hash,
             storage_path=stored_path,
@@ -297,7 +402,7 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session) -> UploadRes
     return UploadResponse(
         status="success",
         message="KNXProd-Datei erfolgreich empfangen, geparst und indexiert",
-        filename=os.path.basename(filename),
+        filename=knx_file_rec.filename,
         file_size_bytes=file_size,
         sha256=sha256_hash,
         manufacturer_id=manufacturer.knx_id,
@@ -314,14 +419,15 @@ def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session) -> Up
     except ValueError as e:
         db.rollback()
         raise HTTPException(
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Fehler bei der KNXProd-Verarbeitung: {e!s}"
         )
     except Exception as e:
         db.rollback()
+        logger.exception("Interner Fehler beim Verarbeiten und Speichern: %s", e)
         raise HTTPException(
-            status_code=500,
-            detail=f"Interner Fehler beim Speichern: {e!s}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Interner Serverfehler beim Verarbeiten der Datei"
         )
 
 
