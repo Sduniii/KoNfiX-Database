@@ -10,7 +10,7 @@ class KnxprodFile(Base):
     filename = Column(String(255), nullable=False)
     file_size_bytes = Column(BigInteger, nullable=False)
     sha256 = Column(String(64), unique=True, index=True, nullable=False)
-    storage_path = Column(String(512), nullable=False)
+    storage_path = Column(String(512), nullable=True)
     source_url = Column(String(1024), nullable=True)
     mime_type = Column(String(64), default="application/octet-stream")
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

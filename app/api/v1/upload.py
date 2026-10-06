@@ -1,9 +1,13 @@
+import hashlib
+import ipaddress
 import logging
 import os
 import secrets
+import socket
 from typing import List, Tuple, Union
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 
+import httpx
 from fastapi import (
     APIRouter,
     Depends,
@@ -17,6 +21,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.api.v1.auth import verify_api_key
 from app.config import settings
 from app.database import get_db
 from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer
@@ -26,6 +31,7 @@ from app.schemas.upload import (
     ImportedApplication,
     ImportedDevice,
     UploadResponse,
+    UrlImportRequest,
 )
 from app.services.knxprod_parser import extract_knxprods_from_zip, parse_knxprod_bytes
 from app.services.storage import storage_service
@@ -37,26 +43,44 @@ FILE_OPEN = File(..., description="Die .knxprod-Datei als Binärdatei (Multipart
 
 router = APIRouter(tags=["Upload (.knxprod)"])
 
-def verify_api_key(
-    x_api_key: str | None = Header(None),
-    authorization: str | None = Header(None)
-):
-    if not settings.API_KEY:
-        return True
 
-    token = x_api_key
-    if not token and authorization:
-        if authorization.lower().startswith("bearer "):
-            token = authorization[7:].strip()
-        else:
-            token = authorization.strip()
-
-    if not token or not secrets.compare_digest(token, settings.API_KEY):
+def _validate_safe_url(url_str: str) -> str:
+    parsed = urlparse(url_str.strip())
+    if parsed.scheme not in ("http", "https"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Ungültiger oder fehlender API-Key (Header 'X-API-Key' oder 'Authorization: Bearer <token>')"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nur HTTP- und HTTPS-URLs sind erlaubt"
         )
-    return True
+    if not parsed.hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ungültige URL: Kein Hostname gefunden"
+        )
+
+    hostname = parsed.hostname.lower()
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "metadata.google.internal"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Zugriff auf lokale/interne Adressen ist nicht gestattet"
+        )
+
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+        for entry in addr_info:
+            ip = ipaddress.ip_address(entry[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Zugriff auf private IP-Bereiche ({ip}) ist nicht gestattet"
+                )
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Hostname '{hostname}' konnte nicht aufgelöst werden"
+        )
+
+    return url_str.strip()
+
 
 
 async def _read_request_body_capped(request: Request, max_bytes: int | None = None) -> bytes:
@@ -220,6 +244,64 @@ async def upload_knxprod_form(
     return _process_single_knxprod(content, fname, db, source_url=resolved_source_url)
 
 
+@router.post(
+    "/upload/url",
+    response_model=UploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Import .knxprod from official manufacturer URL (Metadata-only or Cached)",
+    description="Lädt eine .knxprod-Datei von einer offiziellen Hersteller-URL herunter, extrahiert die XML-Metadaten und speichert die source_url für 302-Redirects."
+)
+async def upload_knxprod_from_url(
+    payload: UrlImportRequest,
+    db: Session = DB_GET_DEPENDENCY,
+    _authorized: bool = Depends(verify_api_key)
+):
+    safe_url = _validate_safe_url(payload.url)
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with client.stream("GET", safe_url) as resp:
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Hersteller-Server antwortete mit HTTP {resp.status_code}"
+                    )
+
+                fname = payload.filename
+                if not fname:
+                    cd = resp.headers.get("content-disposition", "")
+                    if "filename=" in cd:
+                        fname = cd.split("filename=")[-1].strip('"\' ')
+                    else:
+                        fname = os.path.basename(urlparse(safe_url).path) or "download.knxprod"
+                if not fname.lower().endswith(".knxprod"):
+                    fname += ".knxprod"
+
+                chunks = []
+                total = 0
+                limit = settings.MAX_UPLOAD_SIZE_BYTES
+                async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                    total += len(chunk)
+                    if total > limit:
+                        raise HTTPException(
+                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            detail=f"Datei von URL überschreitet das Limit von {limit // (1024 * 1024)} MB"
+                        )
+                    chunks.append(chunk)
+                content = b"".join(chunks)
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Fehler beim Abruf von Hersteller-URL: {exc!s}"
+        )
+
+    return _process_single_knxprod(
+        content,
+        fname,
+        db,
+        source_url=safe_url,
+        store_binary=payload.store_binary
+    )
+
 
 @router.post(
     "/upload/batch",
@@ -308,15 +390,26 @@ async def upload_knxprod_batch(
     return batch_resp
 
 
-def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session, source_url: str | None = None) -> UploadResponse:
+def _save_knxprod_db(
+    file_bytes: bytes,
+    filename: str,
+    db: Session,
+    source_url: str | None = None,
+    store_binary: bool = True
+) -> UploadResponse:
     # 1. Parse XML and validate ZIP structure
     try:
         parsed = parse_knxprod_bytes(file_bytes)
     except ValueError as e:
         raise ValueError(f"Fehler bei der KNXProd-Verarbeitung: {e!s}")
 
-    # 2. Store binary file
-    stored_path, sha256_hash, file_size = storage_service.save_knxprod_bytes(file_bytes, filename)
+    # 2. Store or hash binary file
+    if store_binary:
+        stored_path, sha256_hash, file_size = storage_service.save_knxprod_bytes(file_bytes, filename)
+    else:
+        sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+        file_size = len(file_bytes)
+        stored_path = None
 
     # 3. Check or create KnxprodFile record
     knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
@@ -332,9 +425,14 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session, source_url: 
         )
         db.add(knx_file_rec)
         db.flush()
-    elif source_url and not knx_file_rec.source_url:
-        knx_file_rec.source_url = source_url
-        db.flush()
+    else:
+        if source_url and not knx_file_rec.source_url:
+            knx_file_rec.source_url = source_url
+            db.flush()
+        if store_binary and not knx_file_rec.storage_path:
+            stored_path, _, _ = storage_service.save_knxprod_bytes(file_bytes, filename)
+            knx_file_rec.storage_path = stored_path
+            db.flush()
 
     # 4. Check or create Manufacturer
     manufacturer = db.query(Manufacturer).filter(Manufacturer.knx_id == parsed.manufacturer_id).first()
@@ -422,9 +520,21 @@ def _save_knxprod_db(file_bytes: bytes, filename: str, db: Session, source_url: 
     )
 
 
-def _process_single_knxprod(file_bytes: bytes, filename: str, db: Session, source_url: str | None = None) -> UploadResponse:
+def _process_single_knxprod(
+    file_bytes: bytes,
+    filename: str,
+    db: Session,
+    source_url: str | None = None,
+    store_binary: bool = True
+) -> UploadResponse:
     try:
-        resp = _save_knxprod_db(file_bytes, filename, db, source_url=source_url)
+        resp = _save_knxprod_db(
+            file_bytes,
+            filename,
+            db,
+            source_url=source_url,
+            store_binary=store_binary
+        )
         db.commit()
         return resp
     except ValueError as e:

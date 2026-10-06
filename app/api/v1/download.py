@@ -110,6 +110,14 @@ def _serve_file(file_rec: KnxprodFile, order_number: str, prefer_redirect: bool 
     if should_redirect and file_rec.source_url:
         return RedirectResponse(url=file_rec.source_url, status_code=status.HTTP_302_FOUND)
 
+    if not file_rec.storage_path:
+        if file_rec.source_url:
+            return RedirectResponse(url=file_rec.source_url, status_code=status.HTTP_302_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Die physische .knxprod-Datei wurde auf dem Server nicht gefunden."
+        )
+
     try:
         file_path = storage_service.get_file_path(file_rec.storage_path)
     except ValueError:

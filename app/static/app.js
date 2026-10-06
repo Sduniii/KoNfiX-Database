@@ -1,16 +1,41 @@
-// KonfiX-Catalog Frontend Logic
+// KoNfiX-Catalog Frontend Logic
 
 let allManufacturers = [];
 let searchTimeout = null;
+let isAdmin = false;
+let currentDeleteOrderNumber = null;
+
+// Auth Helpers
+function getAdminKey() {
+  return sessionStorage.getItem("konfix_admin_key") || "";
+}
+
+function setAdminKey(key) {
+  if (key) {
+    sessionStorage.setItem("konfix_admin_key", key);
+  } else {
+    sessionStorage.removeItem("konfix_admin_key");
+  }
+}
+
+function getAuthHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  const key = getAdminKey();
+  if (key) {
+    headers["X-API-Key"] = key;
+  }
+  return headers;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAdminAuth();
   loadStats();
   loadManufacturers();
   loadDevices();
 
   // Search input with debounce
   const searchInput = document.getElementById("searchInput");
-  searchInput.addEventListener("input", (e) => {
+  searchInput.addEventListener("input", () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
       loadDevices();
@@ -28,7 +53,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeUploadBtn = document.getElementById("closeUploadBtn");
   const uploadModal = document.getElementById("uploadModal");
 
-  openUploadBtn.addEventListener("click", () => uploadModal.classList.add("open"));
+  openUploadBtn.addEventListener("click", () => {
+    resetUploadUI();
+    uploadModal.classList.add("open");
+  });
   closeUploadBtn.addEventListener("click", () => uploadModal.classList.remove("open"));
 
   // Detail modal controls
@@ -47,9 +75,101 @@ document.addEventListener("DOMContentLoaded", () => {
     closeLegalBtn.addEventListener("click", () => legalModal.classList.remove("open"));
   }
 
-  // Drag and drop setup
+  // Setup Modals & Tabs
+  setupUploadTabs();
   setupDropZone();
+  setupUrlImport();
+  setupEditModal();
+  setupDeleteModal();
 });
+
+// Admin Authentication Setup
+async function initAdminAuth() {
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  const adminAuthModal = document.getElementById("adminAuthModal");
+  const closeAdminAuthBtn = document.getElementById("closeAdminAuthBtn");
+  const cancelAdminAuthBtn = document.getElementById("cancelAdminAuthBtn");
+  const submitAdminAuthBtn = document.getElementById("submitAdminAuthBtn");
+  const adminKeyInput = document.getElementById("adminKeyInput");
+  const adminAuthError = document.getElementById("adminAuthError");
+
+  // Check initial status
+  await checkAdminStatus();
+
+  adminToggleBtn.addEventListener("click", async () => {
+    if (isAdmin) {
+      if (confirm("Admin-Modus beenden und abmelden?")) {
+        setAdminKey("");
+        isAdmin = false;
+        renderAdminUI();
+        loadDevices();
+      }
+    } else {
+      adminKeyInput.value = "";
+      adminAuthError.style.display = "none";
+      adminAuthModal.classList.add("open");
+      adminKeyInput.focus();
+    }
+  });
+
+  const closeAuth = () => adminAuthModal.classList.remove("open");
+  closeAdminAuthBtn.addEventListener("click", closeAuth);
+  cancelAdminAuthBtn.addEventListener("click", closeAuth);
+
+  submitAdminAuthBtn.addEventListener("click", async () => {
+    const key = adminKeyInput.value.trim();
+    setAdminKey(key);
+    const verified = await checkAdminStatus();
+    if (verified) {
+      closeAuth();
+      loadDevices();
+    } else {
+      adminAuthError.textContent = "Ungültiger Admin API-Key. Bitte prüfe deine Eingabe.";
+      adminAuthError.style.display = "block";
+    }
+  });
+
+  adminKeyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      submitAdminAuthBtn.click();
+    }
+  });
+}
+
+async function checkAdminStatus() {
+  try {
+    const res = await fetch("/api/v1/auth/verify", {
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      isAdmin = true;
+      renderAdminUI();
+      return true;
+    } else {
+      isAdmin = false;
+      renderAdminUI();
+      return false;
+    }
+  } catch (e) {
+    isAdmin = false;
+    renderAdminUI();
+    return false;
+  }
+}
+
+function renderAdminUI() {
+  const adminToggleText = document.getElementById("adminToggleText");
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  if (isAdmin) {
+    adminToggleBtn.classList.add("btn-primary");
+    adminToggleBtn.classList.remove("btn-secondary");
+    adminToggleText.innerHTML = "🔓 Admin aktiv (Abmelden)";
+  } else {
+    adminToggleBtn.classList.remove("btn-primary");
+    adminToggleBtn.classList.add("btn-secondary");
+    adminToggleText.innerHTML = "🔐 Admin";
+  }
+}
 
 async function loadStats() {
   try {
@@ -122,7 +242,7 @@ async function loadDevices() {
       grid.appendChild(createDeviceCard(device));
     });
   } catch (err) {
-    grid.innerHTML = `<div class="loading-state"><p>❌ Fehler beim Laden der Daten: ${err.message}</p></div>`;
+    grid.innerHTML = `<div class="loading-state"><p>❌ Fehler beim Laden der Daten: ${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -137,11 +257,27 @@ function createDeviceCard(device) {
   `).join("");
 
   const downloadUrl = `/api/v1/download/${encodeURIComponent(device.order_number)}`;
-  const downloadBtn = device.knxprod_file ? `
-    <a href="${downloadUrl}" class="btn btn-primary btn-sm" download>
-      ⬇️ .knxprod Download
+  const hasFile = !!device.knxprod_file;
+  const hasSource = hasFile && !!device.knxprod_file.source_url;
+  
+  let downloadBtn = `<span class="badge">Keine Datei</span>`;
+  if (hasFile) {
+    downloadBtn = `
+      <a href="${downloadUrl}" class="btn btn-primary btn-sm" download>
+        ⬇️ .knxprod Download
+      </a>
+    `;
+  }
+
+  const sourceBadge = hasSource ? `
+    <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="Offizieller Hersteller-Download-Link">
+      🌐 Hersteller-Quelle
     </a>
-  ` : `<span class="badge">Keine Datei</span>`;
+  ` : '';
+
+  const takedownSubject = encodeURIComponent(`Takedown-Anfrage: KNX-Gerät ${device.order_number}`);
+  const takedownBody = encodeURIComponent(`Sehr geehrtes KoNfiX-Team,\n\nals Rechteinhaber bitte ich um Löschung / Sperrung des folgenden Eintrags:\nGerät: ${device.name}\nBestellnummer: ${device.order_number}\n\nBegründung:\n`);
+  const takedownLink = `mailto:legal@konfix.sduni.de?subject=${takedownSubject}&body=${takedownBody}`;
 
   card.innerHTML = `
     <div class="card-top">
@@ -156,7 +292,8 @@ function createDeviceCard(device) {
     <div class="card-specs">
       ${device.hardware_version ? `<span class="spec-item">HW: <strong>v${escapeHtml(device.hardware_version)}</strong></span>` : ''}
       ${device.bus_current_ma != null ? `<span class="spec-item">Bus: <strong>${device.bus_current_ma} mA</strong></span>` : ''}
-      ${device.knxprod_file ? `<span class="spec-item">Größe: <strong>${formatBytes(device.knxprod_file.file_size_bytes)}</strong></span>` : ''}
+      ${device.knxprod_file && device.knxprod_file.file_size_bytes ? `<span class="spec-item">Größe: <strong>${formatBytes(device.knxprod_file.file_size_bytes)}</strong></span>` : ''}
+      ${sourceBadge}
     </div>
 
     <div class="app-list">
@@ -166,13 +303,40 @@ function createDeviceCard(device) {
     <div class="card-actions">
       ${downloadBtn}
     </div>
+
+    <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
+      <a href="${takedownLink}" class="btn-text-link" style="color: #64748b; font-size: 0.72rem; text-decoration: underline;">
+        🏳️ Rechteinhaber? Takedown anfordern
+      </a>
+    </div>
   `;
 
+  // REST Details Button
   const restBtn = document.createElement("button");
   restBtn.className = "btn btn-secondary btn-sm";
   restBtn.textContent = "💻 REST Info";
   restBtn.addEventListener("click", () => showRestDetails(device));
   card.querySelector(".card-actions").appendChild(restBtn);
+
+  // Admin Actions (Edit & Delete)
+  if (isAdmin) {
+    const adminBar = document.createElement("div");
+    adminBar.className = "card-admin-actions";
+    
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-sm btn-secondary";
+    editBtn.textContent = "✏️ Bearbeiten";
+    editBtn.addEventListener("click", () => openEditDeviceModal(device));
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "btn btn-sm btn-danger";
+    deleteBtn.textContent = "🗑️ Löschen";
+    deleteBtn.addEventListener("click", () => openDeleteDeviceModal(device));
+
+    adminBar.appendChild(editBtn);
+    adminBar.appendChild(deleteBtn);
+    card.appendChild(adminBar);
+  }
 
   return card;
 }
@@ -212,7 +376,7 @@ function showRestDetails(device) {
         <code style="color: #38bdf8; font-family: monospace;">${device.knxprod_file.sha256}</code>
         ${device.knxprod_file.source_url ? `
           <div style="margin-top: 0.5rem;">
-            <strong>Hersteller-Quelle:</strong><br>
+            <strong>Offizielle Hersteller-Quelle:</strong><br>
             <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; word-break: break-all;">
               ${escapeHtml(device.knxprod_file.source_url)}
             </a>
@@ -223,6 +387,31 @@ function showRestDetails(device) {
   `;
 
   modal.classList.add("open");
+}
+
+function setupUploadTabs() {
+  const tabFileBtn = document.getElementById("tabUploadFileBtn");
+  const tabUrlBtn = document.getElementById("tabUploadUrlBtn");
+  const fileTab = document.getElementById("uploadFileTab");
+  const urlTab = document.getElementById("uploadUrlTab");
+
+  tabFileBtn.addEventListener("click", () => {
+    tabFileBtn.classList.add("btn-primary");
+    tabFileBtn.classList.remove("btn-secondary");
+    tabUrlBtn.classList.add("btn-secondary");
+    tabUrlBtn.classList.remove("btn-primary");
+    fileTab.style.display = "block";
+    urlTab.style.display = "none";
+  });
+
+  tabUrlBtn.addEventListener("click", () => {
+    tabUrlBtn.classList.add("btn-primary");
+    tabUrlBtn.classList.remove("btn-secondary");
+    tabFileBtn.classList.add("btn-secondary");
+    tabFileBtn.classList.remove("btn-primary");
+    urlTab.style.display = "block";
+    fileTab.style.display = "none";
+  });
 }
 
 function setupDropZone() {
@@ -275,7 +464,11 @@ function setupDropZone() {
       return;
     }
 
-    dropZone.style.display = "none";
+    const sourceUrlInput = document.getElementById("uploadFileSourceUrl");
+    const sourceUrl = sourceUrlInput ? sourceUrlInput.value.trim() : "";
+
+    document.getElementById("uploadFileTab").style.display = "none";
+    document.getElementById("uploadUrlTab").style.display = "none";
     uploadProgress.style.display = "block";
     if (uploadSpinner) uploadSpinner.style.display = "block";
     if (resultsList) {
@@ -294,17 +487,22 @@ function setupDropZone() {
         formData.append("files", file);
       }
 
-      const res = await fetch("/api/v1/upload/batch", {
+      const headers = getAuthHeaders();
+      let uploadEndpoint = "/api/v1/upload/batch";
+      if (sourceUrl) {
+        uploadEndpoint += `?source_url=${encodeURIComponent(sourceUrl)}`;
+      }
+
+      const res = await fetch(uploadEndpoint, {
         method: "POST",
+        headers: headers,
         body: formData
       });
 
       const data = await safeParseResponse(res);
-
       if (uploadSpinner) uploadSpinner.style.display = "none";
 
       if (data.results) {
-        // BatchUploadResponse
         const isSuccess = data.status === "success";
         const isPartial = data.status === "partial";
         const statusColor = isSuccess ? "#10b981" : (isPartial ? "#f59e0b" : "#ef4444");
@@ -336,9 +534,7 @@ function setupDropZone() {
             `;
           }).join("");
         }
-
       } else {
-        // Single UploadResponse
         statusText.innerHTML = `
           <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich importiert!</span><br>
           Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
@@ -352,7 +548,7 @@ function setupDropZone() {
         loadStats();
         loadManufacturers();
         loadDevices();
-      }, data.results && data.results.length > 3 ? 4000 : 2500);
+      }, data.results && data.results.length > 3 ? 3500 : 2000);
 
     } catch (err) {
       if (uploadSpinner) uploadSpinner.style.display = "none";
@@ -369,9 +565,90 @@ function setupDropZone() {
   }
 }
 
+function setupUrlImport() {
+  const startBtn = document.getElementById("startUrlImportBtn");
+  const urlInput = document.getElementById("urlImportInput");
+  const storeBinaryCheckbox = document.getElementById("urlImportStoreBinary");
+  const consentCheckbox = document.getElementById("urlConsentCheckbox");
+  const uploadProgress = document.getElementById("uploadProgress");
+  const uploadSpinner = document.getElementById("uploadSpinner");
+  const statusText = document.getElementById("uploadStatusText");
+
+  startBtn.addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+      alert("Bitte gib eine gültige Hersteller-URL ein.");
+      urlInput.focus();
+      return;
+    }
+    if (!consentCheckbox.checked) {
+      alert("Bitte bestätige das Häkchen für die freie Verfügbarkeit des Hersteller-Links.");
+      return;
+    }
+
+    document.getElementById("uploadFileTab").style.display = "none";
+    document.getElementById("uploadUrlTab").style.display = "none";
+    uploadProgress.style.display = "block";
+    if (uploadSpinner) uploadSpinner.style.display = "block";
+    statusText.textContent = `Lade Datei von ${url} herunter und indexiere Metadaten...`;
+
+    try {
+      const res = await fetch("/api/v1/upload/url", {
+        method: "POST",
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          url: url,
+          store_binary: storeBinaryCheckbox.checked
+        })
+      });
+
+      const data = await safeParseResponse(res);
+      if (uploadSpinner) uploadSpinner.style.display = "none";
+
+      statusText.innerHTML = `
+        <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich von Hersteller-Link indexiert!</span><br>
+        Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
+        Geräte: ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}<br>
+        <small style="color: #94a3b8;">${storeBinaryCheckbox.checked ? "Datei wurde lokal gecacht." : "100% rechtssicher: Reines Metadaten-Indexing & Verlinkung."}</small>
+      `;
+
+      setTimeout(() => {
+        document.getElementById("uploadModal").classList.remove("open");
+        resetUploadUI();
+        loadStats();
+        loadManufacturers();
+        loadDevices();
+      }, 2500);
+
+    } catch (err) {
+      if (uploadSpinner) uploadSpinner.style.display = "none";
+      statusText.innerHTML = `
+        <span style="color: #ef4444; font-weight: 600;">❌ Fehler beim Import von URL:</span><br>
+        ${escapeHtml(err.message)}<br><br>
+      `;
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "btn btn-secondary btn-sm";
+      retryBtn.textContent = "Erneut versuchen";
+      retryBtn.addEventListener("click", resetUploadUI);
+      statusText.appendChild(retryBtn);
+    }
+  });
+}
+
 function resetUploadUI() {
-  document.getElementById("dropZone").style.display = "block";
+  document.getElementById("uploadFileTab").style.display = "block";
+  document.getElementById("uploadUrlTab").style.display = "none";
   document.getElementById("uploadProgress").style.display = "none";
+
+  const tabFileBtn = document.getElementById("tabUploadFileBtn");
+  const tabUrlBtn = document.getElementById("tabUploadUrlBtn");
+  if (tabFileBtn && tabUrlBtn) {
+    tabFileBtn.classList.add("btn-primary");
+    tabFileBtn.classList.remove("btn-secondary");
+    tabUrlBtn.classList.add("btn-secondary");
+    tabUrlBtn.classList.remove("btn-primary");
+  }
+
   const spinner = document.getElementById("uploadSpinner");
   if (spinner) spinner.style.display = "block";
   const resultsList = document.getElementById("uploadResultsList");
@@ -381,10 +658,146 @@ function resetUploadUI() {
   }
   const fileInput = document.getElementById("fileInput");
   if (fileInput) fileInput.value = "";
-  const consent = document.getElementById("uploadConsentCheckbox");
-  if (consent) consent.checked = false;
+  const sourceUrlInput = document.getElementById("uploadFileSourceUrl");
+  if (sourceUrlInput) sourceUrlInput.value = "";
+  const consent1 = document.getElementById("uploadConsentCheckbox");
+  if (consent1) consent1.checked = false;
+  const consent2 = document.getElementById("urlConsentCheckbox");
+  if (consent2) consent2.checked = false;
+  const urlInput = document.getElementById("urlImportInput");
+  if (urlInput) urlInput.value = "";
 }
 
+// Edit Device Modal Logic
+function setupEditModal() {
+  const modal = document.getElementById("editDeviceModal");
+  const closeBtn = document.getElementById("closeEditDeviceBtn");
+  const cancelBtn = document.getElementById("cancelEditDeviceBtn");
+  const saveBtn = document.getElementById("saveEditDeviceBtn");
+  const statusDiv = document.getElementById("editDeviceStatus");
+
+  const closeModal = () => modal.classList.remove("open");
+  closeBtn.addEventListener("click", closeModal);
+  cancelBtn.addEventListener("click", closeModal);
+
+  saveBtn.addEventListener("click", async () => {
+    const orderNumber = document.getElementById("editOrderNumber").value;
+    const name = document.getElementById("editDeviceName").value.trim();
+    const sourceUrl = document.getElementById("editSourceUrl").value.trim();
+    const hwVersion = document.getElementById("editHardwareVersion").value.trim();
+    const busCurrentStr = document.getElementById("editBusCurrent").value.trim();
+    const description = document.getElementById("editDescription").value.trim();
+
+    const payload = {
+      name: name,
+      source_url: sourceUrl || null,
+      hardware_version: hwVersion || null,
+      bus_current_ma: busCurrentStr ? parseFloat(busCurrentStr) : null,
+      description: description || null
+    };
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Speichere...";
+    statusDiv.style.display = "none";
+
+    try {
+      const res = await fetch(`/api/v1/devices/${encodeURIComponent(orderNumber)}`, {
+        method: "PATCH",
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload)
+      });
+
+      await safeParseResponse(res);
+      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gerät erfolgreich aktualisiert!</span>`;
+      statusDiv.style.display = "block";
+
+      setTimeout(() => {
+        closeModal();
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Änderungen speichern";
+        loadDevices();
+      }, 1000);
+
+    } catch (err) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Änderungen speichern";
+      statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
+      statusDiv.style.display = "block";
+    }
+  });
+}
+
+function openEditDeviceModal(device) {
+  const modal = document.getElementById("editDeviceModal");
+  document.getElementById("editOrderNumber").value = device.order_number;
+  document.getElementById("editOrderNumberDisplay").value = device.order_number;
+  document.getElementById("editDeviceName").value = device.name || "";
+  document.getElementById("editSourceUrl").value = (device.knxprod_file && device.knxprod_file.source_url) || "";
+  document.getElementById("editHardwareVersion").value = device.hardware_version || "";
+  document.getElementById("editBusCurrent").value = device.bus_current_ma != null ? device.bus_current_ma : "";
+  document.getElementById("editDescription").value = device.description || "";
+  document.getElementById("editDeviceStatus").style.display = "none";
+
+  modal.classList.add("open");
+}
+
+// Delete Device Modal Logic
+function setupDeleteModal() {
+  const modal = document.getElementById("deleteDeviceModal");
+  const closeBtn = document.getElementById("closeDeleteDeviceBtn");
+  const cancelBtn = document.getElementById("cancelDeleteDeviceBtn");
+  const confirmBtn = document.getElementById("confirmDeleteDeviceBtn");
+  const statusDiv = document.getElementById("deleteDeviceStatus");
+
+  const closeModal = () => modal.classList.remove("open");
+  closeBtn.addEventListener("click", closeModal);
+  cancelBtn.addEventListener("click", closeModal);
+
+  confirmBtn.addEventListener("click", async () => {
+    if (!currentDeleteOrderNumber) return;
+
+    const deleteFile = document.getElementById("deleteFileCheckbox").checked;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Lösche...";
+    statusDiv.style.display = "none";
+
+    try {
+      const res = await fetch(`/api/v1/devices/${encodeURIComponent(currentDeleteOrderNumber)}?delete_file=${deleteFile}`, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+
+      await safeParseResponse(res);
+      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gerät erfolgreich gelöscht!</span>`;
+      statusDiv.style.display = "block";
+
+      setTimeout(() => {
+        closeModal();
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Endgültig löschen";
+        loadStats();
+        loadManufacturers();
+        loadDevices();
+      }, 1000);
+
+    } catch (err) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Endgültig löschen";
+      statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
+      statusDiv.style.display = "block";
+    }
+  });
+}
+
+function openDeleteDeviceModal(device) {
+  currentDeleteOrderNumber = device.order_number;
+  const modal = document.getElementById("deleteDeviceModal");
+  document.getElementById("deleteDeviceDesc").innerHTML = `
+    Möchtest du das Gerät <strong>${escapeHtml(device.name)}</strong> (<code>${escapeHtml(device.order_number)}</code>) wirklich dauerhaft aus dem Katalog entfernen?
+  `;
+  document.getElementById("deleteDeviceStatus").style.display = "none";
+  modal.classList.add("open");
+}
 
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
@@ -417,7 +830,6 @@ async function safeParseResponse(res) {
     try {
       data = JSON.parse(text);
     } catch (err) {
-      // Body is not JSON (e.g. HTML 502/504 or 413 error page from reverse proxy)
       data = null;
     }
   }
@@ -438,4 +850,3 @@ async function safeParseResponse(res) {
 
   return data;
 }
-

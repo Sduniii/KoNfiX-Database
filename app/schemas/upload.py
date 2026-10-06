@@ -45,3 +45,10 @@ class BatchUploadResponse(BaseModel):
     failed_count: int
     results: List[BatchItemResult]
 
+
+class UrlImportRequest(BaseModel):
+    url: str
+    store_binary: bool = False
+    filename: Optional[str] = None
+
+

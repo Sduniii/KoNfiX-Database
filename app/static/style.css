@@ -578,3 +578,70 @@ body {
 .footer-links a:hover {
   color: var(--primary-color);
 }
+
+/* Admin Styles & Action Badges */
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border: 1px solid #dc2626;
+}
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.btn-warning {
+  background-color: #f59e0b;
+  color: #1e293b;
+  border: 1px solid #d97706;
+}
+.btn-warning:hover {
+  background-color: #d97706;
+}
+
+.badge-admin {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+.badge-source {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  text-decoration: none;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+.badge-source:hover {
+  background: rgba(168, 85, 247, 0.25);
+  color: #e9d5ff;
+}
+
+.card-admin-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.modal-tab-btn {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.modal-tab-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+

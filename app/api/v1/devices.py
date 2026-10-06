@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.api.v1.auth import verify_api_key
 from app.database import get_db
 from app.models import Device, Manufacturer
 from app.schemas.device import (
     ApplicationProgramResponse,
     DeviceListResponse,
     DeviceResponse,
+    DeviceUpdateRequest,
     KnxprodFileInfo,
     ManufacturerSummary,
 )
@@ -117,3 +119,100 @@ def get_device(order_number: str, db: Annotated[Session, Depends(get_db)]):
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
     return _to_device_response(device)
+
+
+@router.patch(
+    "/devices/{order_number}",
+    response_model=DeviceResponse,
+    summary="Update device metadata and manufacturer link (Admin)",
+    description="Aktualisiert die Metadaten eines Geräts sowie die offizielle Hersteller-Quelle (source_url)."
+)
+def update_device(
+    order_number: str,
+    update_data: DeviceUpdateRequest,
+    db: Session = DB_SESSION_DEPENDENCY,
+    _authorized: bool = Depends(verify_api_key)
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    if update_data.name is not None:
+        device.name = update_data.name.strip()
+    if update_data.description is not None:
+        device.description = update_data.description
+    if update_data.hardware_name is not None:
+        device.hardware_name = update_data.hardware_name
+    if update_data.hardware_version is not None:
+        device.hardware_version = update_data.hardware_version
+    if update_data.bus_current_ma is not None:
+        device.bus_current_ma = update_data.bus_current_ma
+
+    if update_data.source_url is not None:
+        clean_url = update_data.source_url.strip() if update_data.source_url else None
+        if device.knxprod_file:
+            device.knxprod_file.source_url = clean_url
+        elif clean_url:
+            # Create a placeholder KnxprodFile record for the link if none exists
+            from app.models import KnxprodFile
+            new_file = KnxprodFile(
+                filename=f"{device.order_number}.knxprod",
+                file_size_bytes=0,
+                sha256=f"link_{device.order_number}",
+                storage_path=None,
+                source_url=clean_url,
+                mime_type="application/octet-stream"
+            )
+            db.add(new_file)
+            db.flush()
+            device.knxprod_file_id = new_file.id
+
+    db.commit()
+    db.refresh(device)
+    return _to_device_response(device)
+
+
+@router.delete(
+    "/devices/{order_number}",
+    summary="Delete device from catalog (Admin / Takedown)",
+    description="Entfernt ein Gerät und dessen Applikationen aus dem Katalog. Bei Bedarf wird die zugehörige Datei ebenfalls gelöscht."
+)
+def delete_device(
+    order_number: str,
+    delete_file: bool = Query(False, description="Zugehörige .knxprod-Datei ebenfalls vom Server löschen, falls keine anderen Geräte darauf verweisen"),
+    db: Session = DB_SESSION_DEPENDENCY,
+    _authorized: bool = Depends(verify_api_key)
+):
+    import os
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    file_rec = device.knxprod_file
+    file_id = device.knxprod_file_id
+
+    db.delete(device)
+    db.flush()
+
+    if file_rec and file_id:
+        other_devices_count = db.query(Device).filter(Device.knxprod_file_id == file_id).count()
+        if other_devices_count == 0 and delete_file:
+            if file_rec.storage_path and os.path.exists(file_rec.storage_path):
+                try:
+                    os.remove(file_rec.storage_path)
+                except OSError:
+                    pass
+            db.delete(file_rec)
+
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Gerät '{order_number}' wurde erfolgreich aus dem Katalog gelöscht."
+    }
+

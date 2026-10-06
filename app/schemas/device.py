@@ -54,3 +54,13 @@ class DeviceListResponse(BaseModel):
     page: int
     page_size: int
     devices: List[DeviceResponse]
+
+
+class DeviceUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    hardware_name: Optional[str] = None
+    hardware_version: Optional[str] = None
+    bus_current_ma: Optional[float] = None
+    source_url: Optional[str] = None
+
