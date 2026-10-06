@@ -90,8 +90,7 @@ async function loadDevices() {
 
   try {
     const res = await fetch(`/api/v1/devices?${params.toString()}`);
-    if (!res.ok) throw new Error("Fehler beim Laden der Geräte");
-    const data = await res.json();
+    const data = await safeParseResponse(res);
 
     document.getElementById("resultsCount").textContent = `${data.total} Einträge`;
 
@@ -250,33 +249,17 @@ function setupDropZone() {
       : `Lade ${fileCount} Dateien hoch und verarbeite...`;
 
     try {
-      let data;
-      if (fileCount === 1 && !files[0].name.toLowerCase().endsWith(".zip")) {
-        // Single knxprod file - send as raw octet-stream to /api/v1/upload
-        const file = files[0];
-        const res = await fetch("/api/v1/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "X-File-Name": encodeURIComponent(file.name)
-          },
-          body: file
-        });
-        data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Upload fehlgeschlagen");
-      } else {
-        // Multiple files or ZIP archive - send to /api/v1/upload/batch
-        const formData = new FormData();
-        for (const file of files) {
-          formData.append("files", file);
-        }
-        const res = await fetch("/api/v1/upload/batch", {
-          method: "POST",
-          body: formData
-        });
-        data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Upload fehlgeschlagen");
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("files", file);
       }
+
+      const res = await fetch("/api/v1/upload/batch", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await safeParseResponse(res);
 
       if (uploadSpinner) uploadSpinner.style.display = "none";
 
@@ -374,3 +357,39 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+async function safeParseResponse(res) {
+  let text = "";
+  try {
+    text = await res.text();
+  } catch (err) {
+    throw new Error(`Konnte Server-Antwort nicht lesen: ${err.message}`);
+  }
+
+  let data = null;
+  if (text && text.trim().length > 0) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // Body is not JSON (e.g. HTML 502/504 or 413 error page from reverse proxy)
+      data = null;
+    }
+  }
+
+  if (!res.ok) {
+    let errorMsg = `Server-Fehler: HTTP ${res.status} (${res.statusText || "Fehler"})`;
+    if (data && (data.detail || data.message)) {
+      errorMsg = data.detail || data.message;
+    } else if (text && text.length < 300 && !text.includes("<html") && !text.includes("<!DOCTYPE")) {
+      errorMsg = text.trim();
+    }
+    throw new Error(errorMsg);
+  }
+
+  if (!data) {
+    throw new Error(`Unerwartete leere Antwort vom Server (HTTP ${res.status})`);
+  }
+
+  return data;
+}
+

@@ -1,5 +1,6 @@
 import os
 from typing import List, Tuple, Union
+from urllib.parse import unquote
 
 from fastapi import (
     APIRouter,
@@ -62,7 +63,7 @@ async def upload_knxprod(
 ):
     content_type = request.headers.get("content-type", "").lower()
     file_bytes: bytes = b""
-    resolved_filename = x_file_name or filename or "device.knxprod"
+    resolved_filename = unquote(x_file_name) if x_file_name else (filename or "device.knxprod")
 
     if "application/octet-stream" in content_type or not content_type:
         # Raw binary streaming body
@@ -80,11 +81,8 @@ async def upload_knxprod(
                 detail="Formular enthält kein gültiges 'file' Feld"
             )
     else:
-        # Fallback: attempt to read raw body anyway
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formular enthält kein gültiges 'file' Feld"
-        )
+        # Fallback: attempt to read raw body anyway (e.g. application/zip, application/x-zip-compressed)
+        file_bytes = await request.body()
 
     if not file_bytes:
         raise HTTPException(
