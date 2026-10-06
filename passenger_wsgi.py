@@ -23,6 +23,11 @@ if PROJECT_DIR not in sys.path:
 
 from a2wsgi import ASGIMiddleware
 from app.main import app
+from app.database import ensure_database_ready
+
+# Ensure database directory and tables exist before handling requests
+ensure_database_ready()
 
 # Passenger looks for 'application' callable by default
 application = ASGIMiddleware(app)
+

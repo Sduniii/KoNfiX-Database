@@ -9,12 +9,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import api_v1_router
 from app.config import BASE_DIR, settings
-from app.database import Base, engine
+from app.database import Base, engine, ensure_database_ready
 
 
 def init_db():
-    # Initialize DB schema immediately
-    Base.metadata.create_all(bind=engine)
+    # Ensure DB file and schema exist
+    ensure_database_ready()
 
     # Self-healing migration: Add source_url column if not present in legacy SQLite DBs
     from sqlalchemy import text
