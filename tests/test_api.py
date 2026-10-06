@@ -41,4 +41,4 @@ def test_api_devices_and_manufacturers(client, sample_knxprod_bytes):
     # 6. Test Web Frontend HTML
     res_html = client.get("/")
     assert res_html.status_code == 200
-    assert "KonfiX-Catalog" in res_html.text
+    assert "KoNfiX-Database" in res_html.text

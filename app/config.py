@@ -8,12 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    APP_NAME: str = "KonfiX-Catalog"
+    APP_NAME: str = "KoNfiX-Database"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "Open REST Online Database & Catalog for KNX devices (.knxprod)"
     
     # Database
-    DATABASE_URL: str = f"sqlite:///{BASE_DIR}/data/konfix_catalog.db"
+    DATABASE_URL: str = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
     
     # Storage
     STORAGE_DIR: str = str(BASE_DIR / "catalog_files")

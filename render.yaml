@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: konfix-catalog
+    name: konfix-database
     runtime: python
     buildCommand: "pip install -r requirements.txt && python scripts/seed_sample_data.py"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
@@ -8,8 +8,8 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: APP_NAME
-        value: KonfiX-Catalog
+        value: KoNfiX-Database
       - key: STORAGE_DIR
         value: /tmp/catalog_files
       - key: DATABASE_URL
-        value: sqlite:////tmp/konfix_catalog.db
+        value: sqlite:////tmp/konfix_database.db

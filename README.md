@@ -1,8 +1,8 @@
-# ⚡ KonfiX-Catalog
+# ⚡ KoNfiX-Database
 
 **Offene REST-Online-Datenbank & Gerätekatalog für KNX-Produktdatenbanken (`.knxprod`)**
 
-KonfiX-Catalog ist ein cloud-fähiger REST-Katalogdienst für KNX-Geräte (ähnlich KNXA / ETS Online Catalog). Er ermöglicht es Herstellern und Entwicklern, `.knxprod`-Dateien per REST hochzuladen, nach Geräten zu suchen und diese automatisiert per HTTP GET oder POST herunterzuladen.
+KoNfiX-Database ist ein cloud-fähiger REST-Katalogdienst für KNX-Geräte (ähnlich KNXA / ETS Online Catalog). Er ermöglicht es Herstellern und Entwicklern, `.knxprod`-Dateien per REST hochzuladen, nach Geräten zu suchen und diese automatisiert per HTTP GET oder POST herunterzuladen.
 
 ---
 
@@ -119,8 +119,8 @@ curl "https://deine-app.onrender.com/api/v1/devices?manufacturer_id=M-00C5"
 ### Schnellstart mit Python:
 ```bash
 # 1. Repository klonen
-git clone https://github.com/<username>/KonfiX-Catalog.git
-cd KonfiX-Catalog
+git clone git@github.com:Sduniii/KoNfiX-Database.git
+cd KoNfiX-Database
 
 # 2. Virtual Environment einrichten & Abhängigkeiten installieren
 python3 -m venv venv
@@ -149,14 +149,14 @@ docker compose up --build -d
 
 Du brauchst **keine eigene Domain** und **keinen eigenen Server**!
 
-1. Erstelle ein GitHub-Repository (z. B. `KonfiX-Catalog`) und pushe diesen Code:
+1. Erstelle das GitHub-Repository `KoNfiX-Database` und pushe diesen Code:
    ```bash
-   git remote add origin https://github.com/<username>/KonfiX-Catalog.git
+   git remote add origin git@github.com:Sduniii/KoNfiX-Database.git
    git push -u origin main
    ```
 2. Registriere dich kostenlos auf **[Render.com](https://render.com)** mit deinem GitHub-Account.
-3. Klicke auf **New +** > **Blueprint** und wähle dein Repository `KonfiX-Catalog` aus.
-4. Render erkennt die Datei `render.yaml` vollautomatisch und deployt deinen Service unter einer kostenlosen HTTPS-URL (z. B. `https://konfix-catalog.onrender.com`).
+3. Klicke auf **New +** > **Blueprint** und wähle dein Repository `KoNfiX-Database` aus.
+4. Render erkennt die Datei `render.yaml` vollautomatisch und deployt deinen Service unter einer kostenlosen HTTPS-URL (z. B. `https://konfix-database.onrender.com`).
 5. Jeder zukünftige `git push` aktualisiert die Anwendung vollautomatisch.
 
 ---
@@ -173,3 +173,9 @@ Die Testsuite deckt ab:
 - Upload via `POST /api/v1/upload` (`application/octet-stream`)
 - Download via `POST /api/v1/download` (`application/octet-stream`) mit SHA256-Integritätsprüfung
 - REST-Such- und Filterendpunkte
+
+---
+
+## 📄 Lizenz
+
+Dieses Projekt steht unter der **GNU Affero General Public License v3.0 (AGPL-3.0)** — siehe [LICENSE](LICENSE) für Details (identisch mit dem Hauptprojekt [KoNfiX](https://github.com/Sduniii/KoNfiX)).
