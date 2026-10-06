@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 import io
 import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple
 
 try:
-    import defusedxml.ElementTree as ET
+    import defusedxml.ElementTree as defused_ET
 except ImportError:
-    import xml.etree.ElementTree as ET
+    defused_ET = None
 
 from app.config import settings
 from app.services.knx_master_data import resolve_manufacturer, register_custom_manufacturer
@@ -87,6 +90,8 @@ def _safe_parse_xml(xml_bytes: bytes, filename: str) -> ET.Element:
     if len(xml_bytes) > settings.MAX_XML_PARSE_BYTES:
         raise ValueError(f"XML-Datei '{filename}' ist zu groß ({len(xml_bytes)} Bytes > {settings.MAX_XML_PARSE_BYTES} Bytes)")
     try:
+        if defused_ET is not None:
+            return defused_ET.fromstring(xml_bytes)
         return ET.fromstring(xml_bytes)
     except Exception as e:
         raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{filename}': {e}")
