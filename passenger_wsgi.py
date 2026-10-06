@@ -11,8 +11,8 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 # 1. Virtualenv / site-packages automatisch finden und einbinden
 possible_site_packages = [
     os.path.join(PROJECT_DIR, "site-packages"),
-    *glob.glob(os.path.join(PROJECT_DIR, "venv", "lib", "python*", "site-packages")),
-    *glob.glob(os.path.join(PROJECT_DIR, ".venv", "lib", "python*", "site-packages")),
+    *glob.glob(os.path.join(PROJECT_DIR, "venv", "lib*", "python*", "site-packages")),
+    *glob.glob(os.path.join(PROJECT_DIR, ".venv", "lib*", "python*", "site-packages")),
 ]
 for p in possible_site_packages:
     if os.path.isdir(p) and p not in sys.path:
