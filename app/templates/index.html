@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KonfiX-Catalog | KNX Online Geräte-Datenbank</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>KonfiX-Catalog</h1>
+          <p class="tagline">Offene REST-Online-Datenbank für KNX-Geräte (.knxprod)</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <a href="/docs" target="_blank" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          Swagger API Doku
+        </a>
+        <button id="openUploadBtn" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          .knxprod Upload
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero & Stats Bar -->
+  <section class="hero">
+    <div class="container">
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-item">
+          <span class="stat-value" id="statDevices">-</span>
+          <span class="stat-label">Geräte</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value" id="statManufacturers">-</span>
+          <span class="stat-label">Hersteller</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value" id="statFiles">-</span>
+          <span class="stat-label">Dateien</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value" id="statSize">- MB</span>
+          <span class="stat-label">Kataloggröße</span>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="search-card">
+        <div class="search-input-wrap">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="searchInput" placeholder="Suche nach Bestellnummer (z. B. AKS-0816.04), Name, Applikation...">
+        </div>
+        <div class="filter-wrap">
+          <select id="manufacturerFilter">
+            <option value="">Alle Hersteller</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content: Catalog Devices Grid -->
+  <main class="container main-content">
+    <div class="section-header">
+      <h2 id="resultsHeading">Gerätekatalog</h2>
+      <span class="badge" id="resultsCount">0 Einträge</span>
+    </div>
+
+    <div class="devices-grid" id="devicesGrid">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Lade KNX-Katalogdaten...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Upload Modal -->
+  <div class="modal-backdrop" id="uploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>.knxprod Datei hochladen</h3>
+        <button class="modal-close" id="closeUploadBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Lade eine beliebige KNX-Produktdatenbank (<code>.knxprod</code>) hoch. Das System parst die XML-Metadaten automatisch und ordnet Hersteller, Produkte und Applikationen zu.
+        </p>
+
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">📦</div>
+          <h4>.knxprod hier ablegen</h4>
+          <p>oder klicken zum Auswählen</p>
+          <input type="file" id="fileInput" accept=".knxprod,application/octet-stream,application/zip" hidden>
+        </div>
+
+        <div class="upload-progress" id="uploadProgress" style="display: none;">
+          <div class="spinner"></div>
+          <p id="uploadStatusText">Analysiere KNX-XML und importiere Geräte...</p>
+        </div>
+
+        <div class="rest-hint">
+          <strong>Tipp für Hersteller:</strong> Upload ist auch direkt per REST möglich:<br>
+          <code>curl -X POST /api/v1/upload -H "Content-Type: application/octet-stream" --data-binary @file.knxprod</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Device Detail / REST Snippet Modal -->
+  <div class="modal-backdrop" id="detailModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="modalDeviceTitle">Gerätedetails</h3>
+        <button class="modal-close" id="closeDetailBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="modalDeviceBody">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-content">
+      <p>KonfiX-Catalog &copy; 2026 &bull; KNX-kompatibles REST-Katalogsystem</p>
+      <div class="footer-links">
+        <a href="/docs">OpenAPI Spec</a>
+        <a href="/api/v1/devices">JSON API</a>
+        <a href="https://github.com" target="_blank">GitHub Repository</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

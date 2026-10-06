@@ -1,0 +1,16 @@
+services:
+  konfix-catalog:
+    build: .
+    container_name: konfix-catalog
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./catalog_files:/app/catalog_files
+    environment:
+      - APP_NAME=KonfiX-Catalog
+      - DATABASE_URL=sqlite:////app/data/konfix_catalog.db
+      - STORAGE_DIR=/app/catalog_files
+      # Optional: set API_KEY to restrict uploads (empty = open upload)
+      - API_KEY=
+    restart: unless-stopped
