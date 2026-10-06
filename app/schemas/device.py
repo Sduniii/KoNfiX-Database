@@ -28,7 +28,8 @@ class ManufacturerSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    knx_id: str
+    code: Optional[str] = None
+    knx_id: Optional[str] = None
     name: str
 
 class DeviceBase(BaseModel):
@@ -46,8 +47,10 @@ class DeviceResponse(DeviceBase):
     manufacturer: ManufacturerSummary
     knxprod_file: Optional[KnxprodFileInfo] = None
     applications: List[ApplicationProgramResponse] = []
+    yaml_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
 
 class DeviceListResponse(BaseModel):
     total: int

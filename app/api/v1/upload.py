@@ -34,7 +34,8 @@ from app.schemas.upload import (
     UrlImportRequest,
 )
 from app.services.knxprod_parser import extract_knxprods_from_zip, parse_knxprod_bytes
-from app.services.storage import storage_service
+from app.services.storage import storage_service, sanitize_filename
+from app.services.yaml_converter import parse_konfix_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +391,164 @@ async def upload_knxprod_batch(
     return batch_resp
 
 
+def _is_yaml(file_bytes: bytes, filename: str) -> bool:
+    if filename.lower().endswith((".yaml", ".yml")):
+        return True
+    try:
+        decoded = file_bytes[:1024].decode("utf-8", errors="ignore").lstrip()
+        if decoded.startswith("---") or "konfix_version:" in decoded or "device:" in decoded:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _save_yaml_db(
+    file_bytes: bytes,
+    filename: str,
+    db: Session,
+    source_url: str | None = None
+) -> UploadResponse:
+    try:
+        yaml_str = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("YAML-Datei konnte nicht als UTF-8 dekodiert werden")
+
+    try:
+        parsed = parse_konfix_yaml(yaml_str)
+    except ValueError as e:
+        raise ValueError(f"Fehler bei der KoNfiX-YAML-Verarbeitung: {e!s}")
+
+    mfg_info = parsed["manufacturer"]
+    mfg_code = mfg_info.get("code") or "custom-manufacturer"
+    mfg_name = mfg_info.get("name") or "Unbekannter Hersteller"
+    legacy_knx_id = mfg_info.get("legacy_knx_id")
+
+    # 1. Manufacturer
+    manufacturer = None
+    if mfg_code:
+        manufacturer = db.query(Manufacturer).filter(Manufacturer.code == mfg_code).first()
+    if not manufacturer and legacy_knx_id:
+        manufacturer = db.query(Manufacturer).filter(Manufacturer.knx_id == legacy_knx_id).first()
+
+    if not manufacturer:
+        manufacturer = Manufacturer(
+            code=mfg_code,
+            name=mfg_name,
+            knx_id=legacy_knx_id
+        )
+        db.add(manufacturer)
+        db.flush()
+    else:
+        if mfg_code and not manufacturer.code:
+            manufacturer.code = mfg_code
+        if mfg_name and not manufacturer.name:
+            manufacturer.name = mfg_name
+        if legacy_knx_id and not manufacturer.knx_id:
+            manufacturer.knx_id = legacy_knx_id
+        db.flush()
+
+    dev_info = parsed["device"]
+    order_number = dev_info["order_number"]
+
+    # 2. Store YAML file
+    clean_filename = sanitize_filename(filename or f"{order_number}.yaml")
+    if not clean_filename.lower().endswith((".yaml", ".yml")):
+        clean_filename += ".yaml"
+    stored_path, sha256_hash, file_size = storage_service.save_yaml_content(yaml_str, clean_filename)
+
+    # 3. KnxprodFile record
+    knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
+    if not knx_file_rec:
+        knx_file_rec = KnxprodFile(
+            filename=clean_filename,
+            file_size_bytes=file_size,
+            sha256=sha256_hash,
+            storage_path=stored_path,
+            mime_type="text/yaml",
+            source_url=source_url or dev_info.get("source_url")
+        )
+        db.add(knx_file_rec)
+        db.flush()
+    else:
+        if (source_url or dev_info.get("source_url")) and not knx_file_rec.source_url:
+            knx_file_rec.source_url = source_url or dev_info.get("source_url")
+        if not knx_file_rec.storage_path:
+            knx_file_rec.storage_path = stored_path
+        db.flush()
+
+    # 4. Device
+    device = db.query(Device).filter(Device.order_number == order_number).first()
+    if not device:
+        device = Device(
+            order_number=order_number,
+            name=dev_info.get("name") or order_number,
+            description=dev_info.get("description"),
+            hardware_name=dev_info.get("hardware_name"),
+            hardware_version=dev_info.get("hardware_version"),
+            bus_current_ma=dev_info.get("bus_current_ma"),
+            manufacturer_id=manufacturer.id,
+            knxprod_file_id=knx_file_rec.id,
+            yaml_content=yaml_str
+        )
+        db.add(device)
+        db.flush()
+    else:
+        device.name = dev_info.get("name") or device.name
+        device.description = dev_info.get("description") or device.description
+        device.hardware_name = dev_info.get("hardware_name") or device.hardware_name
+        device.hardware_version = dev_info.get("hardware_version") or device.hardware_version
+        device.bus_current_ma = dev_info.get("bus_current_ma") or device.bus_current_ma
+        device.manufacturer_id = manufacturer.id
+        device.knxprod_file_id = knx_file_rec.id
+        device.yaml_content = yaml_str
+        db.query(ApplicationProgram).filter(ApplicationProgram.device_id == device.id).delete()
+        db.flush()
+
+    # 5. Application
+    app_info = parsed.get("application") or {}
+    app_rec = ApplicationProgram(
+        device_id=device.id,
+        app_id=app_info.get("id") or f"{mfg_code}_{order_number}",
+        name=app_info.get("name") or device.name,
+        version=app_info.get("version"),
+        mask_version=app_info.get("mask_version"),
+        com_objects_count=app_info.get("com_objects_count", 0),
+        parameters_count=app_info.get("parameters_count", 0)
+    )
+    db.add(app_rec)
+    db.flush()
+
+    app_responses = [ImportedApplication(
+        name=app_rec.name,
+        version=app_rec.version,
+        mask_version=app_rec.mask_version,
+        com_objects_count=app_rec.com_objects_count,
+        parameters_count=app_rec.parameters_count
+    )]
+
+    imported_devices_resp = [ImportedDevice(
+        order_number=device.order_number,
+        name=device.name,
+        hardware_version=device.hardware_version,
+        bus_current_ma=device.bus_current_ma,
+        applications=app_responses
+    )]
+
+    return UploadResponse(
+        status="success",
+        message="KoNfiX-YAML-Gerätedefinition erfolgreich empfangen und indexiert",
+        filename=knx_file_rec.filename,
+        file_size_bytes=file_size,
+        sha256=sha256_hash,
+        source_url=knx_file_rec.source_url,
+        manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
+        manufacturer_name=manufacturer.name,
+        manufacturer_code=manufacturer.code,
+        devices_imported=imported_devices_resp
+    )
+
+
 def _save_knxprod_db(
     file_bytes: bytes,
     filename: str,
@@ -414,7 +573,6 @@ def _save_knxprod_db(
     # 3. Check or create KnxprodFile record
     knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
     if not knx_file_rec:
-        from app.services.storage import sanitize_filename
         knx_file_rec = KnxprodFile(
             filename=sanitize_filename(filename),
             file_size_bytes=file_size,
@@ -435,23 +593,37 @@ def _save_knxprod_db(
             db.flush()
 
     # 4. Check or create Manufacturer
-    manufacturer = db.query(Manufacturer).filter(Manufacturer.knx_id == parsed.manufacturer_id).first()
+    manufacturer = None
+    if parsed.manufacturer_code:
+        manufacturer = db.query(Manufacturer).filter(Manufacturer.code == parsed.manufacturer_code).first()
+    if not manufacturer and parsed.manufacturer_id:
+        manufacturer = db.query(Manufacturer).filter(Manufacturer.knx_id == parsed.manufacturer_id).first()
+
     if not manufacturer:
         manufacturer = Manufacturer(
             knx_id=parsed.manufacturer_id,
-            name=parsed.manufacturer_name
+            name=parsed.manufacturer_name,
+            code=parsed.manufacturer_code
         )
         db.add(manufacturer)
         db.flush()
     else:
-        # Update name if previously generic
+        if parsed.manufacturer_code and not manufacturer.code:
+            manufacturer.code = parsed.manufacturer_code
         if parsed.manufacturer_name and not manufacturer.name:
             manufacturer.name = parsed.manufacturer_name
+        if parsed.manufacturer_id and not manufacturer.knx_id:
+            manufacturer.knx_id = parsed.manufacturer_id
+        db.flush()
 
-    # 5. Insert / Update Devices and Applications
+    # 5. Insert / Update Devices and Applications + Save Converted KoNfiX-YAML
     imported_devices_resp = []
 
     for d in parsed.devices:
+        # Save generated KoNfiX-YAML file
+        if d.yaml_content:
+            storage_service.save_yaml_content(d.yaml_content, f"{d.order_number}.yaml")
+
         device = db.query(Device).filter(Device.order_number == d.order_number).first()
         if not device:
             device = Device(
@@ -462,7 +634,8 @@ def _save_knxprod_db(
                 hardware_version=d.hardware_version,
                 bus_current_ma=d.bus_current_ma,
                 manufacturer_id=manufacturer.id,
-                knxprod_file_id=knx_file_rec.id
+                knxprod_file_id=knx_file_rec.id,
+                yaml_content=d.yaml_content
             )
             db.add(device)
             db.flush()
@@ -472,7 +645,9 @@ def _save_knxprod_db(
             device.hardware_name = d.hardware_name or device.hardware_name
             device.hardware_version = d.hardware_version or device.hardware_version
             device.bus_current_ma = d.bus_current_ma or device.bus_current_ma
+            device.manufacturer_id = manufacturer.id
             device.knxprod_file_id = knx_file_rec.id
+            device.yaml_content = d.yaml_content
             # Remove previous applications for fresh sync
             db.query(ApplicationProgram).filter(ApplicationProgram.device_id == device.id).delete()
             db.flush()
@@ -509,13 +684,14 @@ def _save_knxprod_db(
 
     return UploadResponse(
         status="success",
-        message="KNXProd-Datei erfolgreich empfangen, geparst und indexiert",
+        message="KNXProd-Datei erfolgreich empfangen, in KoNfiX-YAML konvertiert und indexiert",
         filename=knx_file_rec.filename,
         file_size_bytes=file_size,
         sha256=sha256_hash,
         source_url=knx_file_rec.source_url,
-        manufacturer_id=manufacturer.knx_id,
+        manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
         manufacturer_name=manufacturer.name,
+        manufacturer_code=manufacturer.code,
         devices_imported=imported_devices_resp
     )
 
@@ -528,13 +704,21 @@ def _process_single_knxprod(
     store_binary: bool = True
 ) -> UploadResponse:
     try:
-        resp = _save_knxprod_db(
-            file_bytes,
-            filename,
-            db,
-            source_url=source_url,
-            store_binary=store_binary
-        )
+        if _is_yaml(file_bytes, filename):
+            resp = _save_yaml_db(
+                file_bytes,
+                filename,
+                db,
+                source_url=source_url
+            )
+        else:
+            resp = _save_knxprod_db(
+                file_bytes,
+                filename,
+                db,
+                source_url=source_url,
+                store_binary=store_binary
+            )
         db.commit()
         return resp
     except ValueError as e:
@@ -564,7 +748,10 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
     for fname, fbytes in files:
         savepoint = db.begin_nested()
         try:
-            resp = _save_knxprod_db(fbytes, fname, db)
+            if _is_yaml(fbytes, fname):
+                resp = _save_yaml_db(fbytes, fname, db)
+            else:
+                resp = _save_knxprod_db(fbytes, fname, db)
             savepoint.commit()
             success_count += 1
             results.append(BatchItemResult(
@@ -576,6 +763,7 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
                 source_url=resp.source_url,
                 manufacturer_id=resp.manufacturer_id,
                 manufacturer_name=resp.manufacturer_name,
+                manufacturer_code=resp.manufacturer_code,
                 devices_imported=resp.devices_imported
             ))
         except Exception as e:

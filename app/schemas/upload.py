@@ -24,6 +24,7 @@ class UploadResponse(BaseModel):
     source_url: Optional[str] = None
     manufacturer_id: str
     manufacturer_name: str
+    manufacturer_code: Optional[str] = None
     devices_imported: List[ImportedDevice]
 
 class BatchItemResult(BaseModel):
@@ -35,6 +36,7 @@ class BatchItemResult(BaseModel):
     source_url: Optional[str] = None
     manufacturer_id: Optional[str] = None
     manufacturer_name: Optional[str] = None
+    manufacturer_code: Optional[str] = None
     devices_imported: List[ImportedDevice] = []
 
 class BatchUploadResponse(BaseModel):

@@ -37,6 +37,8 @@ htmlcov/
 *.sqlite3
 *.db
 catalog_files/*.knxprod
+catalog_files/*.yaml
+catalog_files/*.yml
 !catalog_files/.gitkeep
 
 # IDEs

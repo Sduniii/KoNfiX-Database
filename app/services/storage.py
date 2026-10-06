@@ -26,7 +26,8 @@ def sanitize_filename(filename: str | None) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9_.-]", "_", cleaned).strip("._ ")
     if not cleaned:
         cleaned = "unnamed"
-    if not cleaned.lower().endswith(".knxprod"):
+    lower_c = cleaned.lower()
+    if not (lower_c.endswith(".yaml") or lower_c.endswith(".yml") or lower_c.endswith(".knxprod") or lower_c.endswith(".zip")):
         cleaned += ".knxprod"
     return cleaned
 
@@ -44,7 +45,7 @@ class StorageService:
         sha256 = hashlib.sha256(content).hexdigest()
         file_size = len(content)
 
-        clean_name = sanitize_filename(filename) if filename else f"{sha256[:12]}.knxprod"
+        clean_name = sanitize_filename(filename) if filename else f"{sha256[:12]}.yaml"
 
         # Safe filename prefixed with hash prefix to avoid collision
         stored_filename = f"{sha256[:12]}_{clean_name}"
@@ -60,6 +61,16 @@ class StorageService:
 
         return str(dest_path), sha256, file_size
 
+    def save_yaml_content(self, yaml_content: str, filename: str | None = None) -> Tuple[str, str, int]:
+        """
+        Saves a KoNfiX-YAML string to disk as UTF-8 encoded file.
+        """
+        content_bytes = yaml_content.encode("utf-8")
+        clean_name = filename or "device.yaml"
+        if not (clean_name.lower().endswith(".yaml") or clean_name.lower().endswith(".yml")):
+            clean_name += ".yaml"
+        return self.save_knxprod_bytes(content_bytes, clean_name)
+
     def get_file_path(self, path_str: str) -> Path:
         p = Path(path_str)
         if not p.is_absolute():
@@ -70,4 +81,5 @@ class StorageService:
         return resolved
 
 storage_service = StorageService()
+
 

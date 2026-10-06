@@ -13,6 +13,12 @@ except ImportError:
 
 from app.config import settings
 from app.services.knx_master_data import resolve_manufacturer, register_custom_manufacturer
+from app.services.yaml_converter import (
+    build_konfix_yaml,
+    extract_com_objects_from_xml_node,
+    extract_parameters_from_xml_node,
+    generate_manufacturer_code,
+)
 
 @dataclass
 class ParsedApplication:
@@ -22,6 +28,8 @@ class ParsedApplication:
     mask_version: Optional[str] = None
     com_objects_count: int = 0
     parameters_count: int = 0
+    communication_objects: List[Dict[str, Any]] = field(default_factory=list)
+    parameters: List[Dict[str, Any]] = field(default_factory=list)
 
 @dataclass
 class ParsedDevice:
@@ -32,11 +40,13 @@ class ParsedDevice:
     hardware_version: Optional[str] = None
     bus_current_ma: Optional[float] = None
     applications: List[ParsedApplication] = field(default_factory=list)
+    yaml_content: Optional[str] = None
 
 @dataclass
 class ParsedKnxprod:
     manufacturer_id: str
     manufacturer_name: str
+    manufacturer_code: str = ""
     devices: List[ParsedDevice] = field(default_factory=list)
     raw_xml_filename: Optional[str] = None
 
@@ -147,8 +157,8 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
                 app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
                 mask_version = app.attrib.get("MaskVersion")
 
-                com_objs = _find_nodes_by_local_name(app, "ComObject")
-                parameters = _find_nodes_by_local_name(app, "Parameter")
+                com_objs = extract_com_objects_from_xml_node(app)
+                parameters = extract_parameters_from_xml_node(app)
 
                 if app_id:
                     app_programs_map[app_id] = ParsedApplication(
@@ -158,6 +168,8 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
                         mask_version=mask_version,
                         com_objects_count=len(com_objs),
                         parameters_count=len(parameters),
+                        communication_objects=com_objs,
+                        parameters=parameters,
                     )
         except Exception:
             pass
@@ -303,9 +315,39 @@ def _parse_knx_xml_root(
             applications=list(app_programs_map.values())
         ))
 
+    mfg_code = generate_manufacturer_code(mfg_name, mfg_id)
+
+    # Build full KoNfiX-YAML specification for each extracted device
+    for dev in devices:
+        primary_app = dev.applications[0] if dev.applications else None
+        all_cos: List[Dict[str, Any]] = []
+        all_params: List[Dict[str, Any]] = []
+        for a in dev.applications:
+            all_cos.extend(a.communication_objects)
+            all_params.extend(a.parameters)
+
+        dev.yaml_content = build_konfix_yaml(
+            manufacturer_code=mfg_code,
+            manufacturer_name=mfg_name,
+            legacy_knx_id=mfg_id,
+            order_number=dev.order_number,
+            device_name=dev.name,
+            description=dev.description,
+            hardware_name=dev.hardware_name,
+            hardware_version=dev.hardware_version,
+            bus_current_ma=dev.bus_current_ma,
+            application_id=primary_app.app_id if primary_app else None,
+            application_name=primary_app.name if primary_app else None,
+            application_version=primary_app.version if primary_app else None,
+            mask_version=primary_app.mask_version if primary_app else None,
+            communication_objects=all_cos,
+            parameters=all_params,
+        )
+
     return ParsedKnxprod(
         manufacturer_id=mfg_id,
         manufacturer_name=mfg_name,
+        manufacturer_code=mfg_code,
         devices=devices,
         raw_xml_filename=xml_filename
     )
@@ -336,7 +378,7 @@ def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
         # Ignore macOS resource fork files, dotfiles, or __MACOSX directories
         if any(p.startswith(".") or p == "__MACOSX" for p in parts):
             continue
-        if basename.lower().endswith(".knxprod"):
+        if basename.lower().endswith((".knxprod", ".yaml", ".yml")):
             try:
                 results.append((basename, zf.read(info)))
             except Exception:

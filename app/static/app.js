@@ -83,6 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEditModal();
   setupDeleteModal();
   setupBatchDeleteModal();
+  setupYamlModal();
 });
 
 // Admin Authentication Setup
@@ -265,18 +266,18 @@ function createDeviceCard(device) {
     </span>
   `).join("");
 
-  const downloadUrl = `/api/v1/download/${encodeURIComponent(device.order_number)}`;
-  const hasFile = !!device.knxprod_file;
-  const hasSource = hasFile && !!device.knxprod_file.source_url;
+  const yamlUrl = `/api/v1/devices/${encodeURIComponent(device.order_number)}/yaml`;
+  const hasFile = !!device.knxprod_file || !!device.yaml_content;
+  const hasSource = hasFile && !!(device.knxprod_file && device.knxprod_file.source_url);
   
-  let downloadBtn = `<span class="badge">Keine Datei</span>`;
-  if (hasFile) {
-    downloadBtn = `
-      <a href="${downloadUrl}" class="btn btn-primary btn-sm" download>
-        ⬇️ .knxprod Download
-      </a>
-    `;
-  }
+  const actionButtons = `
+    <button type="button" class="btn btn-secondary btn-sm btn-view-yaml" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}">
+      📄 YAML ansehen
+    </button>
+    <a href="${yamlUrl}" class="btn btn-primary btn-sm" download="${escapeHtml(device.order_number)}.yaml" title="KoNfiX-YAML Gerätedefinition herunterladen">
+      ⬇️ .yaml
+    </a>
+  `;
 
   const sourceBadge = hasSource ? `
     <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="Offizieller Hersteller-Download-Link">
@@ -288,14 +289,18 @@ function createDeviceCard(device) {
   const takedownBody = encodeURIComponent(`Sehr geehrtes KoNfiX-Team,\n\nals Rechteinhaber bitte ich um Löschung / Sperrung des folgenden Eintrags:\nGerät: ${device.name}\nBestellnummer: ${device.order_number}\n\nBegründung:\n`);
   const takedownLink = `mailto:legal@konfix.sduni.de?subject=${takedownSubject}&body=${takedownBody}`;
 
+  const mfgName = device.manufacturer ? device.manufacturer.name : '';
+  const mfgCode = device.manufacturer && device.manufacturer.code ? ` (@${device.manufacturer.code})` : '';
+  const mfgBadgeText = escapeHtml(mfgName + mfgCode);
+
   const leftHeader = isAdmin ? `
     <div style="display: flex; align-items: center; gap: 0.5rem;">
       <input type="checkbox" class="device-select-checkbox" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}" ${isSelected ? 'checked' : ''} title="Auswählen für Sammelaktion">
-      <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
+      <span class="badge badge-mfg">${mfgBadgeText}</span>
     </div>
   ` : `
     <div>
-      <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
+      <span class="badge badge-mfg">${mfgBadgeText}</span>
     </div>
   `;
 
@@ -343,7 +348,7 @@ function createDeviceCard(device) {
     </div>
 
     <div class="card-actions">
-      ${downloadBtn}
+      ${actionButtons}
     </div>
 
     <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
@@ -352,6 +357,14 @@ function createDeviceCard(device) {
       </a>
     </div>
   `;
+
+  // Wire up YAML Viewer Button
+  const viewYamlBtn = card.querySelector(".btn-view-yaml");
+  if (viewYamlBtn) {
+    viewYamlBtn.addEventListener("click", () => {
+      openYamlViewer(device.order_number, device.name);
+    });
+  }
 
   // REST Details Button
   const restBtn = document.createElement("button");
@@ -1035,4 +1048,60 @@ function setupBatchDeleteModal() {
     });
   }
 }
+
+// YAML Viewer Modal Logic
+function setupYamlModal() {
+  const yamlModal = document.getElementById("yamlModal");
+  const closeYamlBtn = document.getElementById("closeYamlBtn");
+  const copyYamlBtn = document.getElementById("copyYamlBtn");
+
+  if (closeYamlBtn) {
+    closeYamlBtn.addEventListener("click", () => yamlModal.classList.remove("open"));
+  }
+
+  if (copyYamlBtn) {
+    copyYamlBtn.addEventListener("click", async () => {
+      const code = document.getElementById("yamlContentPre").textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+        const originalText = copyYamlBtn.textContent;
+        copyYamlBtn.textContent = "✅ Kopiert!";
+        setTimeout(() => {
+          copyYamlBtn.textContent = originalText;
+        }, 2000);
+      } catch (err) {
+        alert("Fehler beim Kopieren in die Zwischenablage");
+      }
+    });
+  }
+}
+
+async function openYamlViewer(orderNumber, deviceName) {
+  const yamlModal = document.getElementById("yamlModal");
+  const title = document.getElementById("yamlModalTitle");
+  const subtitle = document.getElementById("yamlModalSubtitle");
+  const pre = document.getElementById("yamlContentPre");
+  const dlBtn = document.getElementById("downloadYamlModalBtn");
+
+  title.textContent = `📄 ${deviceName || orderNumber}`;
+  subtitle.textContent = `KoNfiX-YAML: ${orderNumber}`;
+  pre.innerHTML = `<code>Lade YAML-Definition...</code>`;
+  dlBtn.href = `/api/v1/devices/${encodeURIComponent(orderNumber)}/yaml`;
+  dlBtn.setAttribute("download", `${orderNumber}.yaml`);
+
+  yamlModal.classList.add("open");
+
+  try {
+    const res = await fetch(`/api/v1/devices/${encodeURIComponent(orderNumber)}/yaml`);
+    if (!res.ok) {
+      pre.textContent = "Fehler beim Laden der YAML-Definition.";
+      return;
+    }
+    const yamlText = await res.text();
+    pre.textContent = yamlText;
+  } catch (err) {
+    pre.textContent = `Netzwerkfehler: ${err.message}`;
+  }
+}
+
 

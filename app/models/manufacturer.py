@@ -7,7 +7,8 @@ class Manufacturer(Base):
     __tablename__ = "manufacturers"
 
     id = Column(Integer, primary_key=True, index=True)
-    knx_id = Column(String(32), unique=True, index=True, nullable=False) # e.g. "M-00C5" or "00C5"
+    code = Column(String(64), unique=True, index=True, nullable=True) # e.g. "openknx", "mdt", "diy-maker"
+    knx_id = Column(String(32), unique=True, index=True, nullable=True) # Optional legacy KNX ID, e.g. "M-00FA"
     name = Column(String(255), nullable=False, index=True)
     country = Column(String(64), nullable=True)
     website = Column(String(255), nullable=True)

@@ -1,7 +1,7 @@
 # isort: skip_file
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -59,11 +59,13 @@ def _to_device_response(d: Device) -> DeviceResponse:
         bus_current_ma=d.bus_current_ma,
         manufacturer=ManufacturerSummary(
             id=d.manufacturer.id,
+            code=d.manufacturer.code,
             knx_id=d.manufacturer.knx_id,
             name=d.manufacturer.name
         ),
         knxprod_file=file_info,
         applications=apps,
+        yaml_url=f"/api/v1/devices/{d.order_number}/yaml",
         created_at=d.created_at,
         updated_at=d.updated_at
     )
@@ -279,5 +281,49 @@ def batch_delete_devices(
         errors=errors,
         message=f"{len(deleted_order_numbers)} Gerät(e) erfolgreich aus dem Katalog gelöscht."
     )
+
+
+@router.get(
+    "/devices/{order_number}/yaml",
+    summary="Get full KoNfiX-YAML definition for device",
+    description="Liefert die vollständige, offene KoNfiX-YAML-Gerätedefinition inklusive aller Kommunikationsobjekte und Parameter."
+)
+def get_device_yaml(
+    order_number: str,
+    db: Session = DB_SESSION_DEPENDENCY
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    if device.yaml_content:
+        yaml_text = device.yaml_content
+    else:
+        # Generate on the fly if migrated without pre-stored yaml
+        from app.services.yaml_converter import build_konfix_yaml, generate_manufacturer_code
+        mfg_code = device.manufacturer.code or generate_manufacturer_code(device.manufacturer.name, device.manufacturer.knx_id)
+        yaml_text = build_konfix_yaml(
+            manufacturer_code=mfg_code,
+            manufacturer_name=device.manufacturer.name,
+            legacy_knx_id=device.manufacturer.knx_id,
+            order_number=device.order_number,
+            device_name=device.name,
+            description=device.description,
+            hardware_name=device.hardware_name,
+            hardware_version=device.hardware_version,
+            bus_current_ma=device.bus_current_ma,
+            application_name=device.applications[0].name if device.applications else None,
+            source_url=device.knxprod_file.source_url if device.knxprod_file else None,
+        )
+
+    return Response(
+        content=yaml_text,
+        media_type="text/yaml; charset=utf-8",
+        headers={"Content-Disposition": f'inline; filename="{device.order_number}.yaml"'}
+    )
+
 
 

@@ -13,6 +13,7 @@ class Device(Base):
     hardware_name = Column(String(255), nullable=True)
     hardware_version = Column(String(64), nullable=True)
     bus_current_ma = Column(Float, nullable=True)
+    yaml_content = Column(Text, nullable=True) # Full KoNfiX-YAML specification
     
     manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"), nullable=False)
     knxprod_file_id = Column(Integer, ForeignKey("knxprod_files.id"), nullable=True)

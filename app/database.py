@@ -51,13 +51,20 @@ def ensure_database_ready():
         from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer  # noqa: F401
         Base.metadata.create_all(bind=engine)
 
-        # Migration: Add source_url column if not present in legacy SQLite DBs
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE knxprod_files ADD COLUMN source_url VARCHAR(1024)"))
-                conn.commit()
-        except Exception:
-            pass
+        # Migrations: Add new columns if not present in existing SQLite DBs
+        migrations = [
+            "ALTER TABLE knxprod_files ADD COLUMN source_url VARCHAR(1024)",
+            "ALTER TABLE manufacturers ADD COLUMN code VARCHAR(64)",
+            "ALTER TABLE devices ADD COLUMN yaml_content TEXT"
+        ]
+        with engine.connect() as conn:
+            for sql in migrations:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception:
+                    pass
+
 
 
 def get_db():
