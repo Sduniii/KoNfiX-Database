@@ -64,3 +64,15 @@ class DeviceUpdateRequest(BaseModel):
     bus_current_ma: Optional[float] = None
     source_url: Optional[str] = None
 
+
+class BatchDeleteRequest(BaseModel):
+    order_numbers: List[str]
+    delete_files: bool = False
+
+
+class BatchDeleteResponse(BaseModel):
+    deleted_count: int
+    deleted_order_numbers: List[str]
+    errors: List[str] = []
+    message: str
+

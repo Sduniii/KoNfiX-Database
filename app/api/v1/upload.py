@@ -21,7 +21,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from app.api.v1.auth import verify_api_key
+from app.api.v1.auth import verify_upload_permission
 from app.config import settings
 from app.database import get_db
 from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer
@@ -145,7 +145,7 @@ async def upload_knxprod(
     filename: str | None = Query(None, description="Optionaler Dateiname via Query-Parameter"),
     x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
     source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_upload_permission)
 ):
     content_type = request.headers.get("content-type", "").lower()
     file_bytes: bytes = b""
@@ -219,7 +219,7 @@ async def upload_knxprod_form(
     db: Session = DB_GET_DEPENDENCY,
     x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
     source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_upload_permission)
 ):
     content = await _read_upload_file_capped(file)
     fname = file.filename or "device.knxprod"
@@ -254,7 +254,7 @@ async def upload_knxprod_form(
 async def upload_knxprod_from_url(
     payload: UrlImportRequest,
     db: Session = DB_GET_DEPENDENCY,
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_upload_permission)
 ):
     safe_url = _validate_safe_url(payload.url)
     try:
@@ -317,7 +317,7 @@ async def upload_knxprod_from_url(
 async def upload_knxprod_batch(
     files: List[UploadFile] = File(..., description="Eine oder mehrere .knxprod- oder .zip-Dateien"),
     db: Session = DB_GET_DEPENDENCY,
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_upload_permission)
 ):
     if not files:
         raise HTTPException(

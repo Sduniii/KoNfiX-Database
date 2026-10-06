@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     # Storage
     STORAGE_DIR: str = str(BASE_DIR / "catalog_files")
     
-    # Security / Upload protection (empty = open upload for all manufacturers)
-    API_KEY: str = ""
+    # Security / Admin & Upload settings
+    ADMIN_KEY: str = ""  # If set, required for PATCH/DELETE and batch-delete
+    API_KEY: str = ""    # Legacy fallback for ADMIN_KEY
+    ALLOW_PUBLIC_UPLOAD: bool = True  # If True, uploads do not require any key
     
     # Upload & DoS Protection Limits
     MAX_UPLOAD_SIZE_BYTES: int = 50 * 1024 * 1024  # 50 MB

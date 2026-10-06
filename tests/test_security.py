@@ -131,28 +131,32 @@ def test_zip_bomb_uncompressed_limit(monkeypatch):
 
 
 def test_api_key_auth(client, sample_knxprod_bytes, monkeypatch):
-    """Verify API Key authentication with timing-safe check and Bearer format."""
-    monkeypatch.setattr(settings, "API_KEY", "secret-key-12345")
+    """Verify upload permission: public by default, but protected when ALLOW_PUBLIC_UPLOAD=False."""
+    monkeypatch.setattr(settings, "ADMIN_KEY", "secret-key-12345")
+    monkeypatch.setattr(settings, "ALLOW_PUBLIC_UPLOAD", True)
 
-    # 1. No key -> 401
+    # 1. By default, public upload works without any key
     headers = {"Content-Type": "application/octet-stream"}
-    res = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers)
-    assert res.status_code == 401
-
-    # 2. Wrong key -> 401
-    headers["X-API-Key"] = "wrong-key"
-    res = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers)
-    assert res.status_code == 401
-
-    # 3. Valid X-API-Key -> 201
-    headers["X-API-Key"] = "secret-key-12345"
     res = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers)
     assert res.status_code == 201
 
-    # 4. Valid Authorization: Bearer token -> 201
+    # 2. When ALLOW_PUBLIC_UPLOAD is False, key is strictly required
+    monkeypatch.setattr(settings, "ALLOW_PUBLIC_UPLOAD", False)
+    res_no_key = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers)
+    assert res_no_key.status_code == 401
+
+    headers_wrong = {"Content-Type": "application/octet-stream", "X-API-Key": "wrong-key"}
+    res_wrong = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers_wrong)
+    assert res_wrong.status_code == 401
+
+    headers_valid = {"Content-Type": "application/octet-stream", "X-API-Key": "secret-key-12345"}
+    res_valid = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers_valid)
+    assert res_valid.status_code == 201
+
     headers_bearer = {
         "Content-Type": "application/octet-stream",
         "Authorization": "Bearer secret-key-12345"
     }
-    res2 = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers_bearer)
-    assert res2.status_code == 201
+    res_bearer = client.post("/api/v1/upload", content=sample_knxprod_bytes, headers=headers_bearer)
+    assert res_bearer.status_code == 201
+

@@ -4,6 +4,7 @@ let allManufacturers = [];
 let searchTimeout = null;
 let isAdmin = false;
 let currentDeleteOrderNumber = null;
+const selectedDevices = new Map(); // order_number -> device_name
 
 // Auth Helpers
 function getAdminKey() {
@@ -81,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupUrlImport();
   setupEditModal();
   setupDeleteModal();
+  setupBatchDeleteModal();
 });
 
 // Admin Authentication Setup
@@ -168,7 +170,9 @@ function renderAdminUI() {
     adminToggleBtn.classList.remove("btn-primary");
     adminToggleBtn.classList.add("btn-secondary");
     adminToggleText.innerHTML = "🔐 Admin";
+    selectedDevices.clear();
   }
+  updateBulkToolbar();
 }
 
 async function loadStats() {
@@ -250,6 +254,11 @@ function createDeviceCard(device) {
   const card = document.createElement("div");
   card.className = "device-card";
 
+  const isSelected = selectedDevices.has(device.order_number);
+  if (isSelected) {
+    card.classList.add("selected");
+  }
+
   const appPills = (device.applications || []).map(app => `
     <span class="app-pill" title="Mask: ${escapeHtml(app.mask_version || 'N/A')}, ComObjects: ${app.com_objects_count}">
       ⚙️ ${escapeHtml(app.name)} ${app.version ? 'v' + escapeHtml(app.version) : ''}
@@ -279,12 +288,45 @@ function createDeviceCard(device) {
   const takedownBody = encodeURIComponent(`Sehr geehrtes KoNfiX-Team,\n\nals Rechteinhaber bitte ich um Löschung / Sperrung des folgenden Eintrags:\nGerät: ${device.name}\nBestellnummer: ${device.order_number}\n\nBegründung:\n`);
   const takedownLink = `mailto:legal@konfix.sduni.de?subject=${takedownSubject}&body=${takedownBody}`;
 
+  const leftHeader = isAdmin ? `
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <input type="checkbox" class="device-select-checkbox" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}" ${isSelected ? 'checked' : ''} title="Auswählen für Sammelaktion">
+      <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
+    </div>
+  ` : `
+    <div>
+      <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
+    </div>
+  `;
+
+  const rightHeader = isAdmin ? `
+    <div style="display: flex; align-items: center; gap: 0.35rem;">
+      <span class="order-badge">${escapeHtml(device.order_number)}</span>
+      <div class="card-admin-group">
+        <button type="button" class="admin-icon-btn btn-edit" title="Gerät bearbeiten" aria-label="Bearbeiten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button type="button" class="admin-icon-btn btn-delete" title="Gerät löschen" aria-label="Löschen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  ` : `
+    <span class="order-badge">${escapeHtml(device.order_number)}</span>
+  `;
+
   card.innerHTML = `
     <div class="card-top">
-      <div>
-        <span class="badge badge-mfg">${escapeHtml(device.manufacturer ? device.manufacturer.name : '')}</span>
-      </div>
-      <span class="order-badge">${escapeHtml(device.order_number)}</span>
+      ${leftHeader}
+      ${rightHeader}
     </div>
     
     <h3 class="card-title">${escapeHtml(device.name)}</h3>
@@ -318,24 +360,31 @@ function createDeviceCard(device) {
   restBtn.addEventListener("click", () => showRestDetails(device));
   card.querySelector(".card-actions").appendChild(restBtn);
 
-  // Admin Actions (Edit & Delete)
+  // Admin Event Listeners
   if (isAdmin) {
-    const adminBar = document.createElement("div");
-    adminBar.className = "card-admin-actions";
-    
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn btn-sm btn-secondary";
-    editBtn.textContent = "✏️ Bearbeiten";
-    editBtn.addEventListener("click", () => openEditDeviceModal(device));
+    const editBtn = card.querySelector(".btn-edit");
+    if (editBtn) {
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditDeviceModal(device);
+      });
+    }
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-sm btn-danger";
-    deleteBtn.textContent = "🗑️ Löschen";
-    deleteBtn.addEventListener("click", () => openDeleteDeviceModal(device));
+    const deleteBtn = card.querySelector(".btn-delete");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDeleteDeviceModal(device);
+      });
+    }
 
-    adminBar.appendChild(editBtn);
-    adminBar.appendChild(deleteBtn);
-    card.appendChild(adminBar);
+    const checkbox = card.querySelector(".device-select-checkbox");
+    if (checkbox) {
+      checkbox.addEventListener("change", (e) => {
+        e.stopPropagation();
+        toggleDeviceSelection(device.order_number, device.name, checkbox.checked, card);
+      });
+    }
   }
 
   return card;
@@ -850,3 +899,140 @@ async function safeParseResponse(res) {
 
   return data;
 }
+
+// Bulk Selection and Batch Delete Handling
+function toggleDeviceSelection(orderNumber, deviceName, isSelected, cardElement) {
+  if (isSelected) {
+    selectedDevices.set(orderNumber, deviceName);
+    if (cardElement) cardElement.classList.add("selected");
+  } else {
+    selectedDevices.delete(orderNumber);
+    if (cardElement) cardElement.classList.remove("selected");
+  }
+  updateBulkToolbar();
+}
+
+function updateBulkToolbar() {
+  const toolbar = document.getElementById("bulkActionsToolbar");
+  const countBadge = document.getElementById("bulkSelectedCount");
+  const countText = document.getElementById("bulkSelectedText");
+  if (!toolbar || !countBadge || !countText) return;
+
+  const count = selectedDevices.size;
+  countBadge.textContent = count;
+  countText.textContent = count === 1 ? "Gerät ausgewählt" : "Geräte ausgewählt";
+
+  if (isAdmin && count > 0) {
+    toolbar.style.display = "block";
+  } else {
+    toolbar.style.display = "none";
+  }
+}
+
+function setupBatchDeleteModal() {
+  const modal = document.getElementById("batchDeleteModal");
+  const closeBtn = document.getElementById("closeBatchDeleteBtn");
+  const cancelBtn = document.getElementById("cancelBatchDeleteBtn");
+  const confirmBtn = document.getElementById("confirmBatchDeleteBtn");
+  const statusDiv = document.getElementById("batchDeleteStatus");
+  const listDiv = document.getElementById("batchDeleteList");
+  const descP = document.getElementById("batchDeleteDesc");
+  const filesCheckbox = document.getElementById("batchDeleteFilesCheckbox");
+
+  const bulkSelectAllBtn = document.getElementById("bulkSelectAllBtn");
+  const bulkDeselectAllBtn = document.getElementById("bulkDeselectAllBtn");
+  const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
+
+  if (bulkSelectAllBtn) {
+    bulkSelectAllBtn.addEventListener("click", () => {
+      document.querySelectorAll(".device-card").forEach(c => {
+        const cb = c.querySelector(".device-select-checkbox");
+        if (cb) {
+          cb.checked = true;
+          c.classList.add("selected");
+          selectedDevices.set(cb.dataset.order, cb.dataset.name || cb.dataset.order);
+        }
+      });
+      updateBulkToolbar();
+    });
+  }
+
+  if (bulkDeselectAllBtn) {
+    bulkDeselectAllBtn.addEventListener("click", () => {
+      selectedDevices.clear();
+      document.querySelectorAll(".device-card").forEach(c => {
+        const cb = c.querySelector(".device-select-checkbox");
+        if (cb) cb.checked = false;
+        c.classList.remove("selected");
+      });
+      updateBulkToolbar();
+    });
+  }
+
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener("click", () => {
+      if (selectedDevices.size === 0) return;
+
+      descP.innerHTML = `Möchtest du die folgenden <strong>${selectedDevices.size}</strong> ausgewählten Geräte wirklich unwiderruflich aus dem Katalog entfernen?`;
+      listDiv.innerHTML = "";
+      selectedDevices.forEach((name, order) => {
+        const item = document.createElement("div");
+        item.className = "batch-delete-item";
+        item.innerHTML = `<strong>${escapeHtml(order)}</strong> <span style="color: #94a3b8;">${escapeHtml(name)}</span>`;
+        listDiv.appendChild(item);
+      });
+
+      statusDiv.style.display = "none";
+      modal.classList.add("open");
+    });
+  }
+
+  const closeModal = () => modal.classList.remove("open");
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener("click", async () => {
+      const orderNumbers = Array.from(selectedDevices.keys());
+      if (orderNumbers.length === 0) return;
+
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Lösche...";
+      statusDiv.style.display = "none";
+
+      try {
+        const res = await fetch("/api/v1/devices/batch-delete", {
+          method: "POST",
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            order_numbers: orderNumbers,
+            delete_files: filesCheckbox.checked
+          })
+        });
+
+        const data = await safeParseResponse(res);
+        statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ ${escapeHtml(data.message)}</span>`;
+        statusDiv.style.display = "block";
+
+        selectedDevices.clear();
+        updateBulkToolbar();
+
+        setTimeout(() => {
+          closeModal();
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Ausgewählte endgültig löschen";
+          loadStats();
+          loadManufacturers();
+          loadDevices();
+        }, 1000);
+
+      } catch (err) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Ausgewählte endgültig löschen";
+        statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
+        statusDiv.style.display = "block";
+      }
+    });
+  }
+}
+

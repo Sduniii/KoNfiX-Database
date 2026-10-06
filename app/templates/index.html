@@ -328,6 +328,51 @@
     </div>
   </div>
 
+  <!-- Batch Delete Devices Modal -->
+  <div class="modal-backdrop" id="batchDeleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 style="color: #ef4444;">🗑️ Mehrere Geräte löschen (Batch)</h3>
+        <button class="modal-close" id="closeBatchDeleteBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc" id="batchDeleteDesc">
+          Möchtest du die folgenden ausgewählten Geräte wirklich unwiderruflich aus dem Katalog entfernen?
+        </p>
+        <div id="batchDeleteList" class="batch-delete-list">
+          <!-- Dynamically populated -->
+        </div>
+        <div style="margin-top: 1rem; margin-bottom: 1.25rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
+            <input type="checkbox" id="batchDeleteFilesCheckbox" checked>
+            <span>Zugehörige .knxprod-Dateien ebenfalls vom Server entfernen (falls keine anderen Geräte darauf verweisen)</span>
+          </label>
+        </div>
+        <div id="batchDeleteStatus" style="margin-bottom: 1rem; display: none;"></div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+          <button type="button" id="cancelBatchDeleteBtn" class="btn btn-secondary">Abbrechen</button>
+          <button type="button" id="confirmBatchDeleteBtn" class="btn btn-danger" style="background: #dc2626; color: white;">Ausgewählte endgültig löschen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Bulk Actions Toolbar -->
+  <div class="bulk-actions-toolbar" id="bulkActionsToolbar" style="display: none;">
+    <div class="bulk-actions-content">
+      <div class="bulk-selection-info">
+        <span class="bulk-badge" id="bulkSelectedCount">0</span>
+        <span id="bulkSelectedText">Geräte ausgewählt</span>
+      </div>
+      <div class="bulk-actions-buttons">
+        <button type="button" id="bulkSelectAllBtn" class="btn btn-sm btn-ghost">Alle sichtbaren wählen</button>
+        <button type="button" id="bulkDeselectAllBtn" class="btn btn-sm btn-ghost">Auswahl aufheben</button>
+        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-danger" style="background: #dc2626; color: white;">🗑️ Ausgewählte löschen</button>
+      </div>
+    </div>
+  </div>
+
+
 
   <footer class="footer">
     <div class="container footer-content">

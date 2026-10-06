@@ -142,3 +142,82 @@ async def test_upload_from_url_metadata_only_mode(client, sample_knxprod_bytes):
     res_dl = client.get("/api/v1/download/AKS-0816.04", follow_redirects=False)
     assert res_dl.status_code == 302
     assert res_dl.headers["location"] == fake_url
+
+
+def test_batch_delete_devices(client, sample_knxprod_bytes):
+    # Upload first
+    client.post(
+        "/api/v1/upload",
+        content=sample_knxprod_bytes,
+        headers={"Content-Type": "application/octet-stream", "X-File-Name": "batch_delete.knxprod"}
+    )
+
+    # Verify device exists
+    res_dev = client.get("/api/v1/devices/AKS-0816.04")
+    assert res_dev.status_code == 200
+
+    # Batch delete with nonexistent and existent items
+    res_del = client.post(
+        "/api/v1/devices/batch-delete",
+        json={
+            "order_numbers": ["AKS-0816.04", "NON-EXISTENT-999"],
+            "delete_files": True
+        }
+    )
+    assert res_del.status_code == 200
+    data = res_del.json()
+    assert data["deleted_count"] == 1
+    assert "AKS-0816.04" in data["deleted_order_numbers"]
+    assert len(data["errors"]) == 1
+    assert "NON-EXISTENT-999" in data["errors"][0]
+
+    # Verify device was deleted
+    res_check = client.get("/api/v1/devices/AKS-0816.04")
+    assert res_check.status_code == 404
+
+
+def test_public_upload_allowed_while_admin_actions_protected(client, sample_knxprod_bytes, monkeypatch):
+    """Admin key is required for PATCH and DELETE, but public upload is allowed without key."""
+    monkeypatch.setattr(settings, "ADMIN_KEY", "admin-super-key")
+    monkeypatch.setattr(settings, "ALLOW_PUBLIC_UPLOAD", True)
+
+    # 1. Public upload without any key -> SUCCESS 201
+    res_up = client.post(
+        "/api/v1/upload",
+        content=sample_knxprod_bytes,
+        headers={"Content-Type": "application/octet-stream"}
+    )
+    assert res_up.status_code == 201
+
+    # 2. Patch without key -> 401 Unauthorized
+    res_patch_no_key = client.patch(
+        "/api/v1/devices/AKS-0816.04",
+        json={"name": "Hacked Device"}
+    )
+    assert res_patch_no_key.status_code == 401
+
+    # 3. Patch with valid key -> 200 OK
+    res_patch_auth = client.patch(
+        "/api/v1/devices/AKS-0816.04",
+        json={"name": "Renamed By Admin"},
+        headers={"X-API-Key": "admin-super-key"}
+    )
+    assert res_patch_auth.status_code == 200
+    assert res_patch_auth.json()["name"] == "Renamed By Admin"
+
+    # 4. Batch delete without key -> 401 Unauthorized
+    res_batch_no_key = client.post(
+        "/api/v1/devices/batch-delete",
+        json={"order_numbers": ["AKS-0816.04"]}
+    )
+    assert res_batch_no_key.status_code == 401
+
+    # 5. Batch delete with valid key -> 200 OK
+    res_batch_auth = client.post(
+        "/api/v1/devices/batch-delete",
+        json={"order_numbers": ["AKS-0816.04"], "delete_files": True},
+        headers={"X-API-Key": "admin-super-key"}
+    )
+    assert res_batch_auth.status_code == 200
+    assert res_batch_auth.json()["deleted_count"] == 1
+

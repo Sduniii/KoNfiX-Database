@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.v1.auth import verify_api_key
+from app.api.v1.auth import verify_admin_key, verify_api_key
 from app.database import get_db
-from app.models import Device, Manufacturer
+from app.models import Device, KnxprodFile, Manufacturer
 from app.schemas.device import (
     ApplicationProgramResponse,
+    BatchDeleteRequest,
+    BatchDeleteResponse,
     DeviceListResponse,
     DeviceResponse,
     DeviceUpdateRequest,
@@ -131,7 +133,7 @@ def update_device(
     order_number: str,
     update_data: DeviceUpdateRequest,
     db: Session = DB_SESSION_DEPENDENCY,
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_admin_key)
 ):
     device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
     if not device:
@@ -157,7 +159,6 @@ def update_device(
             device.knxprod_file.source_url = clean_url
         elif clean_url:
             # Create a placeholder KnxprodFile record for the link if none exists
-            from app.models import KnxprodFile
             new_file = KnxprodFile(
                 filename=f"{device.order_number}.knxprod",
                 file_size_bytes=0,
@@ -184,7 +185,7 @@ def delete_device(
     order_number: str,
     delete_file: bool = Query(False, description="Zugehörige .knxprod-Datei ebenfalls vom Server löschen, falls keine anderen Geräte darauf verweisen"),
     db: Session = DB_SESSION_DEPENDENCY,
-    _authorized: bool = Depends(verify_api_key)
+    _authorized: bool = Depends(verify_admin_key)
 ):
     import os
     device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
@@ -215,4 +216,68 @@ def delete_device(
         "status": "success",
         "message": f"Gerät '{order_number}' wurde erfolgreich aus dem Katalog gelöscht."
     }
+
+
+@router.post(
+    "/devices/batch-delete",
+    response_model=BatchDeleteResponse,
+    summary="Delete multiple devices from catalog (Admin / Batch Takedown)",
+    description="Entfernt mehrere Geräte und deren Applikationen gebündelt aus dem Katalog. Optional werden verwaiste Dateien vom Server gelöscht."
+)
+def batch_delete_devices(
+    payload: BatchDeleteRequest,
+    db: Session = DB_SESSION_DEPENDENCY,
+    _authorized: bool = Depends(verify_admin_key)
+):
+    import os
+    if not payload.order_numbers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Keine Bestellnummern zum Löschen angegeben."
+        )
+
+    deleted_order_numbers = []
+    errors = []
+    affected_file_ids = set()
+
+    for raw_on in payload.order_numbers:
+        on = raw_on.strip()
+        if not on:
+            continue
+        device = db.query(Device).filter(Device.order_number.ilike(on)).first()
+        if not device:
+            errors.append(f"Gerät mit Bestellnummer '{on}' nicht gefunden.")
+            continue
+
+        if device.knxprod_file_id:
+            affected_file_ids.add(device.knxprod_file_id)
+
+        db.delete(device)
+        deleted_order_numbers.append(on)
+
+    db.flush()
+
+    # Bereinigung der Dateien, falls gewünscht
+    if payload.delete_files and affected_file_ids:
+        for fid in affected_file_ids:
+            remaining = db.query(Device).filter(Device.knxprod_file_id == fid).count()
+            if remaining == 0:
+                f_rec = db.query(KnxprodFile).filter(KnxprodFile.id == fid).first()
+                if f_rec:
+                    if f_rec.storage_path and os.path.exists(f_rec.storage_path):
+                        try:
+                            os.remove(f_rec.storage_path)
+                        except OSError:
+                            pass
+                    db.delete(f_rec)
+
+    db.commit()
+
+    return BatchDeleteResponse(
+        deleted_count=len(deleted_order_numbers),
+        deleted_order_numbers=deleted_order_numbers,
+        errors=errors,
+        message=f"{len(deleted_order_numbers)} Gerät(e) erfolgreich aus dem Katalog gelöscht."
+    )
+
 
