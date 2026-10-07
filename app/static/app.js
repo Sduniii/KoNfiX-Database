@@ -853,6 +853,10 @@ function setupEditModal() {
   closeBtn.addEventListener("click", closeModal);
   cancelBtn.addEventListener("click", closeModal);
 
+  // Enter in a field must not trigger a native form submit / page reload.
+  const form = document.getElementById("editDeviceForm");
+  if (form) form.addEventListener("submit", (e) => e.preventDefault());
+
   saveBtn.addEventListener("click", async () => {
     const orderNumber = document.getElementById("editOrderNumber").value;
     const name = document.getElementById("editDeviceName").value.trim();
@@ -1768,6 +1772,12 @@ function setupEditorModal() {
     });
   }
 
+  // Card interactions via event delegation. The CSP (script-src 'self') blocks
+  // inline onclick/oninput handlers, so dynamically rendered cards only carry
+  // data-* attributes and these container-level listeners do the dispatching.
+  bindEditorDelegation(document.getElementById("editorTabObjects"));
+  bindEditorDelegation(document.getElementById("editorTabParams"));
+
   // Add Item Buttons
   const addKoBtn = document.getElementById("editorAddKoBtn");
   if (addKoBtn) {
@@ -1813,6 +1823,80 @@ function setupEditorModal() {
       syncFormToYaml();
     });
   }
+}
+
+function bindEditorDelegation(container) {
+  if (!container) return;
+
+  container.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-action]");
+    if (!el || !container.contains(el) || el.disabled) return;
+    const d = el.dataset;
+    const idx = parseInt(d.idx, 10);
+    const condIdx = parseInt(d.cond, 10);
+    switch (d.action) {
+      case "delete-item":
+        if (d.type === "ko") deleteKoItem(idx); else deleteParamItem(idx);
+        break;
+      case "cond-add":
+        addConditionItem(d.type, idx);
+        break;
+      case "cond-remove":
+        removeConditionItem(d.type, idx, condIdx);
+        break;
+      case "cond-toggle":
+        toggleConditionValue(d.type, idx, condIdx, d.value);
+        break;
+      case "page":
+        if (d.target === "ko") setKoPage(parseInt(d.page, 10));
+        else setParamPage(parseInt(d.page, 10));
+        break;
+    }
+  });
+
+  // Text/number fields update live while typing (no re-render, focus is kept).
+  container.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!el.dataset || !el.dataset.field) return;
+    if (el.type === "checkbox" || el.tagName === "SELECT") return;
+    applyFieldChange(el);
+  });
+
+  // Checkboxes, selects and condition fields commit on change.
+  container.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!el.dataset) return;
+    if (el.dataset.condField) {
+      applyConditionFieldChange(el);
+    } else if (el.dataset.field && (el.type === "checkbox" || el.tagName === "SELECT")) {
+      applyFieldChange(el);
+    }
+  });
+}
+
+function applyFieldChange(el) {
+  const { field, type } = el.dataset;
+  const idx = parseInt(el.dataset.idx, 10);
+  let value;
+  if (el.type === "checkbox") {
+    value = el.checked;
+  } else if (field === "number") {
+    value = parseInt(el.value, 10) || 0;
+  } else if (type === "param" && field === "id") {
+    value = el.value.toLowerCase();
+  } else {
+    value = el.value;
+  }
+  if (type === "ko") updateKoField(idx, field, value);
+  else updateParamField(idx, field, value);
+}
+
+function applyConditionFieldChange(el) {
+  const { condField, type } = el.dataset;
+  const idx = parseInt(el.dataset.idx, 10);
+  const condIdx = parseInt(el.dataset.cond, 10);
+  if (condField === "param_id") updateConditionParamId(type, idx, condIdx, el.value);
+  else if (condField === "when_values") updateConditionValues(type, idx, condIdx, el.value);
 }
 
 function openEditor() {
@@ -2054,7 +2138,7 @@ function renderConditionsEditorHtml(type, realIdx, item) {
   if (!hasConds) {
     return `
       <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
-        <button type="button" class="editor-btn-add-cond" onclick="addConditionItem('${type}', ${realIdx})">
+        <button type="button" class="editor-btn-add-cond" data-action="cond-add" data-type="${type}" data-idx="${realIdx}">
           ⚡ Bedingung hinzufügen
         </button>
       </div>
@@ -2079,7 +2163,7 @@ function renderConditionsEditorHtml(type, realIdx, item) {
               const isSelected = whenVals.includes(oVal);
               return `
                 <span class="editor-cond-pill ${isSelected ? 'active' : ''}"
-                  onclick="toggleConditionValue('${type}', ${realIdx}, ${condIdx}, '${escapeHtml(oVal)}')"
+                  data-action="cond-toggle" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}" data-value="${escapeHtml(oVal)}"
                   title="${isSelected ? 'Klicken zum Abwählen' : 'Klicken zum Auswählen'}">
                   ${escapeHtml(oVal)}${oTxt && oTxt !== oVal ? ' (' + escapeHtml(oTxt) + ')' : ''}
                 </span>
@@ -2096,17 +2180,17 @@ function renderConditionsEditorHtml(type, realIdx, item) {
           <label class="editor-label" style="font-size: 0.7rem;">Ziel-Parameter (param_id)</label>
           <input type="text" class="editor-input" list="editorParamIdDatalist" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
             value="${escapeHtml(paramId)}" placeholder="z. B. m-0002_p-12"
-            onchange="updateConditionParamId('${type}', ${realIdx}, ${condIdx}, this.value)">
+            data-cond-field="param_id" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">
         </div>
         <div>
           <label class="editor-label" style="font-size: 0.7rem;">Wenn Wert (when_values)</label>
           <input type="text" class="editor-input" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
             value="${escapeHtml(valsStr)}" placeholder="z. B. 1, 2"
-            onchange="updateConditionValues('${type}', ${realIdx}, ${condIdx}, this.value)">
+            data-cond-field="when_values" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">
         </div>
         <div style="padding-top: 1.1rem;">
           <button type="button" class="editor-btn-delete" title="Bedingung löschen"
-            onclick="removeConditionItem('${type}', ${realIdx}, ${condIdx})">&times;</button>
+            data-action="cond-remove" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">&times;</button>
         </div>
         ${quickPillsHtml}
       </div>
@@ -2118,14 +2202,14 @@ function renderConditionsEditorHtml(type, realIdx, item) {
       <div class="editor-cond-header">
         <span class="editor-cond-title">⚡ Bedingungen (Sichtbarkeit &amp; Aktivierung)</span>
         <button type="button" class="btn btn-sm btn-ghost" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"
-          onclick="addConditionItem('${type}', ${realIdx})">➕ Bedingung</button>
+          data-action="cond-add" data-type="${type}" data-idx="${realIdx}">➕ Bedingung</button>
       </div>
       <div>${rows}</div>
     </div>
   `;
 }
 
-function renderPaginationBar(containerId, currentPage, totalPages, totalItems, label, onPageFnName) {
+function renderPaginationBar(containerId, currentPage, totalPages, totalItems, label, target) {
   const el = document.getElementById(containerId);
   if (!el) return;
   if (totalItems === 0) {
@@ -2147,11 +2231,11 @@ function renderPaginationBar(containerId, currentPage, totalPages, totalItems, l
   el.innerHTML = `
     <span>Zeige ${startItem}–${endItem} von ${totalItems} ${label}</span>
     <div class="editor-pagination-buttons">
-      <button type="button" onclick="${onPageFnName}(1)" ${currentPage === 1 ? "disabled" : ""} title="Erste Seite">&laquo;</button>
-      <button type="button" onclick="${onPageFnName}(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""} title="Vorherige Seite">&lsaquo; Zurück</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="1" ${currentPage === 1 ? "disabled" : ""} title="Erste Seite">&laquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage - 1}" ${currentPage === 1 ? "disabled" : ""} title="Vorherige Seite">&lsaquo; Zurück</button>
       <span style="padding: 0 0.4rem; font-weight: 600; color: #f8fafc; font-size: 0.8rem;">${currentPage} / ${totalPages}</span>
-      <button type="button" onclick="${onPageFnName}(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""} title="Nächste Seite">Weiter &rsaquo;</button>
-      <button type="button" onclick="${onPageFnName}(${totalPages})" ${currentPage === totalPages ? "disabled" : ""} title="Letzte Seite">&raquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage + 1}" ${currentPage === totalPages ? "disabled" : ""} title="Nächste Seite">Weiter &rsaquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${totalPages}" ${currentPage === totalPages ? "disabled" : ""} title="Letzte Seite">&raquo;</button>
     </div>
   `;
 }
@@ -2184,8 +2268,8 @@ function renderKoCards() {
   if (editorState.koPage > totalPages) editorState.koPage = totalPages;
   if (editorState.koPage < 1) editorState.koPage = 1;
 
-  renderPaginationBar("editorKoPagination", editorState.koPage, totalPages, totalItems, "Objekte", "setKoPage");
-  renderPaginationBar("editorKoPaginationBottom", editorState.koPage, totalPages, totalItems, "Objekte", "setKoPage");
+  renderPaginationBar("editorKoPagination", editorState.koPage, totalPages, totalItems, "Objekte", "ko");
+  renderPaginationBar("editorKoPaginationBottom", editorState.koPage, totalPages, totalItems, "Objekte", "ko");
 
   if (totalItems === 0) {
     list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Kommunikationsobjekte gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
@@ -2207,48 +2291,48 @@ function renderKoCards() {
             <span class="editor-item-title">#${ko.number != null ? ko.number : realIdx + 1} &bull; ${escapeHtml(ko.id || '')}</span>
             ${condSummary ? `<span class="editor-badge-cond" title="${escapeHtml(condSummary)}">⚡ ${escapeHtml(condSummary)}</span>` : ''}
           </div>
-          <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteKoItem(${realIdx})">&times; Löschen</button>
+          <button type="button" class="editor-btn-delete" title="Löschen" data-action="delete-item" data-type="ko" data-idx="${realIdx}">&times; Löschen</button>
         </div>
         <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
             <label class="editor-label">KO-Nr.</label>
-            <input type="number" class="editor-input" value="${ko.number != null ? ko.number : realIdx + 1}" oninput="updateKoField(${realIdx}, 'number', parseInt(this.value, 10) || 0)">
+            <input type="number" class="editor-input" value="${ko.number != null ? ko.number : realIdx + 1}" data-field="number" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
             <label class="editor-label">Name / Kanal</label>
-            <input type="text" class="editor-input" value="${escapeHtml(ko.name || '')}" oninput="updateKoField(${realIdx}, 'name', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(ko.name || '')}" data-field="name" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
             <label class="editor-label">Funktion</label>
-            <input type="text" class="editor-input" value="${escapeHtml(ko.function || '')}" oninput="updateKoField(${realIdx}, 'function', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(ko.function || '')}" data-field="function" data-type="ko" data-idx="${realIdx}">
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
             <label class="editor-label">DPT (z. B. 1.001)</label>
-            <input type="text" class="editor-input" value="${escapeHtml(ko.dpt || '1.001')}" oninput="updateKoField(${realIdx}, 'dpt', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(ko.dpt || '1.001')}" data-field="dpt" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
             <label class="editor-label">Größe (z. B. 1 Bit)</label>
-            <input type="text" class="editor-input" value="${escapeHtml(ko.size || '1 Bit')}" oninput="updateKoField(${realIdx}, 'size', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(ko.size || '1 Bit')}" data-field="size" data-type="ko" data-idx="${realIdx}">
           </div>
         </div>
         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; padding-top: 0.25rem; font-size: 0.75rem; color: #94a3b8;">
           <span style="font-weight: 500;">Flags:</span>
           <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-            <input type="checkbox" ${flags.communication ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.communication', this.checked)"> C
+            <input type="checkbox" ${flags.communication ? 'checked' : ''} data-field="flags.communication" data-type="ko" data-idx="${realIdx}"> C
           </label>
           <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-            <input type="checkbox" ${flags.read ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.read', this.checked)"> R
+            <input type="checkbox" ${flags.read ? 'checked' : ''} data-field="flags.read" data-type="ko" data-idx="${realIdx}"> R
           </label>
           <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-            <input type="checkbox" ${flags.write ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.write', this.checked)"> W
+            <input type="checkbox" ${flags.write ? 'checked' : ''} data-field="flags.write" data-type="ko" data-idx="${realIdx}"> W
           </label>
           <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-            <input type="checkbox" ${flags.transmit ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.transmit', this.checked)"> T
+            <input type="checkbox" ${flags.transmit ? 'checked' : ''} data-field="flags.transmit" data-type="ko" data-idx="${realIdx}"> T
           </label>
           <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
-            <input type="checkbox" ${flags.update ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.update', this.checked)"> U
+            <input type="checkbox" ${flags.update ? 'checked' : ''} data-field="flags.update" data-type="ko" data-idx="${realIdx}"> U
           </label>
         </div>
         ${condHtml}
@@ -2337,8 +2421,8 @@ function renderParamCards() {
   if (editorState.paramPage > totalPages) editorState.paramPage = totalPages;
   if (editorState.paramPage < 1) editorState.paramPage = 1;
 
-  renderPaginationBar("editorParamPagination", editorState.paramPage, totalPages, totalItems, "Parameter", "setParamPage");
-  renderPaginationBar("editorParamPaginationBottom", editorState.paramPage, totalPages, totalItems, "Parameter", "setParamPage");
+  renderPaginationBar("editorParamPagination", editorState.paramPage, totalPages, totalItems, "Parameter", "param");
+  renderPaginationBar("editorParamPaginationBottom", editorState.paramPage, totalPages, totalItems, "Parameter", "param");
 
   if (totalItems === 0) {
     list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Parameter gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
@@ -2365,22 +2449,22 @@ function renderParamCards() {
             ${ruleCount > 0 ? `<span class="editor-meta-pill" title="Regeln">⚙️ ${ruleCount} Regeln</span>` : ''}
             ${hasTrans ? `<span class="editor-meta-pill" title="Übersetzungen">🌐 Übersetzt</span>` : ''}
           </div>
-          <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteParamItem(${realIdx})">&times; Löschen</button>
+          <button type="button" class="editor-btn-delete" title="Löschen" data-action="delete-item" data-type="param" data-idx="${realIdx}">&times; Löschen</button>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
             <label class="editor-label">ID (lowercase)</label>
-            <input type="text" class="editor-input" value="${escapeHtml(param.id || '')}" oninput="updateParamField(${realIdx}, 'id', this.value.toLowerCase())">
+            <input type="text" class="editor-input" value="${escapeHtml(param.id || '')}" data-field="id" data-type="param" data-idx="${realIdx}">
           </div>
           <div>
             <label class="editor-label">Bezeichnung / Text</label>
-            <input type="text" class="editor-input" value="${escapeHtml(param.name || param.text || '')}" oninput="updateParamField(${realIdx}, 'name', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(param.name || param.text || '')}" data-field="name" data-type="param" data-idx="${realIdx}">
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 130px 1fr 1fr; gap: 0.5rem;">
           <div>
             <label class="editor-label">Typ</label>
-            <select class="editor-input" onchange="updateParamField(${realIdx}, 'type', this.value)">
+            <select class="editor-input" data-field="type" data-type="param" data-idx="${realIdx}">
               <option value="number" ${param.type === 'number' ? 'selected' : ''}>Zahl (number)</option>
               <option value="enum" ${param.type === 'enum' ? 'selected' : ''}>Auswahl (enum)</option>
               <option value="text" ${param.type === 'text' ? 'selected' : ''}>Text (text)</option>
@@ -2390,11 +2474,11 @@ function renderParamCards() {
           </div>
           <div>
             <label class="editor-label">Default-Wert</label>
-            <input type="text" class="editor-input" value="${escapeHtml(String(param.default != null ? param.default : ''))}" oninput="updateParamField(${realIdx}, 'default', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(String(param.default != null ? param.default : ''))}" data-field="default" data-type="param" data-idx="${realIdx}">
           </div>
           <div>
             <label class="editor-label">Seite / Menüpfad</label>
-            <input type="text" class="editor-input" value="${escapeHtml(param.page || '')}" placeholder="Kanal A > Zeit" oninput="updateParamField(${realIdx}, 'page', this.value)">
+            <input type="text" class="editor-input" value="${escapeHtml(param.page || '')}" placeholder="Kanal A > Zeit" data-field="page" data-type="param" data-idx="${realIdx}">
           </div>
         </div>
         ${optionsHtml}
@@ -2405,14 +2489,14 @@ function renderParamCards() {
 }
 
 // Window functions for inline HTML event handlers
-window.deleteKoItem = function(realIdx) {
+function deleteKoItem(realIdx) {
   ensureDocInit();
   editorState.doc.communication_objects.splice(realIdx, 1);
   renderKoCards();
   syncFormToYaml();
 };
 
-window.updateKoField = function(realIdx, field, value) {
+function updateKoField(realIdx, field, value) {
   ensureDocInit();
   const ko = editorState.doc.communication_objects[realIdx];
   if (!ko) return;
@@ -2426,7 +2510,7 @@ window.updateKoField = function(realIdx, field, value) {
   syncFormToYaml();
 };
 
-window.deleteParamItem = function(realIdx) {
+function deleteParamItem(realIdx) {
   ensureDocInit();
   editorState.doc.parameters.splice(realIdx, 1);
   updateParamIdDatalist();
@@ -2435,7 +2519,7 @@ window.deleteParamItem = function(realIdx) {
   syncFormToYaml();
 };
 
-window.updateParamField = function(realIdx, field, value) {
+function updateParamField(realIdx, field, value) {
   ensureDocInit();
   const param = editorState.doc.parameters[realIdx];
   if (!param) return;
@@ -2452,7 +2536,7 @@ window.updateParamField = function(realIdx, field, value) {
   syncFormToYaml();
 };
 
-window.addConditionItem = function(type, realIdx) {
+function addConditionItem(type, realIdx) {
   ensureDocInit();
   const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
   const item = list[realIdx];
@@ -2488,7 +2572,7 @@ window.addConditionItem = function(type, realIdx) {
   syncFormToYaml();
 };
 
-window.removeConditionItem = function(type, realIdx, condIdx) {
+function removeConditionItem(type, realIdx, condIdx) {
   ensureDocInit();
   const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
   const item = list[realIdx];
@@ -2511,7 +2595,7 @@ window.removeConditionItem = function(type, realIdx, condIdx) {
   syncFormToYaml();
 };
 
-window.updateConditionParamId = function(type, realIdx, condIdx, newParamId) {
+function updateConditionParamId(type, realIdx, condIdx, newParamId) {
   ensureDocInit();
   const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
   const item = list[realIdx];
@@ -2529,7 +2613,7 @@ window.updateConditionParamId = function(type, realIdx, condIdx, newParamId) {
   syncFormToYaml();
 };
 
-window.updateConditionValues = function(type, realIdx, condIdx, valStr) {
+function updateConditionValues(type, realIdx, condIdx, valStr) {
   ensureDocInit();
   const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
   const item = list[realIdx];
@@ -2548,7 +2632,7 @@ window.updateConditionValues = function(type, realIdx, condIdx, valStr) {
   syncFormToYaml();
 };
 
-window.toggleConditionValue = function(type, realIdx, condIdx, optVal) {
+function toggleConditionValue(type, realIdx, condIdx, optVal) {
   ensureDocInit();
   const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
   const item = list[realIdx];
@@ -2574,12 +2658,12 @@ window.toggleConditionValue = function(type, realIdx, condIdx, optVal) {
   syncFormToYaml();
 };
 
-window.setKoPage = function(pageNum) {
+function setKoPage(pageNum) {
   editorState.koPage = pageNum;
   renderKoCards();
 };
 
-window.setParamPage = function(pageNum) {
+function setParamPage(pageNum) {
   editorState.paramPage = pageNum;
   renderParamCards();
 };
