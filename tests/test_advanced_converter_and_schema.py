@@ -156,6 +156,7 @@ def test_translation_and_dynamic_extraction():
     assert "depends_on" in p2
     assert p2["depends_on"]["param_id"] == "mdt_p-1"
     assert p2["depends_on"]["when_values"] == ["1"]
+    assert "conditions" not in p2["depends_on"]
 
     # Verify dedicated root-level translations block
     assert "translations" in yaml_data
@@ -174,6 +175,8 @@ def test_translation_and_dynamic_extraction():
     assert "translations" not in co1
     assert "depends_on" in co1
     assert co1["depends_on"]["param_id"] == "mdt_p-1"
+    assert co1["depends_on"]["when_values"] == ["1"]
+    assert "conditions" not in co1["depends_on"]
 
     # Verify Assign Rules
     assert "assign_rules" in yaml_data
@@ -261,4 +264,75 @@ def test_modular_dynamic_tree_and_pref_resolution():
     assert "depends_on" in ontime_param
     assert ontime_param["depends_on"]["param_id"] == "mdt_p-mode"
     assert ontime_param["depends_on"]["when_values"] == ["1"]
+    assert "conditions" not in ontime_param["depends_on"]
+
+
+def test_multi_level_depends_on_and_multi_value_when_test():
+    """Verify that multi-value when tests (e.g. '1 2') are parsed as list and nested chooses have conditions list."""
+    xml_content = """<?xml version="1.0" encoding="utf-8"?>
+<KNX xmlns="http://knx.org/xml/project/20">
+  <ManufacturerData>
+    <Manufacturer RefId="M-0083" Name="MDT technologies">
+      <ApplicationPrograms>
+        <ApplicationProgram Id="M-0083_A-100" Name="Multi Level Test" ApplicationVersion="1.0">
+          <Static>
+            <Parameters>
+              <Parameter Id="M-0083_P-1" Name="P1" Value="1" />
+              <Parameter Id="M-0083_P-2" Name="P2" Value="2" />
+              <Parameter Id="M-0083_P-3" Name="P3" Value="3" />
+            </Parameters>
+          </Static>
+          <Dynamic>
+            <choose ParamRefId="M-0083_P-1">
+              <when test="1 2">
+                <choose ParamRefId="M-0083_P-2">
+                  <when test="3">
+                    <ParameterRefRef RefId="M-0083_P-3" />
+                  </when>
+                </choose>
+              </when>
+            </choose>
+          </Dynamic>
+        </ApplicationProgram>
+      </ApplicationPrograms>
+      <Hardware Id="M-0083_H-1" Name="TEST">
+        <Products>
+          <Product Id="M-0083_PROD-1" OrderNumber="TEST-01" Text="Test" />
+        </Products>
+        <Hardware2Programs>
+          <Hardware2Program Id="H2P-1" ApplicationProgramRefId="M-0083_A-100" />
+        </Hardware2Programs>
+      </Hardware>
+    </Manufacturer>
+  </ManufacturerData>
+</KNX>"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("M-0083.xml", xml_content.encode("utf-8"))
+
+    parsed = parse_knxprod_bytes(buf.getvalue())
+    dev = parsed.devices[0]
+    yaml_data = yaml.safe_load(dev.yaml_content)
+
+    p3 = next(p for p in yaml_data["parameters"] if p["id"] == "mdt_p-3")
+    assert "depends_on" in p3
+    dep = p3["depends_on"]
+    # Immediate parent condition
+    assert dep["param_id"] == "mdt_p-2"
+    assert dep["when_values"] == ["3"]
+    # Nested conditions list present because len(choose_stack) > 1
+    assert "conditions" in dep
+    assert len(dep["conditions"]) == 2
+    assert dep["conditions"][0]["param_id"] == "mdt_p-1"
+    # Multi-value split from "1 2"
+    assert dep["conditions"][0]["when_values"] == ["1", "2"]
+    assert dep["conditions"][1]["param_id"] == "mdt_p-2"
+    assert dep["conditions"][1]["when_values"] == ["3"]
+
+    # Test roundtrip parse_konfix_yaml
+    reparsed = parse_konfix_yaml(dev.yaml_content)
+    rep_p3 = next(p for p in reparsed["parameters"] if p["id"] == "mdt_p-3")
+    assert rep_p3["depends_on"]["conditions"][0]["param_id"] == "mdt_p-1"
+    assert rep_p3["depends_on"]["conditions"][0]["when_values"] == ["1", "2"]
+
 
