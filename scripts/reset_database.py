@@ -8,7 +8,15 @@ sys.path.insert(0, str(BASE_DIR))
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal
-from app.models import Device, Manufacturer, KnxprodFile, ApplicationProgram
+from app.models import (
+    Device,
+    Manufacturer,
+    ApplicationProgram,
+    CommunicationObject,
+    Parameter,
+    AssignRule,
+    Translation,
+)
 
 
 def reset_database(seed: bool = False, keep_files: bool = False):
@@ -43,18 +51,20 @@ def reset_database(seed: bool = False, keep_files: bool = False):
                     deleted_files += 1
                 except Exception as e:
                     print(f"   ! Fehler beim Löschen von {item.name}: {e}")
-        print(f"   ✓ {deleted_files} physische .knxprod-Dateien entfernt (.gitkeep behalten).")
+        print(f"   ✓ {deleted_files} physische Dateien entfernt (.gitkeep behalten).")
 
     # 4. Prüfe Zähler
     db = SessionLocal()
     try:
         dev_count = db.query(Device).count()
         mfg_count = db.query(Manufacturer).count()
-        file_count = db.query(KnxprodFile).count()
+        ko_count = db.query(CommunicationObject).count()
+        param_count = db.query(Parameter).count()
         print("\n3. Status der neuen Datenbank:")
         print(f"   - Geräte (devices):            {dev_count}")
         print(f"   - Hersteller (manufacturers):  {mfg_count}")
-        print(f"   - Dateieinträge (files):       {file_count}")
+        print(f"   - KOs (communication_objects): {ko_count}")
+        print(f"   - Parameter (parameters):      {param_count}")
     finally:
         db.close()
 

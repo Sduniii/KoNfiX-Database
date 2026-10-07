@@ -101,8 +101,7 @@ def test_download_synthesizes_yaml_when_physical_file_missing(client):
             order_number="CUSTOM-001",
             name="Custom Sensor",
             manufacturer_id=mfg.id,
-            yaml_content=None,
-            knxprod_file_id=None
+            yaml_content=None
         )
         db.add(dev)
         db.commit()

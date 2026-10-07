@@ -26,8 +26,7 @@ def ensure_database_ready():
     """
     Self-healing check:
     Stellt sicher, dass das DB-Verzeichnis existiert und die SQLite-Datei
-    inklusive aller Tabellen bereitsteht – selbst wenn die Datei im laufenden
-    Betrieb gelöscht wurde.
+    inklusive aller relationalen Tabellen bereitsteht.
     """
     db_path = get_sqlite_path()
     needs_init = False
@@ -41,32 +40,33 @@ def ensure_database_ready():
         try:
             inspector = inspect(engine)
             tables = inspector.get_table_names()
-            if "devices" not in tables:
+            if "devices" not in tables or "parameters" not in tables:
                 needs_init = True
         except Exception:
             needs_init = True
 
     if needs_init:
-        # Crucial for SQLite: dispose any lingering connections in the pool
-        # so open file handles on unlinked/deleted inodes are closed.
         try:
             engine.dispose()
         except Exception:
             pass
 
-        # Import models so Base.metadata knows about all tables
-        from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer  # noqa: F401
-        Base.metadata.create_all(bind=engine)
+    # Ensure all tables exist
+    from app.models import (  # noqa: F401
+        Manufacturer,
+        Device,
+        ApplicationProgram,
+        CommunicationObject,
+        Parameter,
+        AssignRule,
+        Translation,
+    )
+    Base.metadata.create_all(bind=engine)
 
-    # Ensure aliases/symlinks exist so any query to catalog.db or konfix_catalog.db works
-    if db_path and db_path.exists():
-        _ensure_database_symlinks(db_path)
-
-    # Migrations: Add new columns if not present in existing SQLite DBs
+    # Migrations for existing databases
     migrations = [
-        "ALTER TABLE knxprod_files ADD COLUMN source_url VARCHAR(1024)",
+        "ALTER TABLE devices ADD COLUMN source_url VARCHAR(1024)",
         "ALTER TABLE manufacturers ADD COLUMN code VARCHAR(64)",
-        "ALTER TABLE devices ADD COLUMN yaml_content TEXT"
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -76,119 +76,124 @@ def ensure_database_ready():
             except Exception:
                 pass
 
-    # Self-healing: Backfill yaml_content for legacy records
-    _backfill_device_yaml_specifications()
+    # Self-healing: Migriere ggf. bestehende Geräte mit yaml_content in relationale Tabellen
+    _migrate_devices_to_relational()
 
 
-def _ensure_database_symlinks(canonical_db_path: Path):
+def _migrate_devices_to_relational():
     """
-    Creates symlinks for legacy or alternate database names:
-    - data/catalog.db -> konfix_database.db
-    - data/konfix_catalog.db -> konfix_database.db
-    - root catalog.db -> data/konfix_database.db
-    Ensures that any external tools or users expecting these filenames find the active database.
+    Falls Geräte in der DB existieren, deren Parameter noch nicht in relationalen
+    Tabellen liegen, werden diese aus yaml_content extrahiert und relational abgelegt.
     """
-    try:
-        data_dir = canonical_db_path.parent
-        root_dir = data_dir.parent
-
-        alias_targets = [
-            (data_dir / "catalog.db", canonical_db_path.name),
-            (data_dir / "konfix_catalog.db", canonical_db_path.name),
-            (root_dir / "catalog.db", str(Path("data") / canonical_db_path.name)),
-        ]
-
-        for alias_path, target in alias_targets:
-            if alias_path.resolve() == canonical_db_path.resolve():
-                continue
-            # If alias exists as a broken/empty file or symlink, replace it
-            if alias_path.is_symlink() or alias_path.exists():
-                try:
-                    if alias_path.is_symlink() or alias_path.stat().st_size == 0:
-                        alias_path.unlink()
-                    else:
-                        continue  # do not overwrite a non-empty regular file
-                except Exception:
-                    continue
-
-            try:
-                alias_path.symlink_to(target)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-
-def _backfill_device_yaml_specifications():
-    """
-    Backfills yaml_content for any existing Device in the DB that has yaml_content == None.
-    Uses attached knxprod file if present on disk, otherwise synthesizes KoNfiX-YAML from DB records.
-    """
-    from app.models import Device, Manufacturer, ApplicationProgram, KnxprodFile
-    from app.services.yaml_converter import build_konfix_yaml, generate_manufacturer_code
-    from app.services.knxprod_parser import parse_knxprod_bytes
-    from app.services.storage import storage_service
+    from app.models import Device, Parameter, CommunicationObject, AssignRule, Translation
+    from app.services.yaml_converter import parse_konfix_yaml
 
     db = SessionLocal()
     try:
-        devices_to_backfill = db.query(Device).filter(Device.yaml_content == None).all()
-        if not devices_to_backfill:
-            return
+        devices = db.query(Device).all()
+        for dev in devices:
+            # Wenn bereits relationale Parameter existieren, keine Migration nötig
+            param_count = db.query(Parameter).filter(Parameter.device_id == dev.id).count()
+            if param_count > 0:
+                continue
 
-        for dev in devices_to_backfill:
-            yaml_content = None
-            # 1. Try extracting from local physical knxprod if file exists
-            if dev.knxprod_file and dev.knxprod_file.storage_path:
-                try:
-                    file_path = storage_service.get_file_path(dev.knxprod_file.storage_path)
-                    if file_path.exists():
-                        parsed = parse_knxprod_bytes(file_path.read_bytes())
-                        for pd in parsed.devices:
-                            if pd.order_number.strip().lower() == dev.order_number.strip().lower():
-                                yaml_content = pd.yaml_content
-                                break
-                except Exception:
-                    pass
+            if not dev.yaml_content:
+                continue
 
-            # 2. Fallback: synthesize from DB records
-            if not yaml_content:
-                mfg = dev.manufacturer
-                mfg_name = mfg.name if mfg else "Unbekannter Hersteller"
-                mfg_code = (mfg.code if mfg else None) or generate_manufacturer_code(mfg_name, mfg.knx_id if mfg else None)
-                if mfg and not mfg.code:
-                    mfg.code = mfg_code
-
-                app0 = dev.applications[0] if dev.applications else None
-                yaml_content = build_konfix_yaml(
-                    manufacturer_code=mfg_code,
-                    manufacturer_name=mfg_name,
-                    legacy_knx_id=mfg.knx_id if mfg else None,
-                    order_number=dev.order_number,
-                    device_name=dev.name,
-                    description=dev.description,
-                    hardware_name=dev.hardware_name,
-                    hardware_version=dev.hardware_version,
-                    bus_current_ma=dev.bus_current_ma,
-                    application_id=app0.app_id if app0 else None,
-                    application_name=app0.name if app0 else None,
-                    application_version=app0.version if app0 else None,
-                    mask_version=app0.mask_version if app0 else None,
-                    source_url=dev.knxprod_file.source_url if dev.knxprod_file else None,
-                )
-
-            dev.yaml_content = yaml_content
-            # Also save file in catalog_files
             try:
-                storage_service.save_yaml_content(yaml_content, f"{dev.order_number}.yaml")
+                data = parse_konfix_yaml(dev.yaml_content)
             except Exception:
-                pass
+                continue
 
-        db.commit()
+            dev_data = data.get("device") or {}
+            if dev_data.get("source_url") and not dev.source_url:
+                dev.source_url = dev_data.get("source_url")
+
+            # 1. Communication Objects
+            for co in data.get("communication_objects") or []:
+                co_rec = CommunicationObject(
+                    device_id=dev.id,
+                    obj_id=co.get("id") or f"{dev.order_number}_o-{co.get('number', 0)}",
+                    number=co.get("number", 0),
+                    name=co.get("name"),
+                    function=co.get("function"),
+                    dpt=co.get("dpt"),
+                    size=co.get("size"),
+                    flags=co.get("flags"),
+                    conditions=co.get("conditions")
+                )
+                db.add(co_rec)
+
+            # 2. Parameters
+            for p in data.get("parameters") or []:
+                p_rec = Parameter(
+                    device_id=dev.id,
+                    param_id=p.get("id") or f"{dev.order_number}_p-{len(dev.parameters)}",
+                    name=p.get("name") or "",
+                    text=p.get("text"),
+                    type=p.get("type"),
+                    default_value=str(p.get("default")) if p.get("default") is not None else None,
+                    page=p.get("page"),
+                    section=p.get("section"),
+                    options=p.get("options"),
+                    conditions=p.get("conditions")
+                )
+                db.add(p_rec)
+
+            # 3. Assign Rules
+            for ar in data.get("assign_rules") or []:
+                ar_rec = AssignRule(
+                    device_id=dev.id,
+                    target=ar.get("target"),
+                    source=ar.get("source"),
+                    value=ar.get("value"),
+                    conditions=ar.get("conditions")
+                )
+                db.add(ar_rec)
+
+            # 4. Translations
+            tr_dict = data.get("translations") or {}
+            for entity_id, lang_dict in tr_dict.items():
+                if isinstance(lang_dict, dict):
+                    for lang, text_val in lang_dict.items():
+                        tr_rec = Translation(
+                            device_id=dev.id,
+                            entity_id=entity_id,
+                            language=lang,
+                            text=str(text_val)
+                        )
+                        db.add(tr_rec)
+
+            db.commit()
     except Exception:
         db.rollback()
     finally:
         db.close()
 
+
+def _backfill_device_yaml_specifications():
+    """
+    Backfills relational tables and yaml_content for legacy devices.
+    """
+    from app.services.yaml_converter import device_to_konfix_yaml
+    from app.services.storage import storage_service
+
+    _migrate_devices_to_relational()
+
+    db = SessionLocal()
+    try:
+        devices = db.query(Device).filter(Device.yaml_content == None).all()
+        for dev in devices:
+            dev.yaml_content = device_to_konfix_yaml(dev)
+            try:
+                storage_service.save_yaml_content(dev.yaml_content, f"{dev.order_number}.yaml")
+            except Exception:
+                pass
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 def get_db():
@@ -198,4 +203,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

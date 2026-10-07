@@ -24,7 +24,15 @@ from sqlalchemy.orm import Session
 from app.api.v1.auth import verify_upload_permission
 from app.config import settings
 from app.database import get_db
-from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer
+from app.models import (
+    ApplicationProgram,
+    Device,
+    Manufacturer,
+    CommunicationObject,
+    Parameter,
+    AssignRule,
+    Translation,
+)
 from app.schemas.upload import (
     BatchItemResult,
     BatchUploadResponse,
@@ -403,6 +411,75 @@ def _is_yaml(file_bytes: bytes, filename: str) -> bool:
     return False
 
 
+def _sync_device_records(
+    db: Session,
+    device: Device,
+    parsed_yaml_data: dict
+):
+    # Remove previous children for fresh sync
+    db.query(CommunicationObject).filter(CommunicationObject.device_id == device.id).delete()
+    db.query(Parameter).filter(Parameter.device_id == device.id).delete()
+    db.query(AssignRule).filter(AssignRule.device_id == device.id).delete()
+    db.query(Translation).filter(Translation.device_id == device.id).delete()
+    db.flush()
+
+    # 1. Communication Objects
+    for co in parsed_yaml_data.get("communication_objects") or []:
+        co_rec = CommunicationObject(
+            device_id=device.id,
+            obj_id=co.get("id") or f"{device.order_number}_o-{co.get('number', 0)}",
+            number=co.get("number", 0),
+            name=co.get("name"),
+            function=co.get("function"),
+            dpt=co.get("dpt"),
+            size=co.get("size"),
+            flags=co.get("flags"),
+            conditions=co.get("conditions")
+        )
+        db.add(co_rec)
+
+    # 2. Parameters
+    for idx, p in enumerate(parsed_yaml_data.get("parameters") or []):
+        p_rec = Parameter(
+            device_id=device.id,
+            param_id=p.get("id") or f"{device.order_number}_p-{idx + 1}",
+            name=p.get("name") or "",
+            text=p.get("text"),
+            type=p.get("type"),
+            default_value=str(p.get("default")) if p.get("default") is not None else None,
+            page=p.get("page"),
+            section=p.get("section"),
+            options=p.get("options"),
+            conditions=p.get("conditions")
+        )
+        db.add(p_rec)
+
+    # 3. Assign Rules
+    for ar in parsed_yaml_data.get("assign_rules") or []:
+        ar_rec = AssignRule(
+            device_id=device.id,
+            target=ar.get("target"),
+            source=ar.get("source"),
+            value=ar.get("value"),
+            conditions=ar.get("conditions")
+        )
+        db.add(ar_rec)
+
+    # 4. Translations
+    tr_dict = parsed_yaml_data.get("translations") or {}
+    for entity_id, lang_dict in tr_dict.items():
+        if isinstance(lang_dict, dict):
+            for lang, text_val in lang_dict.items():
+                tr_rec = Translation(
+                    device_id=device.id,
+                    entity_id=entity_id,
+                    language=lang,
+                    text=str(text_val)
+                )
+                db.add(tr_rec)
+    db.flush()
+
+
 def _save_yaml_db(
     file_bytes: bytes,
     filename: str,
@@ -451,33 +528,16 @@ def _save_yaml_db(
     dev_info = parsed["device"]
     order_number = dev_info["order_number"]
 
-    # 2. Store YAML file
+    # 2. Store YAML file in catalog_files
     clean_filename = sanitize_filename(filename or f"{order_number}.yaml")
     if not clean_filename.lower().endswith((".yaml", ".yml")):
         clean_filename += ".yaml"
-    stored_path, sha256_hash, file_size = storage_service.save_yaml_content(yaml_str, clean_filename)
+    storage_service.save_yaml_content(yaml_str, clean_filename)
+    sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+    file_size = len(file_bytes)
 
-    # 3. KnxprodFile record
-    knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
-    if not knx_file_rec:
-        knx_file_rec = KnxprodFile(
-            filename=clean_filename,
-            file_size_bytes=file_size,
-            sha256=sha256_hash,
-            storage_path=stored_path,
-            mime_type="text/yaml",
-            source_url=source_url or dev_info.get("source_url")
-        )
-        db.add(knx_file_rec)
-        db.flush()
-    else:
-        if (source_url or dev_info.get("source_url")) and not knx_file_rec.source_url:
-            knx_file_rec.source_url = source_url or dev_info.get("source_url")
-        if not knx_file_rec.storage_path:
-            knx_file_rec.storage_path = stored_path
-        db.flush()
-
-    # 4. Device
+    # 3. Device
+    resolved_source_url = source_url or dev_info.get("source_url")
     device = db.query(Device).filter(Device.order_number == order_number).first()
     if not device:
         device = Device(
@@ -487,8 +547,8 @@ def _save_yaml_db(
             hardware_name=dev_info.get("hardware_name"),
             hardware_version=dev_info.get("hardware_version"),
             bus_current_ma=dev_info.get("bus_current_ma"),
+            source_url=resolved_source_url,
             manufacturer_id=manufacturer.id,
-            knxprod_file_id=knx_file_rec.id,
             yaml_content=yaml_str
         )
         db.add(device)
@@ -499,13 +559,13 @@ def _save_yaml_db(
         device.hardware_name = dev_info.get("hardware_name") or device.hardware_name
         device.hardware_version = dev_info.get("hardware_version") or device.hardware_version
         device.bus_current_ma = dev_info.get("bus_current_ma") or device.bus_current_ma
+        device.source_url = resolved_source_url or device.source_url
         device.manufacturer_id = manufacturer.id
-        device.knxprod_file_id = knx_file_rec.id
         device.yaml_content = yaml_str
         db.query(ApplicationProgram).filter(ApplicationProgram.device_id == device.id).delete()
         db.flush()
 
-    # 5. Application
+    # 4. Application
     app_info = parsed.get("application") or {}
     app_rec = ApplicationProgram(
         device_id=device.id,
@@ -513,11 +573,14 @@ def _save_yaml_db(
         name=app_info.get("name") or device.name,
         version=app_info.get("version"),
         mask_version=app_info.get("mask_version"),
-        com_objects_count=app_info.get("com_objects_count", 0),
-        parameters_count=app_info.get("parameters_count", 0)
+        com_objects_count=app_info.get("com_objects_count", len(parsed.get("communication_objects", []))),
+        parameters_count=app_info.get("parameters_count", len(parsed.get("parameters", [])))
     )
     db.add(app_rec)
     db.flush()
+
+    # 5. Populate relational children
+    _sync_device_records(db, device, parsed)
 
     app_responses = [ImportedApplication(
         name=app_rec.name,
@@ -537,11 +600,11 @@ def _save_yaml_db(
 
     return UploadResponse(
         status="success",
-        message="KoNfiX-YAML-Gerätedefinition erfolgreich empfangen und indexiert",
-        filename=knx_file_rec.filename,
+        message="KoNfiX-YAML-Gerätedefinition erfolgreich empfangen und relational indexiert",
+        filename=clean_filename,
         file_size_bytes=file_size,
         sha256=sha256_hash,
-        source_url=knx_file_rec.source_url,
+        source_url=device.source_url,
         manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
         manufacturer_name=manufacturer.name,
         manufacturer_code=manufacturer.code,
@@ -556,43 +619,16 @@ def _save_knxprod_db(
     source_url: str | None = None,
     store_binary: bool = True
 ) -> UploadResponse:
-    # 1. Parse XML and validate ZIP structure
+    # 1. Parse XML and validate ZIP structure in memory
     try:
         parsed = parse_knxprod_bytes(file_bytes)
     except ValueError as e:
         raise ValueError(f"Fehler bei der KNXProd-Verarbeitung: {e!s}")
 
-    # 2. Store or hash binary file
-    if store_binary:
-        stored_path, sha256_hash, file_size = storage_service.save_knxprod_bytes(file_bytes, filename)
-    else:
-        sha256_hash = hashlib.sha256(file_bytes).hexdigest()
-        file_size = len(file_bytes)
-        stored_path = None
+    sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+    file_size = len(file_bytes)
 
-    # 3. Check or create KnxprodFile record
-    knx_file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256 == sha256_hash).first()
-    if not knx_file_rec:
-        knx_file_rec = KnxprodFile(
-            filename=sanitize_filename(filename),
-            file_size_bytes=file_size,
-            sha256=sha256_hash,
-            storage_path=stored_path,
-            mime_type="application/octet-stream",
-            source_url=source_url
-        )
-        db.add(knx_file_rec)
-        db.flush()
-    else:
-        if source_url and not knx_file_rec.source_url:
-            knx_file_rec.source_url = source_url
-            db.flush()
-        if store_binary and not knx_file_rec.storage_path:
-            stored_path, _, _ = storage_service.save_knxprod_bytes(file_bytes, filename)
-            knx_file_rec.storage_path = stored_path
-            db.flush()
-
-    # 4. Check or create Manufacturer
+    # 2. Check or create Manufacturer
     manufacturer = None
     if parsed.manufacturer_code:
         manufacturer = db.query(Manufacturer).filter(Manufacturer.code == parsed.manufacturer_code).first()
@@ -616,14 +652,10 @@ def _save_knxprod_db(
             manufacturer.knx_id = parsed.manufacturer_id
         db.flush()
 
-    # 5. Insert / Update Devices and Applications + Save Converted KoNfiX-YAML
+    # 3. Insert / Update Devices, Applications, and Relational Children
     imported_devices_resp = []
 
     for d in parsed.devices:
-        # Save generated KoNfiX-YAML file
-        if d.yaml_content:
-            storage_service.save_yaml_content(d.yaml_content, f"{d.order_number}.yaml")
-
         device = db.query(Device).filter(Device.order_number == d.order_number).first()
         if not device:
             device = Device(
@@ -633,8 +665,8 @@ def _save_knxprod_db(
                 hardware_name=d.hardware_name,
                 hardware_version=d.hardware_version,
                 bus_current_ma=d.bus_current_ma,
+                source_url=source_url,
                 manufacturer_id=manufacturer.id,
-                knxprod_file_id=knx_file_rec.id,
                 yaml_content=d.yaml_content
             )
             db.add(device)
@@ -645,10 +677,9 @@ def _save_knxprod_db(
             device.hardware_name = d.hardware_name or device.hardware_name
             device.hardware_version = d.hardware_version or device.hardware_version
             device.bus_current_ma = d.bus_current_ma or device.bus_current_ma
+            device.source_url = source_url or device.source_url
             device.manufacturer_id = manufacturer.id
-            device.knxprod_file_id = knx_file_rec.id
             device.yaml_content = d.yaml_content
-            # Remove previous applications for fresh sync
             db.query(ApplicationProgram).filter(ApplicationProgram.device_id == device.id).delete()
             db.flush()
 
@@ -672,6 +703,16 @@ def _save_knxprod_db(
                 parameters_count=app.parameters_count
             ))
 
+        # Parse generated KoNfiX-YAML and populate relational records
+        if d.yaml_content:
+            try:
+                parsed_d_yaml = parse_konfix_yaml(d.yaml_content)
+                _sync_device_records(db, device, parsed_d_yaml)
+            except Exception:
+                pass
+            # Save YAML file in catalog_files
+            storage_service.save_yaml_content(d.yaml_content, f"{d.order_number}.yaml")
+
         imported_devices_resp.append(ImportedDevice(
             order_number=device.order_number,
             name=device.name,
@@ -684,11 +725,11 @@ def _save_knxprod_db(
 
     return UploadResponse(
         status="success",
-        message="KNXProd-Datei erfolgreich empfangen, in KoNfiX-YAML konvertiert und indexiert",
-        filename=knx_file_rec.filename,
+        message="KNXProd-Datei erfolgreich empfangen, in KoNfiX relational konvertiert und indexiert",
+        filename=sanitize_filename(filename),
         file_size_bytes=file_size,
         sha256=sha256_hash,
-        source_url=knx_file_rec.source_url,
+        source_url=source_url,
         manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
         manufacturer_name=manufacturer.name,
         manufacturer_code=manufacturer.code,

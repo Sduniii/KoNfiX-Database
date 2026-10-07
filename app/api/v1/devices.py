@@ -1,5 +1,5 @@
 # isort: skip_file
-from typing import Annotated
+from typing import Annotated, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.auth import verify_admin_key, verify_api_key
 from app.database import get_db
-from app.models import Device, KnxprodFile, Manufacturer
+from app.models import Device, Manufacturer, CommunicationObject, Parameter
 from app.schemas.device import (
     ApplicationProgramResponse,
     BatchDeleteRequest,
@@ -17,22 +17,20 @@ from app.schemas.device import (
     DeviceUpdateRequest,
     KnxprodFileInfo,
     ManufacturerSummary,
+    CommunicationObjectResponse,
+    ParameterResponse,
 )
 
 
 router = APIRouter(tags=["Devices & Catalog"])
 DB_SESSION_DEPENDENCY = Depends(get_db)
 
+
 def _to_device_response(d: Device) -> DeviceResponse:
     file_info = None
-    if d.knxprod_file:
+    if d.source_url:
         file_info = KnxprodFileInfo(
-            id=d.knxprod_file.id,
-            filename=d.knxprod_file.filename,
-            file_size_bytes=d.knxprod_file.file_size_bytes,
-            sha256=d.knxprod_file.sha256,
-            source_url=d.knxprod_file.source_url,
-            uploaded_at=d.knxprod_file.uploaded_at,
+            source_url=d.source_url,
             download_url=f"/api/v1/download/{d.order_number}"
         )
 
@@ -57,6 +55,7 @@ def _to_device_response(d: Device) -> DeviceResponse:
         hardware_name=d.hardware_name,
         hardware_version=d.hardware_version,
         bus_current_ma=d.bus_current_ma,
+        source_url=d.source_url,
         manufacturer=ManufacturerSummary(
             id=d.manufacturer.id,
             code=d.manufacturer.code,
@@ -66,9 +65,12 @@ def _to_device_response(d: Device) -> DeviceResponse:
         knxprod_file=file_info,
         applications=apps,
         yaml_url=f"/api/v1/devices/{d.order_number}/yaml",
+        com_objects_count=len(d.communication_objects) if d.communication_objects else 0,
+        parameters_count=len(d.parameters) if d.parameters else 0,
         created_at=d.created_at,
         updated_at=d.updated_at
     )
+
 
 @router.get(
     "/devices",
@@ -78,24 +80,33 @@ def _to_device_response(d: Device) -> DeviceResponse:
 )
 def list_devices(
     q: str | None = Query(None, description="Suchbegriff (Bestellnummer, Gerätename, Beschreibung)"),
-    manufacturer_id: str | None = Query(None, description="Filter nach KNX-Herstellerkennung (z.B. 'M-00C5')"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    db: Session = DB_SESSION_DEPENDENCY
+    manufacturer_id: str | None = Query(None, description="Filter nach Hersteller-ID (Zahl, Code oder KNX-ID wie 'M-0083')"),
+    manufacturer_code: str | None = Query(None, description="Filter nach Hersteller-Code (z.B. 'mdt', 'openknx')"),
+    page: int = Query(1, ge=1, description="Seitennummer"),
+    page_size: int = Query(20, ge=1, le=100, description="Einträge pro Seite"),
+    db: Session = DB_SESSION_DEPENDENCY,
 ):
-    query = db.query(Device).join(Device.manufacturer)
+    query = db.query(Device).join(Manufacturer)
 
     if manufacturer_id:
-        query = query.filter(Manufacturer.knx_id.ilike(manufacturer_id.strip()))
+        mid_str = manufacturer_id.strip()
+        if mid_str.isdigit():
+            query = query.filter(or_(Device.manufacturer_id == int(mid_str), Manufacturer.knx_id.ilike(mid_str)))
+        else:
+            query = query.filter(or_(Manufacturer.knx_id.ilike(mid_str), Manufacturer.code.ilike(mid_str)))
+
+    if manufacturer_code:
+        query = query.filter(Manufacturer.code.ilike(manufacturer_code.strip()))
 
     if q:
-        search = f"%{q.strip()}%"
+        term = f"%{q.strip()}%"
         query = query.filter(
             or_(
-                Device.order_number.ilike(search),
-                Device.name.ilike(search),
-                Device.description.ilike(search),
-                Manufacturer.name.ilike(search)
+                Device.name.ilike(term),
+                Device.order_number.ilike(term),
+                Device.description.ilike(term),
+                Manufacturer.name.ilike(term),
+                Manufacturer.code.ilike(term)
             )
         )
 
@@ -109,40 +120,10 @@ def list_devices(
         devices=[_to_device_response(d) for d in devices]
     )
 
-def _serve_yaml_for_device(device: Device, db: Session) -> Response:
-    if device.yaml_content:
-        yaml_text = device.yaml_content
-    else:
-        # Generate on the fly if migrated without pre-stored yaml
-        from app.services.yaml_converter import build_konfix_yaml, generate_manufacturer_code
-        mfg = device.manufacturer
-        mfg_name = mfg.name if mfg else "Unbekannter Hersteller"
-        mfg_code = (mfg.code if mfg else None) or generate_manufacturer_code(mfg_name, mfg.knx_id if mfg else None)
-        if mfg and not mfg.code:
-            mfg.code = mfg_code
 
-        app0 = device.applications[0] if device.applications else None
-        yaml_text = build_konfix_yaml(
-            manufacturer_code=mfg_code,
-            manufacturer_name=mfg_name,
-            legacy_knx_id=mfg.knx_id if mfg else None,
-            order_number=device.order_number,
-            device_name=device.name,
-            description=device.description,
-            hardware_name=device.hardware_name,
-            hardware_version=device.hardware_version,
-            bus_current_ma=device.bus_current_ma,
-            application_id=app0.app_id if app0 else None,
-            application_name=app0.name if app0 else None,
-            application_version=app0.version if app0 else None,
-            mask_version=app0.mask_version if app0 else None,
-            source_url=device.knxprod_file.source_url if device.knxprod_file else None,
-        )
-        device.yaml_content = yaml_text
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
+def _serve_yaml_for_device(device: Device, db: Session) -> Response:
+    from app.services.yaml_converter import device_to_konfix_yaml
+    yaml_text = device_to_konfix_yaml(device)
 
     return Response(
         content=yaml_text,
@@ -176,7 +157,7 @@ def get_device_yaml_query(
 @router.get(
     "/devices/{order_number:path}/yaml",
     summary="Get full KoNfiX-YAML definition for device",
-    description="Liefert die vollständige, offene KoNfiX-YAML-Gerätedefinition inklusive aller Kommunikationsobjekte und Parameter."
+    description="Liefert die vollständige, offene KoNfiX-YAML-Gerätedefinition inklusive aller Kommunikationsobjekte und Parameter on-the-fly."
 )
 def get_device_yaml(
     order_number: str,
@@ -189,6 +170,67 @@ def get_device_yaml(
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
     return _serve_yaml_for_device(device, db)
+
+
+@router.get(
+    "/devices/{order_number:path}/communication-objects",
+    response_model=List[CommunicationObjectResponse],
+    summary="Get communication objects for device",
+    description="Liefert alle Kommunikationsobjekte eines Geräts mit optionalem Filter nach DPT oder Funktion."
+)
+def get_device_communication_objects(
+    order_number: str,
+    dpt: Optional[str] = Query(None, description="Filter nach Datenpunkttyp (z. B. '1.001')"),
+    q: Optional[str] = Query(None, description="Suche in Name oder Funktion"),
+    db: Session = DB_SESSION_DEPENDENCY
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    query = db.query(CommunicationObject).filter(CommunicationObject.device_id == device.id)
+    if dpt:
+        query = query.filter(CommunicationObject.dpt.ilike(f"%{dpt.strip()}%"))
+    if q:
+        term = f"%{q.strip()}%"
+        query = query.filter(or_(CommunicationObject.name.ilike(term), CommunicationObject.function.ilike(term)))
+
+    return query.order_by(CommunicationObject.number.asc()).all()
+
+
+@router.get(
+    "/devices/{order_number:path}/parameters",
+    response_model=List[ParameterResponse],
+    summary="Get parameters for device",
+    description="Liefert alle Parameter eines Geräts mit optionalem Filter nach Seite oder Typ."
+)
+def get_device_parameters(
+    order_number: str,
+    page_name: Optional[str] = Query(None, description="Filter nach Seitenpfad"),
+    param_type: Optional[str] = Query(None, description="Filter nach Typ (enum, number, text, float)"),
+    q: Optional[str] = Query(None, description="Suche in Parameter-Name oder Text"),
+    db: Session = DB_SESSION_DEPENDENCY
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    query = db.query(Parameter).filter(Parameter.device_id == device.id)
+    if page_name:
+        query = query.filter(Parameter.page.ilike(f"%{page_name.strip()}%"))
+    if param_type:
+        query = query.filter(Parameter.type == param_type.strip())
+    if q:
+        term = f"%{q.strip()}%"
+        query = query.filter(or_(Parameter.name.ilike(term), Parameter.text.ilike(term)))
+
+    return query.order_by(Parameter.id.asc()).all()
 
 
 @router.get(
@@ -236,24 +278,8 @@ def update_device(
         device.hardware_version = update_data.hardware_version
     if update_data.bus_current_ma is not None:
         device.bus_current_ma = update_data.bus_current_ma
-
     if update_data.source_url is not None:
-        clean_url = update_data.source_url.strip() if update_data.source_url else None
-        if device.knxprod_file:
-            device.knxprod_file.source_url = clean_url
-        elif clean_url:
-            # Create a placeholder KnxprodFile record for the link if none exists
-            new_file = KnxprodFile(
-                filename=f"{device.order_number}.knxprod",
-                file_size_bytes=0,
-                sha256=f"link_{device.order_number}",
-                storage_path=None,
-                source_url=clean_url,
-                mime_type="application/octet-stream"
-            )
-            db.add(new_file)
-            db.flush()
-            device.knxprod_file_id = new_file.id
+        device.source_url = update_data.source_url.strip() if update_data.source_url else None
 
     db.commit()
     db.refresh(device)
@@ -263,15 +289,13 @@ def update_device(
 @router.delete(
     "/devices/{order_number:path}",
     summary="Delete device from catalog (Admin / Takedown)",
-    description="Entfernt ein Gerät und dessen Applikationen aus dem Katalog. Bei Bedarf wird die zugehörige Datei ebenfalls gelöscht."
+    description="Entfernt ein Gerät und alle zugehörigen relationalen Daten aus dem Katalog."
 )
 def delete_device(
     order_number: str,
-    delete_file: bool = Query(False, description="Zugehörige .knxprod-Datei ebenfalls vom Server löschen, falls keine anderen Geräte darauf verweisen"),
     db: Session = DB_SESSION_DEPENDENCY,
     _authorized: bool = Depends(verify_admin_key)
 ):
-    import os
     device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
     if not device:
         raise HTTPException(
@@ -279,22 +303,7 @@ def delete_device(
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
 
-    file_rec = device.knxprod_file
-    file_id = device.knxprod_file_id
-
     db.delete(device)
-    db.flush()
-
-    if file_rec and file_id:
-        other_devices_count = db.query(Device).filter(Device.knxprod_file_id == file_id).count()
-        if other_devices_count == 0 and delete_file:
-            if file_rec.storage_path and os.path.exists(file_rec.storage_path):
-                try:
-                    os.remove(file_rec.storage_path)
-                except OSError:
-                    pass
-            db.delete(file_rec)
-
     db.commit()
     return {
         "status": "success",
@@ -306,14 +315,13 @@ def delete_device(
     "/devices/batch-delete",
     response_model=BatchDeleteResponse,
     summary="Delete multiple devices from catalog (Admin / Batch Takedown)",
-    description="Entfernt mehrere Geräte und deren Applikationen gebündelt aus dem Katalog. Optional werden verwaiste Dateien vom Server gelöscht."
+    description="Entfernt mehrere Geräte gebündelt aus dem Katalog."
 )
 def batch_delete_devices(
     payload: BatchDeleteRequest,
     db: Session = DB_SESSION_DEPENDENCY,
     _authorized: bool = Depends(verify_admin_key)
 ):
-    import os
     if not payload.order_numbers:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -322,7 +330,6 @@ def batch_delete_devices(
 
     deleted_order_numbers = []
     errors = []
-    affected_file_ids = set()
 
     for raw_on in payload.order_numbers:
         on = raw_on.strip()
@@ -333,27 +340,8 @@ def batch_delete_devices(
             errors.append(f"Gerät mit Bestellnummer '{on}' nicht gefunden.")
             continue
 
-        if device.knxprod_file_id:
-            affected_file_ids.add(device.knxprod_file_id)
-
         db.delete(device)
         deleted_order_numbers.append(on)
-
-    db.flush()
-
-    # Bereinigung der Dateien, falls gewünscht
-    if payload.delete_files and affected_file_ids:
-        for fid in affected_file_ids:
-            remaining = db.query(Device).filter(Device.knxprod_file_id == fid).count()
-            if remaining == 0:
-                f_rec = db.query(KnxprodFile).filter(KnxprodFile.id == fid).first()
-                if f_rec:
-                    if f_rec.storage_path and os.path.exists(f_rec.storage_path):
-                        try:
-                            os.remove(f_rec.storage_path)
-                        except OSError:
-                            pass
-                    db.delete(f_rec)
 
     db.commit()
 
@@ -363,9 +351,3 @@ def batch_delete_devices(
         errors=errors,
         message=f"{len(deleted_order_numbers)} Gerät(e) erfolgreich aus dem Katalog gelöscht."
     )
-
-
-
-
-
-

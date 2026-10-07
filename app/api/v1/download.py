@@ -1,53 +1,23 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
-from app.models import Device, KnxprodFile, Manufacturer
+from app.models import Device, Manufacturer
 from app.schemas.download import DownloadRequest
+from app.services.yaml_converter import device_to_konfix_yaml
 
 router = APIRouter(tags=["Download (.yaml)"])
 
 
 def _serve_device_yaml(device: Device, db: Session) -> Response:
     """
-    Delivers the KoNfiX-YAML specification for a device.
-    Zero dependency on legacy .knxprod binary files: if yaml_content is missing,
-    it is synthesized on the fly from the database records and saved.
+    Delivers the KoNfiX-YAML specification for a device, synthesized on the fly
+    directly from the relational database records.
     """
-    if device.yaml_content:
-        yaml_text = device.yaml_content
-    else:
-        from app.services.yaml_converter import build_konfix_yaml, generate_manufacturer_code
-        mfg = device.manufacturer
-        mfg_name = mfg.name if mfg else "Unbekannter Hersteller"
-        mfg_code = (mfg.code if mfg else None) or generate_manufacturer_code(mfg_name, mfg.knx_id if mfg else None)
-        if mfg and not mfg.code:
-            mfg.code = mfg_code
-
-        app0 = device.applications[0] if device.applications else None
-        yaml_text = build_konfix_yaml(
-            manufacturer_code=mfg_code,
-            manufacturer_name=mfg_name,
-            legacy_knx_id=mfg.knx_id if mfg else None,
-            order_number=device.order_number,
-            device_name=device.name,
-            description=device.description,
-            hardware_name=device.hardware_name,
-            hardware_version=device.hardware_version,
-            bus_current_ma=device.bus_current_ma,
-            application_id=app0.app_id if app0 else None,
-            application_name=app0.name if app0 else None,
-            application_version=app0.version if app0 else None,
-            mask_version=app0.mask_version if app0 else None,
-            source_url=device.knxprod_file.source_url if device.knxprod_file else None,
-        )
-        device.yaml_content = yaml_text
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
+    yaml_text = device_to_konfix_yaml(device)
 
     return Response(
         content=yaml_text,
@@ -65,8 +35,8 @@ def _serve_device_yaml(device: Device, db: Session) -> Response:
     response_class=Response,
     summary="Download KoNfiX-YAML device definition via POST",
     description=(
-        "Sendet einen JSON-Request mit Filterkriterien (z. B. `order_number`, `device_id`, "
-        "oder `sha256`) und erhält die passende KoNfiX-YAML-Gerätedefinition als text/yaml zurück."
+        "Sendet einen JSON-Request mit Filterkriterien (z. B. `order_number`, `device_id`) "
+        "und erhält die passende KoNfiX-YAML-Gerätedefinition als text/yaml zurück."
     ),
     responses={
         200: {
@@ -92,31 +62,24 @@ def download_yaml_post(
         else:
             device = db.query(Device).filter(Device.order_number.ilike(f"%{req.order_number.strip()}%")).first()
     elif req.sha256:
-        file_rec = db.query(KnxprodFile).filter(KnxprodFile.sha256.ilike(req.sha256.strip())).first()
-        if file_rec:
-            device = db.query(Device).filter(Device.knxprod_file_id == file_rec.id).first()
-        if not device:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Keine Gerätedefinition mit SHA256 '{req.sha256}' gefunden."
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Suche per KNXPROD-SHA256 wird nicht mehr unterstützt. Bitte 'order_number' oder 'device_id' verwenden."
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Bitte mindestens 'order_number', 'device_id' oder 'sha256' im JSON-Body angeben."
+            detail="Bitte mindestens 'order_number' oder 'device_id' im JSON-Body angeben."
         )
 
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Kein Gerät für die Anfrage gefunden."
+            detail="Kein Gerät für die Anfrage gefunden."
         )
 
     return _serve_device_yaml(device, db)
 
-
-from fastapi.responses import RedirectResponse, Response
-from app.config import settings
 
 @router.get(
     "/download",
@@ -139,8 +102,8 @@ def download_yaml_get_query(
             detail=f"Keine Datei für Bestellnummer '{order_number}' gefunden."
         )
 
-    if (redirect or settings.PREFER_SOURCE_REDIRECT) and device.knxprod_file and device.knxprod_file.source_url:
-        return RedirectResponse(url=device.knxprod_file.source_url, status_code=status.HTTP_302_FOUND)
+    if (redirect or settings.PREFER_SOURCE_REDIRECT) and device.source_url:
+        return RedirectResponse(url=device.source_url, status_code=status.HTTP_302_FOUND)
 
     return _serve_device_yaml(device, db)
 
@@ -166,7 +129,7 @@ def download_yaml_get(
             detail=f"Keine Datei für Bestellnummer '{order_number}' gefunden."
         )
 
-    if (redirect or settings.PREFER_SOURCE_REDIRECT) and device.knxprod_file and device.knxprod_file.source_url:
-        return RedirectResponse(url=device.knxprod_file.source_url, status_code=status.HTTP_302_FOUND)
+    if (redirect or settings.PREFER_SOURCE_REDIRECT) and device.source_url:
+        return RedirectResponse(url=device.source_url, status_code=status.HTTP_302_FOUND)
 
     return _serve_device_yaml(device, db)

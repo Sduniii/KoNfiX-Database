@@ -219,8 +219,7 @@ def test_database_backfill_legacy_devices():
             order_number="GIRA-2168-00",
             name="Tastsensor 4 Komfort",
             manufacturer_id=mfg.id,
-            yaml_content=None,
-            knxprod_file_id=None
+            yaml_content=None
         )
         db.add(dev)
         db.flush()

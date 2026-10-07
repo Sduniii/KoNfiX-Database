@@ -14,7 +14,15 @@ sys.path.insert(0, str(BASE_DIR))
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal, ensure_database_ready, get_sqlite_path
-from app.models import Device, Manufacturer, KnxprodFile, ApplicationProgram
+from app.models import (
+    Device,
+    Manufacturer,
+    ApplicationProgram,
+    CommunicationObject,
+    Parameter,
+    AssignRule,
+    Translation,
+)
 
 
 def init_database(clean: bool = False):
@@ -48,31 +56,21 @@ def init_database(clean: bool = False):
     try:
         dev_count = db.query(Device).count()
         mfg_count = db.query(Manufacturer).count()
-        file_count = db.query(KnxprodFile).count()
         app_count = db.query(ApplicationProgram).count()
+        ko_count = db.query(CommunicationObject).count()
+        param_count = db.query(Parameter).count()
+        rule_count = db.query(AssignRule).count()
+        trans_count = db.query(Translation).count()
         print("\n3. Tabellen-Status:")
-        print(f"   - Geräte (devices):              {dev_count}")
-        print(f"   - Hersteller (manufacturers):    {mfg_count}")
-        print(f"   - Dateieinträge (knxprod_files): {file_count}")
-        print(f"   - Applikationen (application):   {app_count}")
+        print(f"   - Geräte (devices):                     {dev_count}")
+        print(f"   - Hersteller (manufacturers):           {mfg_count}")
+        print(f"   - Applikationen (application_programs): {app_count}")
+        print(f"   - KO-Objekte (communication_objects):   {ko_count}")
+        print(f"   - Parameter (parameters):               {param_count}")
+        print(f"   - Zuweisungsregeln (assign_rules):      {rule_count}")
+        print(f"   - Übersetzungen (translations):         {trans_count}")
     finally:
         db.close()
-
-    # Symlink verification
-    print("\n4. Verifizierte Aliase / Symlinks:")
-    aliases = [
-        BASE_DIR / "data" / "catalog.db",
-        BASE_DIR / "data" / "konfix_catalog.db",
-        BASE_DIR / "catalog.db",
-    ]
-    for a in aliases:
-        if a.is_symlink():
-            target = a.resolve()
-            print(f"   ✓ Symlink {a.name} -> {target.name} (Aktiv)")
-        elif a.exists():
-            print(f"   * Datei {a.name} (Reguläre Datei)")
-        else:
-            print(f"   - Alias {a.name} (Nicht vorhanden)")
 
     print("\n✓ Datenbank ist einsatzbereit.")
     print("=" * 60)

@@ -20,7 +20,7 @@ def init_db():
     from sqlalchemy import text
     try:
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE knxprod_files ADD COLUMN source_url VARCHAR(1024)"))
+            conn.execute(text("ALTER TABLE devices ADD COLUMN source_url VARCHAR(1024)"))
             conn.commit()
     except Exception:
         pass  # Column already exists

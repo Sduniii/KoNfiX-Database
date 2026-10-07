@@ -268,8 +268,8 @@ function createDeviceCard(device) {
   `).join("");
 
   const yamlUrl = `/api/v1/devices/yaml?order_number=${encodeURIComponent(device.order_number)}`;
-  const hasFile = !!device.knxprod_file || !!device.yaml_content;
-  const hasSource = hasFile && !!(device.knxprod_file && device.knxprod_file.source_url);
+  const sourceUrl = device.source_url || (device.knxprod_file && device.knxprod_file.source_url);
+  const hasSource = !!sourceUrl;
   
   const actionButtons = `
     <button type="button" class="btn btn-secondary btn-sm btn-view-yaml" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}">
@@ -281,7 +281,7 @@ function createDeviceCard(device) {
   `;
 
   const sourceBadge = hasSource ? `
-    <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="Offizieller Hersteller-Download-Link">
+    <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="Offizieller Hersteller-Download-Link">
       🌐 Hersteller-Quelle
     </a>
   ` : '';
@@ -340,7 +340,6 @@ function createDeviceCard(device) {
     <div class="card-specs">
       ${device.hardware_version ? `<span class="spec-item">HW: <strong>v${escapeHtml(device.hardware_version)}</strong></span>` : ''}
       ${device.bus_current_ma != null ? `<span class="spec-item">Bus: <strong>${device.bus_current_ma} mA</strong></span>` : ''}
-      ${device.knxprod_file && device.knxprod_file.file_size_bytes ? `<span class="spec-item">Größe: <strong>${formatBytes(device.knxprod_file.file_size_bytes)}</strong></span>` : ''}
       ${sourceBadge}
     </div>
 
@@ -424,38 +423,36 @@ function showRestDetails(device) {
   const postCurl = `curl -X POST "${baseUrl}/api/v1/download" \\
   -H "Content-Type: application/json" \\
   -d '{"order_number": "${device.order_number}"}' \\
-  --output "${device.order_number}.knxprod"`;
+  --output "${device.order_number}.yaml"`;
 
   const getCurl = `curl -L -O "${baseUrl}/api/v1/download/${device.order_number}"`;
 
   title.textContent = `${device.name} (${device.order_number})`;
 
+  const modalSourceUrl = device.source_url || (device.knxprod_file && device.knxprod_file.source_url);
+
   body.innerHTML = `
     <p style="margin-bottom: 1rem; color: #94a3b8;">
-      Diese KNX-Produktdatenbank kann direkt per REST-API automatisiert in ETS-Skripte oder CI/CD-Pipelines eingebunden werden.
+      Diese KoNfiX-Gerätedefinition kann direkt per REST-API automatisiert in Skripte oder CI/CD-Pipelines eingebunden werden.
     </p>
 
-    <h4 style="font-size: 0.95rem; margin-bottom: 0.35rem; color: #f8fafc;">1. Download per POST (application/octet-stream):</h4>
+    <h4 style="font-size: 0.95rem; margin-bottom: 0.35rem; color: #f8fafc;">1. Download per POST (YAML):</h4>
     <div class="code-block">${escapeHtml(postCurl)}</div>
 
-    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">2. Download per GET (application/octet-stream):</h4>
+    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">2. Download per GET (YAML):</h4>
     <div class="code-block">${escapeHtml(getCurl)}</div>
 
-    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">3. Download mit Hersteller-Redirect (HTTP 302):</h4>
-    <div class="code-block">${escapeHtml(`curl -L "${baseUrl}/api/v1/download/${device.order_number}?redirect=true"`)}</div>
+    ${modalSourceUrl ? `
+      <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">3. Download mit Hersteller-Redirect (HTTP 302):</h4>
+      <div class="code-block">${escapeHtml(`curl -L "${baseUrl}/api/v1/download/${device.order_number}?redirect=true"`)}</div>
 
-    ${device.knxprod_file ? `
       <div style="margin-top: 1.25rem; font-size: 0.8rem; color: #94a3b8;">
-        <strong>SHA256 Prüfsumme:</strong><br>
-        <code style="color: #38bdf8; font-family: monospace;">${device.knxprod_file.sha256}</code>
-        ${device.knxprod_file.source_url ? `
-          <div style="margin-top: 0.5rem;">
-            <strong>Offizielle Hersteller-Quelle:</strong><br>
-            <a href="${escapeHtml(device.knxprod_file.source_url)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; word-break: break-all;">
-              ${escapeHtml(device.knxprod_file.source_url)}
-            </a>
-          </div>
-        ` : ''}
+        <div>
+          <strong>Offizielle Hersteller-Quelle:</strong><br>
+          <a href="${escapeHtml(modalSourceUrl)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; word-break: break-all;">
+            ${escapeHtml(modalSourceUrl)}
+          </a>
+        </div>
       </div>
     ` : ''}
   `;
@@ -908,7 +905,7 @@ function openEditDeviceModal(device) {
   document.getElementById("editOrderNumber").value = device.order_number;
   document.getElementById("editOrderNumberDisplay").value = device.order_number;
   document.getElementById("editDeviceName").value = device.name || "";
-  document.getElementById("editSourceUrl").value = (device.knxprod_file && device.knxprod_file.source_url) || "";
+  document.getElementById("editSourceUrl").value = device.source_url || (device.knxprod_file && device.knxprod_file.source_url) || "";
   document.getElementById("editHardwareVersion").value = device.hardware_version || "";
   document.getElementById("editBusCurrent").value = device.bus_current_ma != null ? device.bus_current_ma : "";
   document.getElementById("editDescription").value = device.description || "";

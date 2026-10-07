@@ -771,3 +771,105 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
         "translations": sanitized_translations,
         "raw_yaml": yaml_content
     }
+
+
+def device_to_konfix_yaml(device: Any) -> str:
+    """
+    Serializes a Device ORM model instance and its relational children
+    (communication_objects, parameters, assign_rules, translations) into
+    a standard KoNfiX-YAML document on the fly.
+    """
+    mfg = getattr(device, "manufacturer", None)
+    mfg_name = mfg.name if mfg else "Unbekannter Hersteller"
+    mfg_code = (mfg.code if mfg else None) or generate_manufacturer_code(mfg_name, mfg.knx_id if mfg else None)
+
+    app0 = device.applications[0] if (getattr(device, "applications", None) and len(device.applications) > 0) else None
+
+    # Communication Objects
+    cos = []
+    for co in getattr(device, "communication_objects", []):
+        co_dict: Dict[str, Any] = {
+            "id": co.obj_id,
+            "number": co.number,
+            "name": co.name or "",
+        }
+        if co.function:
+            co_dict["function"] = co.function
+        if co.dpt:
+            co_dict["dpt"] = co.dpt
+        if co.size:
+            co_dict["size"] = co.size
+        if co.flags:
+            co_dict["flags"] = co.flags
+        if co.conditions:
+            co_dict["conditions"] = co.conditions
+        cos.append(co_dict)
+
+    # Parameters
+    params = []
+    for p in getattr(device, "parameters", []):
+        p_dict: Dict[str, Any] = {
+            "id": p.param_id,
+            "name": p.name or "",
+        }
+        if p.text:
+            p_dict["text"] = p.text
+        if p.type:
+            p_dict["type"] = p.type
+        if p.default_value is not None:
+            val = p.default_value
+            if p.type == "number":
+                try:
+                    val = int(val) if "." not in val else float(val)
+                except Exception:
+                    pass
+            p_dict["default"] = val
+        if p.page:
+            p_dict["page"] = p.page
+        if p.section:
+            p_dict["section"] = p.section
+        if p.options:
+            p_dict["options"] = p.options
+        if p.conditions:
+            p_dict["conditions"] = p.conditions
+        params.append(p_dict)
+
+    # Assign Rules
+    assigns = []
+    for ar in getattr(device, "assign_rules", []):
+        ar_dict: Dict[str, Any] = {
+            "target": ar.target,
+        }
+        if ar.source:
+            ar_dict["source"] = ar.source
+        if ar.value is not None:
+            ar_dict["value"] = ar.value
+        if ar.conditions:
+            ar_dict["conditions"] = ar.conditions
+        assigns.append(ar_dict)
+
+    # Translations
+    tr_dict: Dict[str, Dict[str, str]] = {}
+    for tr in getattr(device, "translations", []):
+        tr_dict.setdefault(tr.entity_id, {})[tr.language] = tr.text
+
+    return build_konfix_yaml(
+        manufacturer_code=mfg_code,
+        manufacturer_name=mfg_name,
+        legacy_knx_id=mfg.knx_id if mfg else None,
+        order_number=device.order_number,
+        device_name=device.name,
+        description=device.description,
+        hardware_name=device.hardware_name,
+        hardware_version=device.hardware_version,
+        bus_current_ma=device.bus_current_ma,
+        application_id=app0.app_id if app0 else None,
+        application_name=app0.name if app0 else None,
+        application_version=app0.version if app0 else None,
+        mask_version=app0.mask_version if app0 else None,
+        communication_objects=cos,
+        parameters=params,
+        assign_rules=assigns,
+        translations=tr_dict,
+        source_url=getattr(device, "source_url", None),
+    )

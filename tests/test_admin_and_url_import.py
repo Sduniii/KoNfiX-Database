@@ -2,7 +2,7 @@ import os
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.config import settings
-from app.models import Device, KnxprodFile
+from app.models import Device
 
 
 def test_auth_verify_open_mode(client):
