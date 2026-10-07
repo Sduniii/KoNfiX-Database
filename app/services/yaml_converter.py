@@ -252,20 +252,10 @@ def extract_dynamic_tree(
                     entry["section"] = cur_sec
 
                 if choose_stack:
-                    if len(choose_stack) == 1:
-                        last_pid, last_vals = choose_stack[0]
-                        entry["depends_on"] = {
-                            "param_id": last_pid,
-                            "when_values": list(last_vals),
-                        }
-                    else:
-                        conds = [{"param_id": p_id, "when_values": list(vals)} for p_id, vals in choose_stack]
-                        last_pid, last_vals = choose_stack[-1]
-                        entry["depends_on"] = {
-                            "param_id": last_pid,
-                            "when_values": list(last_vals),
-                            "conditions": conds
-                        }
+                    entry["conditions"] = [
+                        {"param_id": p_id, "when_values": list(vals)}
+                        for p_id, vals in choose_stack
+                    ]
 
         elif tag == "ComObjectRefRef":
             ref_id = node.attrib.get("RefId") or ""
@@ -274,20 +264,10 @@ def extract_dynamic_tree(
                 sanitized_co_id = sanitize_id(target_co_id, mfg)
                 entry = co_info.setdefault(sanitized_co_id, {})
                 if choose_stack:
-                    if len(choose_stack) == 1:
-                        last_pid, last_vals = choose_stack[0]
-                        entry["depends_on"] = {
-                            "param_id": last_pid,
-                            "when_values": list(last_vals),
-                        }
-                    else:
-                        conds = [{"param_id": p_id, "when_values": list(vals)} for p_id, vals in choose_stack]
-                        last_pid, last_vals = choose_stack[-1]
-                        entry["depends_on"] = {
-                            "param_id": last_pid,
-                            "when_values": list(last_vals),
-                            "conditions": conds
-                        }
+                    entry["conditions"] = [
+                        {"param_id": p_id, "when_values": list(vals)}
+                        for p_id, vals in choose_stack
+                    ]
 
         elif tag == "Assign":
             target_ref = node.attrib.get("TargetParamRefRef") or ""
@@ -425,8 +405,14 @@ def extract_com_objects_from_xml_node(
             # Check dynamic visibility / conditions
             if dynamic_info and sanitized_id in dynamic_info:
                 dyn = dynamic_info[sanitized_id]
-                if "depends_on" in dyn:
-                    co_entry["depends_on"] = dyn["depends_on"]
+                if "conditions" in dyn:
+                    co_entry["conditions"] = dyn["conditions"]
+                elif "depends_on" in dyn:
+                    dep = dyn["depends_on"]
+                    if "conditions" in dep:
+                        co_entry["conditions"] = dep["conditions"]
+                    elif "param_id" in dep:
+                        co_entry["conditions"] = [{"param_id": dep["param_id"], "when_values": dep.get("when_values", [])}]
 
             com_objects.append(co_entry)
 
@@ -518,15 +504,21 @@ def extract_parameters_from_xml_node(
                     else "text"
                 )
 
-            # Check dynamic tree metadata (page, section, depends_on)
+            # Check dynamic tree metadata (page, section, conditions)
             if dynamic_info and sanitized_id in dynamic_info:
                 dyn = dynamic_info[sanitized_id]
                 if "page" in dyn:
                     param_entry["page"] = dyn["page"]
                 if "section" in dyn:
                     param_entry["section"] = dyn["section"]
-                if "depends_on" in dyn:
-                    param_entry["depends_on"] = dyn["depends_on"]
+                if "conditions" in dyn:
+                    param_entry["conditions"] = dyn["conditions"]
+                elif "depends_on" in dyn:
+                    dep = dyn["depends_on"]
+                    if "conditions" in dep:
+                        param_entry["conditions"] = dep["conditions"]
+                    elif "param_id" in dep:
+                        param_entry["conditions"] = [{"param_id": dep["param_id"], "when_values": dep.get("when_values", [])}]
 
             parameters.append(param_entry)
 
@@ -680,6 +672,19 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
             if isinstance(v, dict):
                 sanitized_translations[sanitize_id(k, mfg_code)] = v
 
+    def _clean_conditions_list(raw_conds: Any, code: str) -> List[Dict[str, Any]]:
+        clean = []
+        if isinstance(raw_conds, list):
+            for cond in raw_conds:
+                if isinstance(cond, dict):
+                    cc = dict(cond)
+                    if "param_id" in cc:
+                        cc["param_id"] = sanitize_id(cc["param_id"], code)
+                    if "when_values" in cc:
+                        cc["when_values"] = [str(v) for v in cc["when_values"]]
+                    clean.append(cc)
+        return clean
+
     # Ensure all IDs inside com_objects and parameters are lowercase
     sanitized_cos = []
     for co in com_objects:
@@ -691,20 +696,16 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
                 c_tr = c.pop("translations")
                 if "id" in c:
                     sanitized_translations.setdefault(c["id"], {}).update(c_tr)
-            if "depends_on" in c and isinstance(c["depends_on"], dict):
-                dep = dict(c["depends_on"])
-                if "param_id" in dep:
-                    dep["param_id"] = sanitize_id(dep["param_id"], mfg_code)
+            if "conditions" in c and isinstance(c["conditions"], list):
+                c["conditions"] = _clean_conditions_list(c["conditions"], mfg_code)
+            elif "depends_on" in c and isinstance(c["depends_on"], dict):
+                dep = c.pop("depends_on")
                 if "conditions" in dep and isinstance(dep["conditions"], list):
-                    clean_conds = []
-                    for cond in dep["conditions"]:
-                        if isinstance(cond, dict):
-                            cc = dict(cond)
-                            if "param_id" in cc:
-                                cc["param_id"] = sanitize_id(cc["param_id"], mfg_code)
-                            clean_conds.append(cc)
-                    dep["conditions"] = clean_conds
-                c["depends_on"] = dep
+                    c["conditions"] = _clean_conditions_list(dep["conditions"], mfg_code)
+                elif "param_id" in dep:
+                    pid = sanitize_id(dep["param_id"], mfg_code)
+                    wvals = [str(v) for v in dep.get("when_values", [])]
+                    c["conditions"] = [{"param_id": pid, "when_values": wvals}]
             sanitized_cos.append(c)
 
     sanitized_params = []
@@ -717,20 +718,16 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
                 p_tr = p_dict.pop("translations")
                 if "id" in p_dict:
                     sanitized_translations.setdefault(p_dict["id"], {}).update(p_tr)
-            if "depends_on" in p_dict and isinstance(p_dict["depends_on"], dict):
-                dep = dict(p_dict["depends_on"])
-                if "param_id" in dep:
-                    dep["param_id"] = sanitize_id(dep["param_id"], mfg_code)
+            if "conditions" in p_dict and isinstance(p_dict["conditions"], list):
+                p_dict["conditions"] = _clean_conditions_list(p_dict["conditions"], mfg_code)
+            elif "depends_on" in p_dict and isinstance(p_dict["depends_on"], dict):
+                dep = p_dict.pop("depends_on")
                 if "conditions" in dep and isinstance(dep["conditions"], list):
-                    clean_conds = []
-                    for cond in dep["conditions"]:
-                        if isinstance(cond, dict):
-                            cc = dict(cond)
-                            if "param_id" in cc:
-                                cc["param_id"] = sanitize_id(cc["param_id"], mfg_code)
-                            clean_conds.append(cc)
-                    dep["conditions"] = clean_conds
-                p_dict["depends_on"] = dep
+                    p_dict["conditions"] = _clean_conditions_list(dep["conditions"], mfg_code)
+                elif "param_id" in dep:
+                    pid = sanitize_id(dep["param_id"], mfg_code)
+                    wvals = [str(v) for v in dep.get("when_values", [])]
+                    p_dict["conditions"] = [{"param_id": pid, "when_values": wvals}]
             sanitized_params.append(p_dict)
 
     sanitized_assigns = []
@@ -742,14 +739,7 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
             if "source" in ar_dict and ar_dict["source"]:
                 ar_dict["source"] = sanitize_id(ar_dict["source"], mfg_code)
             if "conditions" in ar_dict and isinstance(ar_dict["conditions"], list):
-                clean_conds = []
-                for cond in ar_dict["conditions"]:
-                    if isinstance(cond, dict):
-                        cc = dict(cond)
-                        if "param_id" in cc:
-                            cc["param_id"] = sanitize_id(cc["param_id"], mfg_code)
-                        clean_conds.append(cc)
-                ar_dict["conditions"] = clean_conds
+                ar_dict["conditions"] = _clean_conditions_list(ar_dict["conditions"], mfg_code)
             sanitized_assigns.append(ar_dict)
 
     return {

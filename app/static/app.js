@@ -1317,10 +1317,10 @@ parameters:
     default: 180
     page: Kanal A > Zeitfunktionen
     section: Treppenlicht
-    depends_on:
-      param_id: openknx_p-1
-      when_values:
-        - '3'
+    conditions:
+      - param_id: openknx_p-1
+        when_values:
+          - '3'
 `,
   dimmer: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
@@ -2223,13 +2223,16 @@ function syncFormToYaml() {
       lines.push(`      write: ${ko.flags ? ko.flags.write : true}`);
       lines.push(`      transmit: ${ko.flags ? ko.flags.transmit : false}`);
       lines.push(`      update: ${ko.flags ? ko.flags.update : false}`);
-      if (ko.depends_on) {
-        lines.push("    depends_on:");
-        lines.push(`      param_id: ${ko.depends_on.param_id}`);
-        if (ko.depends_on.when_values) {
-          lines.push("      when_values:");
-          ko.depends_on.when_values.forEach(v => lines.push(`        - '${v}'`));
-        }
+      const koConds = ko.conditions || (ko.depends_on ? (ko.depends_on.conditions || [ko.depends_on]) : null);
+      if (koConds && Array.isArray(koConds) && koConds.length > 0) {
+        lines.push("    conditions:");
+        koConds.forEach(c => {
+          lines.push(`      - param_id: ${c.param_id}`);
+          if (c.when_values && c.when_values.length > 0) {
+            lines.push("        when_values:");
+            c.when_values.forEach(v => lines.push(`          - '${v}'`));
+          }
+        });
       }
     });
   }
@@ -2249,13 +2252,16 @@ function syncFormToYaml() {
       }
       if (param.page) lines.push(`    page: ${yamlEscape(param.page)}`);
       if (param.section) lines.push(`    section: ${yamlEscape(param.section)}`);
-      if (param.depends_on) {
-        lines.push("    depends_on:");
-        lines.push(`      param_id: ${param.depends_on.param_id}`);
-        if (param.depends_on.when_values) {
-          lines.push("      when_values:");
-          param.depends_on.when_values.forEach(v => lines.push(`        - '${v}'`));
-        }
+      const pConds = param.conditions || (param.depends_on ? (param.depends_on.conditions || [param.depends_on]) : null);
+      if (pConds && Array.isArray(pConds) && pConds.length > 0) {
+        lines.push("    conditions:");
+        pConds.forEach(c => {
+          lines.push(`      - param_id: ${c.param_id}`);
+          if (c.when_values && c.when_values.length > 0) {
+            lines.push("        when_values:");
+            c.when_values.forEach(v => lines.push(`          - '${v}'`));
+          }
+        });
       }
     });
   }

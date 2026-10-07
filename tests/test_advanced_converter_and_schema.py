@@ -153,10 +153,11 @@ def test_translation_and_dynamic_extraction():
     assert p2["name"] == "Fahrzeit Lamelle"
     assert p2["page"] == "Kanal A > Zeiteinstellungen"
     assert p2["section"] == "Verzögerungen"
-    assert "depends_on" in p2
-    assert p2["depends_on"]["param_id"] == "mdt_p-1"
-    assert p2["depends_on"]["when_values"] == ["1"]
-    assert "conditions" not in p2["depends_on"]
+    assert "conditions" in p2
+    assert len(p2["conditions"]) == 1
+    assert p2["conditions"][0]["param_id"] == "mdt_p-1"
+    assert p2["conditions"][0]["when_values"] == ["1"]
+    assert "depends_on" not in p2
 
     # Verify dedicated root-level translations block
     assert "translations" in yaml_data
@@ -173,10 +174,11 @@ def test_translation_and_dynamic_extraction():
     assert co1["name"] == "Kanal A Auf/Ab"
     assert co1["function"] == "Fahrbefehl"
     assert "translations" not in co1
-    assert "depends_on" in co1
-    assert co1["depends_on"]["param_id"] == "mdt_p-1"
-    assert co1["depends_on"]["when_values"] == ["1"]
-    assert "conditions" not in co1["depends_on"]
+    assert "conditions" in co1
+    assert len(co1["conditions"]) == 1
+    assert co1["conditions"][0]["param_id"] == "mdt_p-1"
+    assert co1["conditions"][0]["when_values"] == ["1"]
+    assert "depends_on" not in co1
 
     # Verify Assign Rules
     assert "assign_rules" in yaml_data
@@ -258,16 +260,17 @@ def test_modular_dynamic_tree_and_pref_resolution():
     params = yaml_data["parameters"]
     assert len(params) == 2
 
-    # The parameter inside the ModuleDef should have received page and depends_on
+    # The parameter inside the ModuleDef should have received page and conditions
     ontime_param = next(p for p in params if p["id"] == "mdt_p-ontime")
     assert ontime_param["page"] == "Kanal A > Schalten"
-    assert "depends_on" in ontime_param
-    assert ontime_param["depends_on"]["param_id"] == "mdt_p-mode"
-    assert ontime_param["depends_on"]["when_values"] == ["1"]
-    assert "conditions" not in ontime_param["depends_on"]
+    assert "conditions" in ontime_param
+    assert len(ontime_param["conditions"]) == 1
+    assert ontime_param["conditions"][0]["param_id"] == "mdt_p-mode"
+    assert ontime_param["conditions"][0]["when_values"] == ["1"]
+    assert "depends_on" not in ontime_param
 
 
-def test_multi_level_depends_on_and_multi_value_when_test():
+def test_multi_level_conditions_and_multi_value_when_test():
     """Verify that multi-value when tests (e.g. '1 2') are parsed as list and nested chooses have conditions list."""
     xml_content = """<?xml version="1.0" encoding="utf-8"?>
 <KNX xmlns="http://knx.org/xml/project/20">
@@ -315,24 +318,59 @@ def test_multi_level_depends_on_and_multi_value_when_test():
     yaml_data = yaml.safe_load(dev.yaml_content)
 
     p3 = next(p for p in yaml_data["parameters"] if p["id"] == "mdt_p-3")
-    assert "depends_on" in p3
-    dep = p3["depends_on"]
-    # Immediate parent condition
-    assert dep["param_id"] == "mdt_p-2"
-    assert dep["when_values"] == ["3"]
-    # Nested conditions list present because len(choose_stack) > 1
-    assert "conditions" in dep
-    assert len(dep["conditions"]) == 2
-    assert dep["conditions"][0]["param_id"] == "mdt_p-1"
+    assert "conditions" in p3
+    assert "depends_on" not in p3
+    conds = p3["conditions"]
+    assert len(conds) == 2
+    assert conds[0]["param_id"] == "mdt_p-1"
     # Multi-value split from "1 2"
-    assert dep["conditions"][0]["when_values"] == ["1", "2"]
-    assert dep["conditions"][1]["param_id"] == "mdt_p-2"
-    assert dep["conditions"][1]["when_values"] == ["3"]
+    assert conds[0]["when_values"] == ["1", "2"]
+    assert conds[1]["param_id"] == "mdt_p-2"
+    assert conds[1]["when_values"] == ["3"]
 
     # Test roundtrip parse_konfix_yaml
     reparsed = parse_konfix_yaml(dev.yaml_content)
     rep_p3 = next(p for p in reparsed["parameters"] if p["id"] == "mdt_p-3")
-    assert rep_p3["depends_on"]["conditions"][0]["param_id"] == "mdt_p-1"
-    assert rep_p3["depends_on"]["conditions"][0]["when_values"] == ["1", "2"]
+    assert rep_p3["conditions"][0]["param_id"] == "mdt_p-1"
+    assert rep_p3["conditions"][0]["when_values"] == ["1", "2"]
+    assert rep_p3["conditions"][1]["param_id"] == "mdt_p-2"
+    assert rep_p3["conditions"][1]["when_values"] == ["3"]
+
+
+def test_backward_compatibility_depends_on():
+    """Verify that legacy YAML containing depends_on is cleanly parsed and migrated to conditions."""
+    legacy_yaml = """
+$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+manufacturer:
+  code: mdt
+  name: MDT
+device:
+  order_number: TEST-LEGACY
+communication_objects:
+  - id: mdt_o-1
+    number: 1
+    name: Objekt 1
+    depends_on:
+      param_id: mdt_p-1
+      when_values:
+        - '1'
+parameters:
+  - id: mdt_p-2
+    name: Param 2
+    depends_on:
+      param_id: mdt_p-1
+      when_values:
+        - '0'
+"""
+    parsed = parse_konfix_yaml(legacy_yaml)
+    co = parsed["communication_objects"][0]
+    assert "conditions" in co
+    assert co["conditions"][0]["param_id"] == "mdt_p-1"
+    assert co["conditions"][0]["when_values"] == ["1"]
+
+    param = parsed["parameters"][0]
+    assert "conditions" in param
+    assert param["conditions"][0]["param_id"] == "mdt_p-1"
+    assert param["conditions"][0]["when_values"] == ["0"]
 
 

@@ -127,22 +127,24 @@
             "type": "object",
             "description": "Mehrsprachige Bezeichnungen { 'de': '...', 'en': '...' }"
           },
+          "conditions": {
+            "type": "array",
+            "description": "Bedingungen (UND-Verknüpfung) für Sichtbarkeit/Aktivierung des Objekts",
+            "items": {
+              "type": "object",
+              "required": ["param_id", "when_values"],
+              "properties": {
+                "param_id": { "type": "string" },
+                "when_values": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
           "depends_on": {
             "type": "object",
+            "description": "Veraltet (Legacy) – bitte 'conditions' Liste verwenden",
             "properties": {
               "param_id": { "type": "string" },
-              "when_values": { "type": "array", "items": { "type": "string" } },
-              "conditions": {
-                "type": "array",
-                "description": "Optionale Liste aller Bedingungen bei mehrstufig verschachtelten Abhängigkeiten (AND)",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "param_id": { "type": "string" },
-                    "when_values": { "type": "array", "items": { "type": "string" } }
-                  }
-                }
-              }
+              "when_values": { "type": "array", "items": { "type": "string" } }
             }
           }
         }
@@ -188,22 +190,24 @@
             "type": ["string", "null"],
             "description": "Abschnittsüberschrift auf der Seite"
           },
+          "conditions": {
+            "type": "array",
+            "description": "Bedingungen (UND-Verknüpfung) für Sichtbarkeit/Aktivierung des Parameters",
+            "items": {
+              "type": "object",
+              "required": ["param_id", "when_values"],
+              "properties": {
+                "param_id": { "type": "string" },
+                "when_values": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
           "depends_on": {
             "type": "object",
+            "description": "Veraltet (Legacy) – bitte 'conditions' Liste verwenden",
             "properties": {
               "param_id": { "type": "string" },
-              "when_values": { "type": "array", "items": { "type": "string" } },
-              "conditions": {
-                "type": "array",
-                "description": "Optionale Liste aller Bedingungen bei mehrstufig verschachtelten Abhängigkeiten (AND)",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "param_id": { "type": "string" },
-                    "when_values": { "type": "array", "items": { "type": "string" } }
-                  }
-                }
-              }
+              "when_values": { "type": "array", "items": { "type": "string" } }
             }
           },
           "translations": {
