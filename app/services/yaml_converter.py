@@ -1,3 +1,4 @@
+from functools import lru_cache
 import re
 from typing import Any, Dict, List, Optional, Tuple
 import yaml
@@ -54,6 +55,7 @@ def generate_manufacturer_code(name: Optional[str], legacy_id: Optional[str] = N
     return slug or "custom-manufacturer"
 
 
+@lru_cache(maxsize=65536)
 def sanitize_id(raw_id: Optional[str], mfg_code: str) -> str:
     """
     Sanitizes any raw KNX XML ID (e.g. 'M-0083_A-1234_P-1', 'M-00FA_UP-1', or 'P-1')

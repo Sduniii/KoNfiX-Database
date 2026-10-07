@@ -19,6 +19,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.api.v1.auth import verify_upload_permission
@@ -421,62 +422,74 @@ def _sync_device_records(
     db.query(Parameter).filter(Parameter.device_id == device.id).delete()
     db.query(AssignRule).filter(AssignRule.device_id == device.id).delete()
     db.query(Translation).filter(Translation.device_id == device.id).delete()
-    db.flush()
 
     # 1. Communication Objects
+    cos = []
     for co in parsed_yaml_data.get("communication_objects") or []:
-        co_rec = CommunicationObject(
-            device_id=device.id,
-            obj_id=co.get("id") or f"{device.order_number}_o-{co.get('number', 0)}",
-            number=co.get("number", 0),
-            name=co.get("name"),
-            function=co.get("function"),
-            dpt=co.get("dpt"),
-            size=co.get("size"),
-            flags=co.get("flags"),
-            conditions=co.get("conditions")
-        )
-        db.add(co_rec)
+        num = co.get("number", 0)
+        cos.append({
+            "device_id": device.id,
+            "obj_id": co.get("id") or f"{device.order_number}_o-{num}",
+            "number": num,
+            "name": co.get("name"),
+            "function": co.get("function"),
+            "dpt": co.get("dpt"),
+            "size": co.get("size"),
+            "flags": co.get("flags"),
+            "conditions": co.get("conditions")
+        })
+    if cos:
+        db.execute(insert(CommunicationObject), cos)
 
     # 2. Parameters
+    params = []
     for idx, p in enumerate(parsed_yaml_data.get("parameters") or []):
-        p_rec = Parameter(
-            device_id=device.id,
-            param_id=p.get("id") or f"{device.order_number}_p-{idx + 1}",
-            name=p.get("name") or "",
-            text=p.get("text"),
-            type=p.get("type"),
-            default_value=str(p.get("default")) if p.get("default") is not None else None,
-            page=p.get("page"),
-            section=p.get("section"),
-            options=p.get("options"),
-            conditions=p.get("conditions")
-        )
-        db.add(p_rec)
+        params.append({
+            "device_id": device.id,
+            "param_id": p.get("id") or f"{device.order_number}_p-{idx + 1}",
+            "name": p.get("name") or "",
+            "text": p.get("text"),
+            "type": p.get("type"),
+            "default_value": str(p.get("default")) if p.get("default") is not None else None,
+            "page": p.get("page"),
+            "section": p.get("section"),
+            "options": p.get("options"),
+            "conditions": p.get("conditions")
+        })
+    if params:
+        db.execute(insert(Parameter), params)
 
     # 3. Assign Rules
+    assigns = []
     for ar in parsed_yaml_data.get("assign_rules") or []:
-        ar_rec = AssignRule(
-            device_id=device.id,
-            target=ar.get("target"),
-            source=ar.get("source"),
-            value=ar.get("value"),
-            conditions=ar.get("conditions")
-        )
-        db.add(ar_rec)
+        assigns.append({
+            "device_id": device.id,
+            "target": ar.get("target"),
+            "source": ar.get("source"),
+            "value": ar.get("value"),
+            "conditions": ar.get("conditions")
+        })
+    if assigns:
+        db.execute(insert(AssignRule), assigns)
 
     # 4. Translations
+    trans = []
     tr_dict = parsed_yaml_data.get("translations") or {}
     for entity_id, lang_dict in tr_dict.items():
         if isinstance(lang_dict, dict):
             for lang, text_val in lang_dict.items():
-                tr_rec = Translation(
-                    device_id=device.id,
-                    entity_id=entity_id,
-                    language=lang,
-                    text=str(text_val)
-                )
-                db.add(tr_rec)
+                trans.append({
+                    "device_id": device.id,
+                    "entity_id": entity_id,
+                    "language": lang,
+                    "text": str(text_val)
+                })
+    if trans:
+        # In chunks of 5000 rows
+        chunk_size = 5000
+        for i in range(0, len(trans), chunk_size):
+            db.execute(insert(Translation), trans[i:i + chunk_size])
+
     db.flush()
 
 
@@ -655,8 +668,15 @@ def _save_knxprod_db(
     # 3. Insert / Update Devices, Applications, and Relational Children
     imported_devices_resp = []
 
+    # Pre-fetch existing devices into an in-memory hashmap for O(1) lookups
+    order_nums = [d.order_number for d in parsed.devices]
+    existing_dev_map = {
+        dev.order_number.upper(): dev
+        for dev in db.query(Device).filter(Device.order_number.in_(order_nums)).all()
+    }
+
     for d in parsed.devices:
-        device = db.query(Device).filter(Device.order_number == d.order_number).first()
+        device = existing_dev_map.get(d.order_number.upper())
         if not device:
             device = Device(
                 order_number=d.order_number,
@@ -671,6 +691,7 @@ def _save_knxprod_db(
             )
             db.add(device)
             db.flush()
+            existing_dev_map[d.order_number.upper()] = device
         else:
             device.name = d.name or device.name
             device.description = d.description or device.description
@@ -703,15 +724,31 @@ def _save_knxprod_db(
                 parameters_count=app.parameters_count
             ))
 
-        # Parse generated KoNfiX-YAML and populate relational records
+        # Populate relational records directly from in-memory parsed applications (skipping YAML parse roundtrip)
+        all_cos = []
+        all_params = []
+        all_assign_rules = []
+        all_translations = {}
+        for a in d.applications:
+            all_cos.extend(a.communication_objects)
+            all_params.extend(a.parameters)
+            all_assign_rules.extend(a.assign_rules)
+            all_translations.update(a.translations)
+
+        data_dict = {
+            "communication_objects": all_cos,
+            "parameters": all_params,
+            "assign_rules": all_assign_rules,
+            "translations": all_translations
+        }
+        _sync_device_records(db, device, data_dict)
+
+        # Save YAML file in catalog_files
         if d.yaml_content:
             try:
-                parsed_d_yaml = parse_konfix_yaml(d.yaml_content)
-                _sync_device_records(db, device, parsed_d_yaml)
+                storage_service.save_yaml_content(d.yaml_content, f"{d.order_number}.yaml")
             except Exception:
                 pass
-            # Save YAML file in catalog_files
-            storage_service.save_yaml_content(d.yaml_content, f"{d.order_number}.yaml")
 
         imported_devices_resp.append(ImportedDevice(
             order_number=device.order_number,

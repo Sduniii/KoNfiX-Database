@@ -111,15 +111,14 @@ def _safe_parse_xml(xml_bytes: bytes, filename: str) -> ET.Element:
         raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{filename}': {e}")
 
 
-def _extract_translations_from_archive(zf: zipfile.ZipFile, xml_files: List[str]) -> Dict[str, Dict[str, Dict[str, str]]]:
+def _extract_translations_from_archive(xml_trees: Dict[str, ET.Element]) -> Dict[str, Dict[str, Dict[str, str]]]:
     """
     Parses <Language Identifier="...">, <TranslationUnit>, <TranslationElement RefId="...">,
     and <Translation AttributeName="..." Text="..." Value="..." /> across all XML files in the archive.
     """
     translations: Dict[str, Dict[str, Dict[str, str]]] = {}
-    for f in xml_files:
+    for f, f_root in xml_trees.items():
         try:
-            f_root = _safe_parse_xml(zf.read(f), f)
             for elem in f_root.iter():
                 if _strip_ns(elem.tag) == "Language":
                     lang_id = (elem.attrib.get("Identifier") or elem.attrib.get("Id") or "de").lower()
@@ -128,8 +127,7 @@ def _extract_translations_from_archive(zf: zipfile.ZipFile, xml_files: List[str]
                             ref_id = tr_elem.attrib.get("RefId") or ""
                             if not ref_id:
                                 continue
-                            ref_entry = translations.setdefault(ref_id, {}).setdefault(lang_id, {})
-                            translations.setdefault(ref_id.lower(), {}).setdefault(lang_id, ref_entry)
+                            ref_entry = translations.setdefault(ref_id.lower(), {}).setdefault(lang_id, {})
 
                             for child in tr_elem.iter():
                                 if _strip_ns(child.tag) == "Translation":
@@ -177,8 +175,16 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     if not xml_files:
         raise ValueError("Ungültige .knxprod-Datei: Keine XML-Metadatendatei im Archiv gefunden")
 
-    # Extract all translations across archive
-    translations_map = _extract_translations_from_archive(zf, xml_files)
+    # Single-pass XML parsing: Cache all XML ElementTrees in an in-memory hashmap
+    xml_trees: Dict[str, ET.Element] = {}
+    for f in xml_files:
+        try:
+            xml_trees[f] = _safe_parse_xml(zf.read(f), f)
+        except Exception:
+            pass
+
+    # Extract all translations across archive from cached XML trees
+    translations_map = _extract_translations_from_archive(xml_trees)
 
     # Detect context hints across all filenames (e.g. OpenKNX detection)
     context_hints = " ".join(zf.namelist())
@@ -199,12 +205,19 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     if not target_xml:
         target_xml = xml_files[0]
 
-    xml_bytes = zf.read(target_xml)
-    root = _safe_parse_xml(xml_bytes, target_xml)
+    root = xml_trees.get(target_xml)
+    if root is None:
+        xml_bytes = zf.read(target_xml)
+        root = _safe_parse_xml(xml_bytes, target_xml)
+        xml_trees[target_xml] = root
 
     # Check if target XML content has OpenKNX hints
-    if "openknx" in xml_bytes.decode("utf-8", errors="ignore").lower():
-        context_hints += " openknx"
+    try:
+        raw_xml_text = ET.tostring(root, encoding="utf-8").decode("utf-8", errors="ignore").lower()
+        if "openknx" in raw_xml_text:
+            context_hints += " openknx"
+    except Exception:
+        pass
 
     # Pre-resolve manufacturer to determine slug code
     mfg_nodes = _find_nodes_by_local_name(root, "Manufacturer")
@@ -224,11 +237,10 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     mfg_id, mfg_name = resolve_manufacturer(raw_mfg_id, raw_mfg_name, context_hints)
     mfg_code = generate_manufacturer_code(mfg_name, mfg_id).lower()
 
-    # 2. Extract ApplicationPrograms across all XML files in the archive
+    # 2. Extract ApplicationPrograms across all cached XML trees
     app_programs_map: Dict[str, ParsedApplication] = {}
-    for f in xml_files:
+    for f, f_root in xml_trees.items():
         try:
-            f_root = _safe_parse_xml(zf.read(f), f)
             app_nodes = _find_nodes_by_local_name(f_root, "ApplicationProgram")
             for app in app_nodes:
                 raw_app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
@@ -294,7 +306,13 @@ def _parse_knx_xml_root(
 ) -> ParsedKnxprod:
     # 2. Hardware / Products
     devices: List[ParsedDevice] = []
-    hardware_nodes = _find_nodes_by_local_name(root, "Hardware")
+    raw_hw_nodes = _find_nodes_by_local_name(root, "Hardware")
+    hardware_nodes = [
+        hw for hw in raw_hw_nodes
+        if hw.attrib.get("Id") or hw.attrib.get("RefId")
+    ]
+    if not hardware_nodes and raw_hw_nodes:
+        hardware_nodes = raw_hw_nodes
 
     for hw in hardware_nodes:
         hw_name = hw.attrib.get("Name") or hw.attrib.get("Text")
