@@ -1578,10 +1578,36 @@ parameters: []
 let editorState = {
   activeTab: "general", // "general", "objects", "params"
   isSyncing: false,
-  kos: [],
-  parameters: [],
+  doc: null,
+  koSearch: "",
+  koPage: 1,
+  koPageSize: 50,
+  paramSearch: "",
+  paramPageFilter: "",
+  paramPage: 1,
+  paramPageSize: 50,
   debounceTimeout: null
 };
+
+function ensureDocInit() {
+  if (!editorState.doc || typeof editorState.doc !== "object") {
+    editorState.doc = {
+      $schema: "https://konfix.sduni.de/schemas/konfix-device-v1.json",
+      konfix_version: "1.0",
+      manufacturer: { code: "custom", name: "Mein Hersteller" },
+      device: { order_number: "DEV-001", name: "Neues Gerät", hardware: { name: "DEV-001", version: "1.0", bus_current_ma: 10.0 } },
+      application: { id: "custom_dev-001_v1", name: "Neues Gerät", version: "1.0", mask_version: "MV-07B0" },
+      communication_objects: [],
+      parameters: []
+    };
+  }
+  if (!editorState.doc.manufacturer) editorState.doc.manufacturer = {};
+  if (!editorState.doc.device) editorState.doc.device = {};
+  if (!editorState.doc.device.hardware) editorState.doc.device.hardware = {};
+  if (!editorState.doc.application) editorState.doc.application = {};
+  if (!Array.isArray(editorState.doc.communication_objects)) editorState.doc.communication_objects = [];
+  if (!Array.isArray(editorState.doc.parameters)) editorState.doc.parameters = [];
+}
 
 function setupEditorModal() {
   const openEditorNavBtn = document.getElementById("openEditorNavBtn");
@@ -1678,7 +1704,7 @@ function setupEditorModal() {
       editorState.debounceTimeout = setTimeout(() => {
         saveDraftToStorage(textarea.value);
         validateAndSyncYamlToForm(textarea.value);
-      }, 400);
+      }, 350);
     });
 
     // Support Tab key in textarea
@@ -1714,15 +1740,43 @@ function setupEditorModal() {
     }
   });
 
+  // Search & Filtering listeners
+  const koSearchInput = document.getElementById("editorKoSearch");
+  if (koSearchInput) {
+    koSearchInput.addEventListener("input", (e) => {
+      editorState.koSearch = e.target.value.trim().toLowerCase();
+      editorState.koPage = 1;
+      renderKoCards();
+    });
+  }
+
+  const paramSearchInput = document.getElementById("editorParamSearch");
+  if (paramSearchInput) {
+    paramSearchInput.addEventListener("input", (e) => {
+      editorState.paramSearch = e.target.value.trim().toLowerCase();
+      editorState.paramPage = 1;
+      renderParamCards();
+    });
+  }
+
+  const paramPageFilter = document.getElementById("editorParamPageFilter");
+  if (paramPageFilter) {
+    paramPageFilter.addEventListener("change", (e) => {
+      editorState.paramPageFilter = e.target.value;
+      editorState.paramPage = 1;
+      renderParamCards();
+    });
+  }
+
   // Add Item Buttons
   const addKoBtn = document.getElementById("editorAddKoBtn");
   if (addKoBtn) {
     addKoBtn.addEventListener("click", () => {
-      const nextNum = editorState.kos.length > 0
-        ? Math.max(...editorState.kos.map(k => k.number || 0)) + 1
-        : 1;
+      ensureDocInit();
+      const kos = editorState.doc.communication_objects;
+      const nextNum = kos.length > 0 ? Math.max(...kos.map(k => k.number || 0)) + 1 : 1;
       const mfg = getMfgCode();
-      editorState.kos.push({
+      kos.push({
         id: `${mfg}_o-${nextNum}`,
         number: nextNum,
         name: `Kanal ${String.fromCharCode(64 + Math.min(nextNum, 26))} Schalten`,
@@ -1731,6 +1785,7 @@ function setupEditorModal() {
         size: "1 Bit",
         flags: { communication: true, read: false, write: true, transmit: false, update: false }
       });
+      editorState.koPage = Math.ceil(kos.length / editorState.koPageSize) || 1;
       renderKoCards();
       syncFormToYaml();
     });
@@ -1739,15 +1794,20 @@ function setupEditorModal() {
   const addParamBtn = document.getElementById("editorAddParamBtn");
   if (addParamBtn) {
     addParamBtn.addEventListener("click", () => {
-      const nextNum = editorState.parameters.length + 1;
+      ensureDocInit();
+      const params = editorState.doc.parameters;
+      const nextNum = params.length + 1;
       const mfg = getMfgCode();
-      editorState.parameters.push({
+      params.push({
         id: `${mfg}_p-${nextNum}`,
         name: `Parameter ${nextNum}`,
+        text: `Parameter ${nextNum}`,
         type: "number",
         default: 0,
         page: "Allgemein"
       });
+      editorState.paramPage = Math.ceil(params.length / editorState.paramPageSize) || 1;
+      updateParamPageFilterOptions();
       renderParamCards();
       syncFormToYaml();
     });
@@ -1795,6 +1855,15 @@ function setEditorYamlContent(yamlText) {
   if (textarea) {
     textarea.value = yamlText;
     saveDraftToStorage(yamlText);
+    editorState.koPage = 1;
+    editorState.paramPage = 1;
+    editorState.koSearch = "";
+    editorState.paramSearch = "";
+    editorState.paramPageFilter = "";
+    const koSearchEl = document.getElementById("editorKoSearch");
+    if (koSearchEl) koSearchEl.value = "";
+    const pSearchEl = document.getElementById("editorParamSearch");
+    if (pSearchEl) pSearchEl.value = "";
     validateAndSyncYamlToForm(yamlText);
   }
 }
@@ -1853,128 +1922,21 @@ function getMfgCode() {
   return val.replace(/[^a-z0-9_-]/g, "-") || "custom";
 }
 
-// Simple browser-safe YAML parser for KoNfiX structure
-function parseSimpleYaml(yamlStr) {
-  const lines = yamlStr.split("\n");
-  const result = {
-    manufacturer: {},
-    device: { hardware: {} },
-    application: {},
-    communication_objects: [],
-    parameters: []
-  };
-
-  let currentSection = null;
-  let currentItem = null;
-
-  for (let line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const indent = line.search(/\S|$/);
-
-    if (trimmed.startsWith("manufacturer:")) {
-      currentSection = "manufacturer";
-      continue;
-    } else if (trimmed.startsWith("device:")) {
-      currentSection = "device";
-      continue;
-    } else if (trimmed.startsWith("application:")) {
-      currentSection = "application";
-      continue;
-    } else if (trimmed.startsWith("communication_objects:")) {
-      currentSection = "communication_objects";
-      continue;
-    } else if (trimmed.startsWith("parameters:")) {
-      currentSection = "parameters";
-      continue;
-    }
-
-    if (currentSection === "communication_objects") {
-      if (trimmed.startsWith("- ")) {
-        currentItem = { flags: { communication: true, read: false, write: true, transmit: false, update: false } };
-        result.communication_objects.push(currentItem);
-        const rest = trimmed.substring(2).trim();
-        if (rest.includes(":")) {
-          const [k, ...v] = rest.split(":");
-          assignProp(currentItem, k.trim(), v.join(":").trim());
-        }
-      } else if (currentItem && trimmed.includes(":")) {
-        const [k, ...v] = trimmed.split(":");
-        assignProp(currentItem, k.trim(), v.join(":").trim());
-      }
-      continue;
-    }
-
-    if (currentSection === "parameters") {
-      if (trimmed.startsWith("- ")) {
-        currentItem = {};
-        result.parameters.push(currentItem);
-        const rest = trimmed.substring(2).trim();
-        if (rest.includes(":")) {
-          const [k, ...v] = rest.split(":");
-          assignProp(currentItem, k.trim(), v.join(":").trim());
-        }
-      } else if (currentItem && trimmed.includes(":")) {
-        const [k, ...v] = trimmed.split(":");
-        assignProp(currentItem, k.trim(), v.join(":").trim());
-      }
-      continue;
-    }
-
-    if (trimmed.includes(":")) {
-      const [k, ...v] = trimmed.split(":");
-      const key = k.trim();
-      const val = cleanYamlVal(v.join(":").trim());
-
-      if (currentSection === "manufacturer") {
-        result.manufacturer[key] = val;
-      } else if (currentSection === "device") {
-        if (["hardware_name", "name", "order_number", "description", "version", "bus_current_ma"].includes(key)) {
-          if (["version", "bus_current_ma"].includes(key)) {
-            result.device.hardware[key] = val;
-          } else {
-            result.device[key] = val;
-          }
-        } else {
-          result.device[key] = val;
-        }
-      } else if (currentSection === "application") {
-        result.application[key] = val;
-      }
-    }
+function parseYamlDoc(yamlStr) {
+  if (typeof jsyaml === "undefined") {
+    throw new Error("js-yaml Parser-Bibliothek nicht geladen");
   }
-
-  return result;
-}
-
-function cleanYamlVal(val) {
-  if (val.startsWith("'") && val.endsWith("'")) return val.slice(1, -1);
-  if (val.startsWith('"') && val.endsWith('"')) return val.slice(1, -1);
-  return val;
-}
-
-function assignProp(obj, key, valStr) {
-  const val = cleanYamlVal(valStr);
-  if (key === "number") {
-    obj.number = parseInt(val, 10) || 0;
-  } else if (key === "default") {
-    obj.default = val;
-  } else if (key === "flags") {
-    // In-line flags like { communication: true, ... }
-    if (valStr.includes("{")) {
-      const match = valStr.match(/communication:\s*(true|false)/i);
-      if (match) obj.flags.communication = match[1] === "true";
-      const matchW = valStr.match(/write:\s*(true|false)/i);
-      if (matchW) obj.flags.write = matchW[1] === "true";
-      const matchR = valStr.match(/read:\s*(true|false)/i);
-      if (matchR) obj.flags.read = matchR[1] === "true";
-      const matchT = valStr.match(/transmit:\s*(true|false)/i);
-      if (matchT) obj.flags.transmit = matchT[1] === "true";
-    }
-  } else {
-    obj[key] = val;
+  const data = jsyaml.load(yamlStr);
+  if (!data || typeof data !== "object") {
+    throw new Error("YAML ist leer oder kein gültiges Objekt");
   }
+  data.manufacturer = data.manufacturer || {};
+  data.device = data.device || {};
+  data.device.hardware = data.device.hardware || {};
+  data.application = data.application || {};
+  data.communication_objects = Array.isArray(data.communication_objects) ? data.communication_objects : [];
+  data.parameters = Array.isArray(data.parameters) ? data.parameters : [];
+  return data;
 }
 
 function validateAndSyncYamlToForm(yamlText) {
@@ -1982,7 +1944,8 @@ function validateAndSyncYamlToForm(yamlText) {
   const errBox = document.getElementById("editorErrorBox");
 
   try {
-    const data = parseSimpleYaml(yamlText);
+    const data = parseYamlDoc(yamlText);
+    editorState.doc = data;
 
     // Validation checks
     const mfg = data.manufacturer || {};
@@ -2021,9 +1984,7 @@ function validateAndSyncYamlToForm(yamlText) {
     setVal("edAppId", (data.application && data.application.id) || "");
     setVal("edAppVersion", (data.application && data.application.version) || "1.0");
 
-    editorState.kos = data.communication_objects || [];
-    editorState.parameters = data.parameters || [];
-
+    updateParamPageFilterOptions();
     renderKoCards();
     renderParamCards();
 
@@ -2047,244 +2008,412 @@ function setVal(id, val) {
   if (el) el.value = val;
 }
 
-function renderKoCards() {
-  const list = document.getElementById("editorKoList");
-  const countBadge = document.getElementById("editorKoCount");
-  if (countBadge) countBadge.textContent = editorState.kos.length;
-  if (!list) return;
+function formatConditionsSummary(item) {
+  const conds = item.conditions || (item.depends_on && (item.depends_on.conditions || [item.depends_on]));
+  if (!conds || !Array.isArray(conds) || conds.length === 0) return null;
+  return conds.map(c => {
+    const p = c.param_id || c.parameter || "param";
+    let vals = "";
+    if (Array.isArray(c.when_values)) {
+      vals = c.when_values.join(", ");
+    } else if (c.value != null) {
+      vals = String(c.value);
+    } else {
+      vals = "*";
+    }
+    return `${p} = [${vals}]`;
+  }).join("; ");
+}
 
-  if (editorState.kos.length === 0) {
-    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Kommunikationsobjekte vorhanden. Klicke auf 'Objekt hinzufügen'.</div>`;
+function renderPaginationBar(containerId, currentPage, totalPages, totalItems, label, onPageFnName) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (totalItems === 0) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "flex";
+  const startItem = (currentPage - 1) * 50 + 1;
+  const endItem = Math.min(currentPage * 50, totalItems);
+
+  if (totalPages <= 1) {
+    el.innerHTML = `
+      <span>${totalItems} ${label}</span>
+      <span style="font-size: 0.75rem; color: #64748b;">Seite 1 von 1</span>
+    `;
     return;
   }
 
-  list.innerHTML = editorState.kos.map((ko, idx) => `
-    <div class="editor-item-card" data-idx="${idx}">
-      <div class="editor-item-header">
-        <span class="editor-item-title">#${ko.number || idx + 1} &bull; ${escapeHtml(ko.id || '')}</span>
-        <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteKoItem(${idx})">&times; Löschen</button>
-      </div>
-      <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-        <div>
-          <label class="editor-label">KO-Nr.</label>
-          <input type="number" class="editor-input" value="${ko.number || idx + 1}" oninput="updateKoField(${idx}, 'number', parseInt(this.value, 10))">
-        </div>
-        <div>
-          <label class="editor-label">Name / Kanal</label>
-          <input type="text" class="editor-input" value="${escapeHtml(ko.name || '')}" oninput="updateKoField(${idx}, 'name', this.value)">
-        </div>
-        <div>
-          <label class="editor-label">Funktion</label>
-          <input type="text" class="editor-input" value="${escapeHtml(ko.function || '')}" oninput="updateKoField(${idx}, 'function', this.value)">
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-        <div>
-          <label class="editor-label">DPT (z. B. 1.001)</label>
-          <input type="text" class="editor-input" value="${escapeHtml(ko.dpt || '1.001')}" oninput="updateKoField(${idx}, 'dpt', this.value)">
-        </div>
-        <div>
-          <label class="editor-label">Größe (z. B. 1 Bit)</label>
-          <input type="text" class="editor-input" value="${escapeHtml(ko.size || '1 Bit')}" oninput="updateKoField(${idx}, 'size', this.value)">
-        </div>
-      </div>
+  el.innerHTML = `
+    <span>Zeige ${startItem}–${endItem} von ${totalItems} ${label}</span>
+    <div class="editor-pagination-buttons">
+      <button type="button" onclick="${onPageFnName}(1)" ${currentPage === 1 ? "disabled" : ""} title="Erste Seite">&laquo;</button>
+      <button type="button" onclick="${onPageFnName}(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""} title="Vorherige Seite">&lsaquo; Zurück</button>
+      <span style="padding: 0 0.4rem; font-weight: 600; color: #f8fafc; font-size: 0.8rem;">${currentPage} / ${totalPages}</span>
+      <button type="button" onclick="${onPageFnName}(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""} title="Nächste Seite">Weiter &rsaquo;</button>
+      <button type="button" onclick="${onPageFnName}(${totalPages})" ${currentPage === totalPages ? "disabled" : ""} title="Letzte Seite">&raquo;</button>
     </div>
-  `).join("");
+  `;
+}
+
+function renderKoCards() {
+  const list = document.getElementById("editorKoList");
+  const countBadge = document.getElementById("editorKoCount");
+  ensureDocInit();
+  const allKos = editorState.doc.communication_objects;
+  if (countBadge) countBadge.textContent = allKos.length;
+  if (!list) return;
+
+  const query = editorState.koSearch;
+  let items = [];
+  for (let i = 0; i < allKos.length; i++) {
+    const ko = allKos[i];
+    if (query) {
+      const match = String(ko.number || "").includes(query) ||
+        String(ko.id || "").toLowerCase().includes(query) ||
+        String(ko.name || "").toLowerCase().includes(query) ||
+        String(ko.function || "").toLowerCase().includes(query) ||
+        String(ko.dpt || "").toLowerCase().includes(query);
+      if (!match) continue;
+    }
+    items.push({ ko, realIdx: i });
+  }
+
+  const totalItems = items.length;
+  const totalPages = Math.ceil(totalItems / editorState.koPageSize) || 1;
+  if (editorState.koPage > totalPages) editorState.koPage = totalPages;
+  if (editorState.koPage < 1) editorState.koPage = 1;
+
+  renderPaginationBar("editorKoPagination", editorState.koPage, totalPages, totalItems, "Objekte", "setKoPage");
+  renderPaginationBar("editorKoPaginationBottom", editorState.koPage, totalPages, totalItems, "Objekte", "setKoPage");
+
+  if (totalItems === 0) {
+    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Kommunikationsobjekte gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
+    return;
+  }
+
+  const startIdx = (editorState.koPage - 1) * editorState.koPageSize;
+  const pageItems = items.slice(startIdx, startIdx + editorState.koPageSize);
+
+  list.innerHTML = pageItems.map(({ ko, realIdx }) => {
+    const condSummary = formatConditionsSummary(ko);
+    const flags = ko.flags || { communication: true, read: false, write: true, transmit: false, update: false };
+    return `
+      <div class="editor-item-card" data-real-idx="${realIdx}">
+        <div class="editor-item-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="editor-item-title">#${ko.number != null ? ko.number : realIdx + 1} &bull; ${escapeHtml(ko.id || '')}</span>
+            ${condSummary ? `<span class="editor-badge-cond" title="${escapeHtml(condSummary)}">⚡ ${escapeHtml(condSummary)}</span>` : ''}
+          </div>
+          <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteKoItem(${realIdx})">&times; Löschen</button>
+        </div>
+        <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <div>
+            <label class="editor-label">KO-Nr.</label>
+            <input type="number" class="editor-input" value="${ko.number != null ? ko.number : realIdx + 1}" oninput="updateKoField(${realIdx}, 'number', parseInt(this.value, 10) || 0)">
+          </div>
+          <div>
+            <label class="editor-label">Name / Kanal</label>
+            <input type="text" class="editor-input" value="${escapeHtml(ko.name || '')}" oninput="updateKoField(${realIdx}, 'name', this.value)">
+          </div>
+          <div>
+            <label class="editor-label">Funktion</label>
+            <input type="text" class="editor-input" value="${escapeHtml(ko.function || '')}" oninput="updateKoField(${realIdx}, 'function', this.value)">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <div>
+            <label class="editor-label">DPT (z. B. 1.001)</label>
+            <input type="text" class="editor-input" value="${escapeHtml(ko.dpt || '1.001')}" oninput="updateKoField(${realIdx}, 'dpt', this.value)">
+          </div>
+          <div>
+            <label class="editor-label">Größe (z. B. 1 Bit)</label>
+            <input type="text" class="editor-input" value="${escapeHtml(ko.size || '1 Bit')}" oninput="updateKoField(${realIdx}, 'size', this.value)">
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; padding-top: 0.25rem; font-size: 0.75rem; color: #94a3b8;">
+          <span style="font-weight: 500;">Flags:</span>
+          <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+            <input type="checkbox" ${flags.communication ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.communication', this.checked)"> C
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+            <input type="checkbox" ${flags.read ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.read', this.checked)"> R
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+            <input type="checkbox" ${flags.write ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.write', this.checked)"> W
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+            <input type="checkbox" ${flags.transmit ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.transmit', this.checked)"> T
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+            <input type="checkbox" ${flags.update ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.update', this.checked)"> U
+          </label>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function updateParamPageFilterOptions() {
+  const select = document.getElementById("editorParamPageFilter");
+  if (!select || !editorState.doc || !editorState.doc.parameters) return;
+  const currentVal = editorState.paramPageFilter;
+  const pageMap = new Map();
+  editorState.doc.parameters.forEach(p => {
+    const pg = (p.page && typeof p.page === "string" ? p.page.trim() : "");
+    if (pg) {
+      pageMap.set(pg, (pageMap.get(pg) || 0) + 1);
+    }
+  });
+
+  const sortedPages = Array.from(pageMap.keys()).sort();
+  select.innerHTML = `<option value="">Alle Seiten / Menüs (${editorState.doc.parameters.length})</option>` +
+    sortedPages.map(pg => `
+      <option value="${escapeHtml(pg)}" ${pg === currentVal ? "selected" : ""}>${escapeHtml(pg)} (${pageMap.get(pg)})</option>
+    `).join("");
+}
+
+function renderParamOptionsHtml(param) {
+  if (!param.options || !Array.isArray(param.options) || param.options.length === 0) {
+    if (param.type === "enum") {
+      return `<div style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.35rem;">⚠️ Keine Optionen definiert für enum</div>`;
+    }
+    return "";
+  }
+  const opts = param.options;
+  const pills = opts.map(o => {
+    let val = "";
+    let txt = "";
+    if (o && typeof o === "object") {
+      val = o.value != null ? o.value : o.text;
+      txt = o.text || o.name || o.value;
+    } else {
+      val = o;
+      txt = o;
+    }
+    return `<span class="editor-badge-option" title="Wert: ${escapeHtml(String(val))}"><strong>${escapeHtml(String(val))}</strong>: ${escapeHtml(String(txt))}</span>`;
+  }).join("");
+
+  return `
+    <div class="editor-options-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">
+        <span>Auswahloptionen (${opts.length})</span>
+      </div>
+      <div class="editor-options-list">${pills}</div>
+    </div>
+  `;
 }
 
 function renderParamCards() {
   const list = document.getElementById("editorParamList");
   const countBadge = document.getElementById("editorParamCount");
-  if (countBadge) countBadge.textContent = editorState.parameters.length;
+  ensureDocInit();
+  const allParams = editorState.doc.parameters;
+  if (countBadge) countBadge.textContent = allParams.length;
   if (!list) return;
 
-  if (editorState.parameters.length === 0) {
-    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Parameter vorhanden. Klicke auf 'Parameter hinzufügen'.</div>`;
+  const query = editorState.paramSearch;
+  const pageFilter = editorState.paramPageFilter;
+  let items = [];
+
+  for (let i = 0; i < allParams.length; i++) {
+    const param = allParams[i];
+    if (pageFilter && param.page !== pageFilter) continue;
+    if (query) {
+      const match = String(param.id || "").toLowerCase().includes(query) ||
+        String(param.name || "").toLowerCase().includes(query) ||
+        String(param.text || "").toLowerCase().includes(query) ||
+        String(param.page || "").toLowerCase().includes(query);
+      if (!match) continue;
+    }
+    items.push({ param, realIdx: i });
+  }
+
+  const totalItems = items.length;
+  const totalPages = Math.ceil(totalItems / editorState.paramPageSize) || 1;
+  if (editorState.paramPage > totalPages) editorState.paramPage = totalPages;
+  if (editorState.paramPage < 1) editorState.paramPage = 1;
+
+  renderPaginationBar("editorParamPagination", editorState.paramPage, totalPages, totalItems, "Parameter", "setParamPage");
+  renderPaginationBar("editorParamPaginationBottom", editorState.paramPage, totalPages, totalItems, "Parameter", "setParamPage");
+
+  if (totalItems === 0) {
+    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Parameter gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
     return;
   }
 
-  list.innerHTML = editorState.parameters.map((param, idx) => `
-    <div class="editor-item-card" data-idx="${idx}">
-      <div class="editor-item-header">
-        <span class="editor-item-title">${escapeHtml(param.id || '')}</span>
-        <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteParamItem(${idx})">&times; Löschen</button>
+  const startIdx = (editorState.paramPage - 1) * editorState.paramPageSize;
+  const pageItems = items.slice(startIdx, startIdx + editorState.paramPageSize);
+
+  list.innerHTML = pageItems.map(({ param, realIdx }) => {
+    const condSummary = formatConditionsSummary(param);
+    const optionsHtml = renderParamOptionsHtml(param);
+    const ruleCount = Array.isArray(param.assign_rules) ? param.assign_rules.length : 0;
+    const hasTrans = param.translations && Object.keys(param.translations).length > 0;
+
+    return `
+      <div class="editor-item-card" data-real-idx="${realIdx}">
+        <div class="editor-item-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="editor-item-title">${escapeHtml(param.id || '')}</span>
+            ${param.page ? `<span class="editor-meta-pill" title="Menüpfad">📂 ${escapeHtml(param.page)}</span>` : ''}
+            ${condSummary ? `<span class="editor-badge-cond" title="${escapeHtml(condSummary)}">⚡ ${escapeHtml(condSummary)}</span>` : ''}
+            ${ruleCount > 0 ? `<span class="editor-meta-pill" title="Regeln">⚙️ ${ruleCount} Regeln</span>` : ''}
+            ${hasTrans ? `<span class="editor-meta-pill" title="Übersetzungen">🌐 Übersetzt</span>` : ''}
+          </div>
+          <button type="button" class="editor-btn-delete" title="Löschen" onclick="deleteParamItem(${realIdx})">&times; Löschen</button>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <div>
+            <label class="editor-label">ID (lowercase)</label>
+            <input type="text" class="editor-input" value="${escapeHtml(param.id || '')}" oninput="updateParamField(${realIdx}, 'id', this.value.toLowerCase())">
+          </div>
+          <div>
+            <label class="editor-label">Bezeichnung / Text</label>
+            <input type="text" class="editor-input" value="${escapeHtml(param.name || param.text || '')}" oninput="updateParamField(${realIdx}, 'name', this.value)">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 130px 1fr 1fr; gap: 0.5rem;">
+          <div>
+            <label class="editor-label">Typ</label>
+            <select class="editor-input" onchange="updateParamField(${realIdx}, 'type', this.value)">
+              <option value="number" ${param.type === 'number' ? 'selected' : ''}>Zahl (number)</option>
+              <option value="enum" ${param.type === 'enum' ? 'selected' : ''}>Auswahl (enum)</option>
+              <option value="text" ${param.type === 'text' ? 'selected' : ''}>Text (text)</option>
+              <option value="boolean" ${param.type === 'boolean' ? 'selected' : ''}>Schalter (bool)</option>
+              <option value="float" ${param.type === 'float' ? 'selected' : ''}>Fließkomma</option>
+            </select>
+          </div>
+          <div>
+            <label class="editor-label">Default-Wert</label>
+            <input type="text" class="editor-input" value="${escapeHtml(String(param.default != null ? param.default : ''))}" oninput="updateParamField(${realIdx}, 'default', this.value)">
+          </div>
+          <div>
+            <label class="editor-label">Seite / Menüpfad</label>
+            <input type="text" class="editor-input" value="${escapeHtml(param.page || '')}" placeholder="Kanal A > Zeit" oninput="updateParamField(${realIdx}, 'page', this.value)">
+          </div>
+        </div>
+        ${optionsHtml}
       </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-        <div>
-          <label class="editor-label">ID (lowercase)</label>
-          <input type="text" class="editor-input" value="${escapeHtml(param.id || '')}" oninput="updateParamField(${idx}, 'id', this.value.toLowerCase())">
-        </div>
-        <div>
-          <label class="editor-label">Bezeichnung / Text</label>
-          <input type="text" class="editor-input" value="${escapeHtml(param.name || '')}" oninput="updateParamField(${idx}, 'name', this.value)">
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
-        <div>
-          <label class="editor-label">Typ</label>
-          <select class="editor-input" onchange="updateParamField(${idx}, 'type', this.value)">
-            <option value="number" ${param.type === 'number' ? 'selected' : ''}>Zahl (number)</option>
-            <option value="enum" ${param.type === 'enum' ? 'selected' : ''}>Auswahl (enum)</option>
-            <option value="text" ${param.type === 'text' ? 'selected' : ''}>Text (text)</option>
-          </select>
-        </div>
-        <div>
-          <label class="editor-label">Default-Wert</label>
-          <input type="text" class="editor-input" value="${escapeHtml(String(param.default != null ? param.default : ''))}" oninput="updateParamField(${idx}, 'default', this.value)">
-        </div>
-        <div>
-          <label class="editor-label">Seite / Menüpfad</label>
-          <input type="text" class="editor-input" value="${escapeHtml(param.page || '')}" placeholder="Kanal A > Zeit" oninput="updateParamField(${idx}, 'page', this.value)">
-        </div>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 // Window functions for inline HTML event handlers
-window.deleteKoItem = function(idx) {
-  editorState.kos.splice(idx, 1);
+window.deleteKoItem = function(realIdx) {
+  ensureDocInit();
+  editorState.doc.communication_objects.splice(realIdx, 1);
   renderKoCards();
   syncFormToYaml();
 };
 
-window.updateKoField = function(idx, field, value) {
-  if (editorState.kos[idx]) {
-    editorState.kos[idx][field] = value;
-    syncFormToYaml();
+window.updateKoField = function(realIdx, field, value) {
+  ensureDocInit();
+  const ko = editorState.doc.communication_objects[realIdx];
+  if (!ko) return;
+  if (field.startsWith("flags.")) {
+    const flagKey = field.split(".")[1];
+    ko.flags = ko.flags || {};
+    ko.flags[flagKey] = Boolean(value);
+  } else {
+    ko[field] = value;
   }
+  syncFormToYaml();
 };
 
-window.deleteParamItem = function(idx) {
-  editorState.parameters.splice(idx, 1);
+window.deleteParamItem = function(realIdx) {
+  ensureDocInit();
+  editorState.doc.parameters.splice(realIdx, 1);
+  updateParamPageFilterOptions();
   renderParamCards();
   syncFormToYaml();
 };
 
-window.updateParamField = function(idx, field, value) {
-  if (editorState.parameters[idx]) {
-    editorState.parameters[idx][field] = value;
-    syncFormToYaml();
+window.updateParamField = function(realIdx, field, value) {
+  ensureDocInit();
+  const param = editorState.doc.parameters[realIdx];
+  if (!param) return;
+  param[field] = value;
+  if (field === "name" && !param.text) {
+    param.text = value;
   }
+  if (field === "page") {
+    updateParamPageFilterOptions();
+  }
+  syncFormToYaml();
+};
+
+window.setKoPage = function(pageNum) {
+  editorState.koPage = pageNum;
+  renderKoCards();
+};
+
+window.setParamPage = function(pageNum) {
+  editorState.paramPage = pageNum;
+  renderParamCards();
 };
 
 function syncFormToYaml() {
   if (editorState.isSyncing) return;
+  ensureDocInit();
 
-  const mfgName = (document.getElementById("edMfgName")?.value || "").trim() || "Mein Hersteller";
-  const mfgCode = (document.getElementById("edMfgCode")?.value || "").trim().toLowerCase() || "custom";
-  const orderNo = (document.getElementById("edOrderNumber")?.value || "").trim() || "DEV-001";
-  const devName = (document.getElementById("edDevName")?.value || "").trim() || "Neues Gerät";
+  const mfg = editorState.doc.manufacturer;
+  const dev = editorState.doc.device;
+  const hw = dev.hardware = dev.hardware || {};
+  const app = editorState.doc.application;
+
+  mfg.name = (document.getElementById("edMfgName")?.value || "").trim() || "Mein Hersteller";
+  mfg.code = (document.getElementById("edMfgCode")?.value || "").trim().toLowerCase() || "custom";
+  dev.order_number = (document.getElementById("edOrderNumber")?.value || "").trim() || "DEV-001";
+  dev.name = (document.getElementById("edDevName")?.value || "").trim() || "Neues Gerät";
+  
   const desc = (document.getElementById("edDescription")?.value || "").trim();
-  const hwName = (document.getElementById("edHwName")?.value || "").trim() || devName;
-  const hwVer = (document.getElementById("edHwVersion")?.value || "").trim() || "1.0";
-  const busMa = parseFloat(document.getElementById("edBusCurrent")?.value) || 10.0;
-  const appId = (document.getElementById("edAppId")?.value || "").trim().toLowerCase() || `${mfgCode}_${orderNo.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
-  const appVer = (document.getElementById("edAppVersion")?.value || "").trim() || "1.0";
-
-  let lines = [];
-  lines.push("$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json");
-  lines.push("konfix_version: '1.0'");
-  lines.push("manufacturer:");
-  lines.push(`  code: ${mfgCode}`);
-  lines.push(`  name: ${yamlEscape(mfgName)}`);
-  lines.push("device:");
-  lines.push(`  order_number: ${yamlEscape(orderNo)}`);
-  lines.push(`  name: ${yamlEscape(devName)}`);
-  if (desc) lines.push(`  description: ${yamlEscape(desc)}`);
-  lines.push("  hardware:");
-  lines.push(`    name: ${yamlEscape(hwName)}`);
-  lines.push(`    version: '${hwVer}'`);
-  lines.push(`    bus_current_ma: ${busMa}`);
-  lines.push("application:");
-  lines.push(`  id: ${appId}`);
-  lines.push(`  name: ${yamlEscape(devName)}`);
-  lines.push(`  version: '${appVer}'`);
-  lines.push("  mask_version: MV-07B0");
-
-  lines.push("communication_objects:");
-  if (editorState.kos.length === 0) {
-    lines[lines.length - 1] = "communication_objects: []";
+  if (desc) {
+    dev.description = desc;
   } else {
-    editorState.kos.forEach(ko => {
-      const koId = (ko.id || `${mfgCode}_o-${ko.number || 1}`).toLowerCase();
-      lines.push(`  - id: ${koId}`);
-      lines.push(`    number: ${ko.number || 1}`);
-      lines.push(`    name: ${yamlEscape(ko.name || '')}`);
-      lines.push(`    function: ${yamlEscape(ko.function || '')}`);
-      lines.push(`    dpt: ${yamlEscape(ko.dpt || '1.001')}`);
-      lines.push(`    size: ${yamlEscape(ko.size || '1 Bit')}`);
-      lines.push("    flags:");
-      lines.push(`      communication: ${ko.flags ? ko.flags.communication : true}`);
-      lines.push(`      read: ${ko.flags ? ko.flags.read : false}`);
-      lines.push(`      write: ${ko.flags ? ko.flags.write : true}`);
-      lines.push(`      transmit: ${ko.flags ? ko.flags.transmit : false}`);
-      lines.push(`      update: ${ko.flags ? ko.flags.update : false}`);
-      const koConds = ko.conditions || (ko.depends_on ? (ko.depends_on.conditions || [ko.depends_on]) : null);
-      if (koConds && Array.isArray(koConds) && koConds.length > 0) {
-        lines.push("    conditions:");
-        koConds.forEach(c => {
-          lines.push(`      - param_id: ${c.param_id}`);
-          if (c.when_values && c.when_values.length > 0) {
-            lines.push("        when_values:");
-            c.when_values.forEach(v => lines.push(`          - '${v}'`));
-          }
-        });
-      }
-    });
+    delete dev.description;
   }
 
-  lines.push("parameters:");
-  if (editorState.parameters.length === 0) {
-    lines[lines.length - 1] = "parameters: []";
-  } else {
-    editorState.parameters.forEach((param, pIdx) => {
-      const pId = (param.id || `${mfgCode}_p-${pIdx + 1}`).toLowerCase();
-      lines.push(`  - id: ${pId}`);
-      lines.push(`    name: ${yamlEscape(param.name || '')}`);
-      lines.push(`    text: ${yamlEscape(param.name || '')}`);
-      lines.push(`    type: ${param.type || 'number'}`);
-      if (param.default != null) {
-        lines.push(`    default: ${param.type === 'number' ? param.default : yamlEscape(String(param.default))}`);
-      }
-      if (param.page) lines.push(`    page: ${yamlEscape(param.page)}`);
-      if (param.section) lines.push(`    section: ${yamlEscape(param.section)}`);
-      const pConds = param.conditions || (param.depends_on ? (param.depends_on.conditions || [param.depends_on]) : null);
-      if (pConds && Array.isArray(pConds) && pConds.length > 0) {
-        lines.push("    conditions:");
-        pConds.forEach(c => {
-          lines.push(`      - param_id: ${c.param_id}`);
-          if (c.when_values && c.when_values.length > 0) {
-            lines.push("        when_values:");
-            c.when_values.forEach(v => lines.push(`          - '${v}'`));
-          }
-        });
-      }
-    });
-  }
+  hw.name = (document.getElementById("edHwName")?.value || "").trim() || dev.name;
+  hw.version = (document.getElementById("edHwVersion")?.value || "").trim() || "1.0";
+  hw.bus_current_ma = parseFloat(document.getElementById("edBusCurrent")?.value) || 10.0;
 
-  const yamlStr = lines.join("\n") + "\n";
-  const textarea = document.getElementById("editorYamlTextarea");
-  if (textarea) {
-    textarea.value = yamlStr;
-    saveDraftToStorage(yamlStr);
-  }
+  app.id = (document.getElementById("edAppId")?.value || "").trim().toLowerCase() || `${mfg.code}_${dev.order_number.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
+  app.name = dev.name;
+  app.version = (document.getElementById("edAppVersion")?.value || "").trim() || "1.0";
+  if (!app.mask_version) app.mask_version = "MV-07B0";
 
-  const badge = document.getElementById("editorValidationBadge");
-  if (badge) {
-    badge.textContent = "✓ Schema v1 valide";
-    badge.style.background = "rgba(16,185,129,0.2)";
-    badge.style.color = "#10b981";
+  if (typeof jsyaml !== "undefined") {
+    try {
+      const yamlStr = jsyaml.dump(editorState.doc, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+      });
+      const textarea = document.getElementById("editorYamlTextarea");
+      if (textarea) {
+        textarea.value = yamlStr;
+        saveDraftToStorage(yamlStr);
+      }
+      const badge = document.getElementById("editorValidationBadge");
+      if (badge) {
+        badge.textContent = "✓ Schema v1 valide";
+        badge.style.background = "rgba(16,185,129,0.2)";
+        badge.style.color = "#10b981";
+      }
+      const errBox = document.getElementById("editorErrorBox");
+      if (errBox) errBox.style.display = "none";
+    } catch (err) {
+      const errBox = document.getElementById("editorErrorBox");
+      if (errBox) {
+        errBox.style.display = "block";
+        errBox.textContent = `Fehler beim Erzeugen des YAMLs: ${err.message}`;
+      }
+    }
   }
 }
 
-function yamlEscape(str) {
-  if (!str) return "''";
-  if (str.includes(":") || str.includes("#") || str.includes("'") || str.includes('"') || str.includes("\n")) {
-    return `'${str.replace(/'/g, "''")}'`;
-  }
-  return `'${str}'`;
-}
 
 
 

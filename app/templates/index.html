@@ -498,24 +498,37 @@
 
           <!-- 2. Communication Objects Tab -->
           <div id="editorTabObjects" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
               <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;">Kommunikationsobjekte (KOs)</h4>
-              <button type="button" id="editorAddKoBtn" class="btn btn-sm btn-primary">➕ Objekt hinzufügen</button>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" id="editorKoSearch" placeholder="🔍 KO suchen (Nr, Name, DPT)..." class="editor-input" style="width: 220px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                <button type="button" id="editorAddKoBtn" class="btn btn-sm btn-primary">➕ Objekt</button>
+              </div>
             </div>
+            <div id="editorKoPagination" class="editor-pagination" style="display: none; margin-bottom: 0.75rem;"></div>
             <div id="editorKoList" class="editor-item-list">
               <!-- Dynamically populated KO cards -->
             </div>
+            <div id="editorKoPaginationBottom" class="editor-pagination" style="display: none; margin-top: 0.75rem;"></div>
           </div>
 
           <!-- 3. Parameters Tab -->
           <div id="editorTabParams" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
               <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;">Geräteparameter &amp; Menüstruktur</h4>
-              <button type="button" id="editorAddParamBtn" class="btn btn-sm btn-primary">➕ Parameter hinzufügen</button>
+              <button type="button" id="editorAddParamBtn" class="btn btn-sm btn-primary">➕ Parameter</button>
             </div>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+              <input type="text" id="editorParamSearch" placeholder="🔍 Parameter suchen (ID, Name, Text)..." class="editor-input" style="flex: 1; min-width: 180px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+              <select id="editorParamPageFilter" class="editor-input" style="width: 200px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                <option value="">Alle Seiten / Menüs</option>
+              </select>
+            </div>
+            <div id="editorParamPagination" class="editor-pagination" style="display: none; margin-bottom: 0.75rem;"></div>
             <div id="editorParamList" class="editor-item-list">
               <!-- Dynamically populated Parameter cards -->
             </div>
+            <div id="editorParamPaginationBottom" class="editor-pagination" style="display: none; margin-top: 0.75rem;"></div>
           </div>
         </div>
 
@@ -554,6 +567,7 @@
     </div>
   </footer>
 
+  <script src="/static/vendor/js-yaml.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
