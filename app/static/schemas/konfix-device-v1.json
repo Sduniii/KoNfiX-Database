@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://konfix.sduni.de/schemas/konfix-device-v1.json",
+  "title": "KoNfiX Device Definition Schema v1",
+  "description": "Standardisiertes, herstellerunabhängiges Schema für KNX/KoNfiX-Gerätedefinitionen im YAML- und JSON-Format.",
+  "type": "object",
+  "required": [
+    "konfix_version",
+    "manufacturer",
+    "device"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI zum validierenden KoNfiX-Schema"
+    },
+    "konfix_version": {
+      "type": "string",
+      "description": "KoNfiX-Spezifikationsversion (aktuell '1.0')",
+      "enum": ["1.0"]
+    },
+    "manufacturer": {
+      "type": "object",
+      "required": ["code", "name"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$",
+          "description": "Eindeutiger Slug-Herstellercode in Kleinbuchstaben (z. B. 'mdt', 'openknx', 'gira', 'abb')"
+        },
+        "name": {
+          "type": "string",
+          "description": "Offizieller Herstellername (z. B. 'MDT technologies', 'OpenKNX')"
+        },
+        "legacy_knx_id": {
+          "type": ["string", "null"],
+          "description": "Historische KNXA-Kennung (z. B. 'M-0083', 'M-00FA')"
+        }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["order_number", "name"],
+      "properties": {
+        "order_number": {
+          "type": "string",
+          "description": "Bestellnummer oder Artikelnummer des Geräts (z. B. 'AKS-0816.04', 'SA/S8.16.6.2')"
+        },
+        "name": {
+          "type": "string",
+          "description": "Bezeichnung des Geräts"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Ausführliche Produktbeschreibung"
+        },
+        "hardware": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "bus_current_ma": { "type": "number", "minimum": 0 }
+          }
+        },
+        "source_url": {
+          "type": ["string", "null"],
+          "description": "Offizielle Bezugsquelle oder Download-URL des Herstellers"
+        }
+      }
+    },
+    "application": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$",
+          "description": "Eindeutige Applikations-ID in Kleinbuchstaben (z. B. 'mdt_a-0083-10-7b1a')"
+        },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "mask_version": { "type": "string" }
+      }
+    },
+    "communication_objects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["number", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+$",
+            "description": "KO-ID in Kleinbuchstaben (z. B. 'mdt_o-1')"
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "KO-Nummer (0-65535)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name oder Kanalbezeichnung des Objekts"
+          },
+          "function": {
+            "type": "string",
+            "description": "Funktionstext (z. B. 'Schalten', 'Status Schalten', 'Sollwert')"
+          },
+          "dpt": {
+            "type": "string",
+            "description": "Datenpunkttyp (z. B. '1.001', '5.001', '9.001')"
+          },
+          "size": {
+            "type": "string",
+            "description": "Größe des Objekts (z. B. '1 Bit', '1 Byte', '2 Byte')"
+          },
+          "flags": {
+            "type": "object",
+            "properties": {
+              "communication": { "type": "boolean" },
+              "read": { "type": "boolean" },
+              "write": { "type": "boolean" },
+              "transmit": { "type": "boolean" },
+              "update": { "type": "boolean" }
+            }
+          },
+          "translations": {
+            "type": "object",
+            "description": "Mehrsprachige Bezeichnungen { 'de': '...', 'en': '...' }"
+          },
+          "depends_on": {
+            "type": "object",
+            "properties": {
+              "param_id": { "type": "string" },
+              "when_values": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+$",
+            "description": "Eindeutige Parameter-ID in Kleinbuchstaben (z. B. 'mdt_p-1')"
+          },
+          "name": { "type": "string" },
+          "text": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["enum", "number", "text", "float"]
+          },
+          "default": {
+            "type": ["string", "number", "boolean", "null"]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "text"],
+              "properties": {
+                "value": { "type": "string" },
+                "text": { "type": "string" },
+                "translations": { "type": "object" }
+              }
+            }
+          },
+          "page": {
+            "type": ["string", "null"],
+            "description": "Menü-Pfad in der UI (z. B. 'Kanal A > Zeiteinstellungen')"
+          },
+          "section": {
+            "type": ["string", "null"],
+            "description": "Abschnittsüberschrift auf der Seite"
+          },
+          "depends_on": {
+            "type": "object",
+            "properties": {
+              "param_id": { "type": "string" },
+              "when_values": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "translations": {
+            "type": "object",
+            "description": "Mehrsprachige Bezeichnungen { 'de': '...', 'en': '...' }"
+          }
+        }
+      }
+    },
+    "assign_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "value": { "type": "string" },
+          "conditions": { "type": "array" }
+        }
+      }
+    }
+  }
+}

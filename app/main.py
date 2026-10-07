@@ -145,6 +145,12 @@ if static_dir.exists():
 # Include API Routers
 app.include_router(api_v1_router)
 
+@app.get("/schemas/konfix-device-v1.json", include_in_schema=False)
+def serve_schema_direct():
+    from app.api.v1.schema import get_konfix_device_schema
+    return get_konfix_device_schema()
+
+
 # Root Web Frontend
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def serve_index():

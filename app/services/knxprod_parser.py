@@ -17,7 +17,9 @@ from app.services.yaml_converter import (
     build_konfix_yaml,
     extract_com_objects_from_xml_node,
     extract_parameters_from_xml_node,
+    extract_dynamic_tree,
     generate_manufacturer_code,
+    sanitize_id,
 )
 
 @dataclass
@@ -30,6 +32,7 @@ class ParsedApplication:
     parameters_count: int = 0
     communication_objects: List[Dict[str, Any]] = field(default_factory=list)
     parameters: List[Dict[str, Any]] = field(default_factory=list)
+    assign_rules: List[Dict[str, Any]] = field(default_factory=list)
 
 @dataclass
 class ParsedDevice:
@@ -107,10 +110,41 @@ def _safe_parse_xml(xml_bytes: bytes, filename: str) -> ET.Element:
         raise ValueError(f"Fehler beim Parsen der KNX-XML-Datei '{filename}': {e}")
 
 
+def _extract_translations_from_archive(zf: zipfile.ZipFile, xml_files: List[str]) -> Dict[str, Dict[str, Dict[str, str]]]:
+    """
+    Parses <Language Identifier="...">, <TranslationUnit>, <TranslationElement RefId="...">,
+    and <Translation AttributeName="..." Text="..." Value="..." /> across all XML files in the archive.
+    """
+    translations: Dict[str, Dict[str, Dict[str, str]]] = {}
+    for f in xml_files:
+        try:
+            f_root = _safe_parse_xml(zf.read(f), f)
+            for elem in f_root.iter():
+                if _strip_ns(elem.tag) == "Language":
+                    lang_id = (elem.attrib.get("Identifier") or elem.attrib.get("Id") or "de").lower()
+                    for tr_elem in elem.iter():
+                        if _strip_ns(tr_elem.tag) == "TranslationElement":
+                            ref_id = tr_elem.attrib.get("RefId") or ""
+                            if not ref_id:
+                                continue
+                            ref_entry = translations.setdefault(ref_id, {}).setdefault(lang_id, {})
+                            translations.setdefault(ref_id.lower(), {}).setdefault(lang_id, ref_entry)
+
+                            for child in tr_elem.iter():
+                                if _strip_ns(child.tag) == "Translation":
+                                    attr_name = child.attrib.get("AttributeName") or "Text"
+                                    text_val = child.attrib.get("Text") or child.attrib.get("Value") or ""
+                                    if text_val:
+                                        ref_entry[attr_name] = text_val
+        except Exception:
+            pass
+    return translations
+
+
 def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     """
     Extracts XML files from the .knxprod ZIP archive and parses
-    manufacturer and device hardware/application data.
+    manufacturer and device hardware/application data into KoNfiX-YAML 2.0 format.
     """
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
@@ -142,39 +176,13 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     if not xml_files:
         raise ValueError("Ungültige .knxprod-Datei: Keine XML-Metadatendatei im Archiv gefunden")
 
+    # Extract all translations across archive
+    translations_map = _extract_translations_from_archive(zf, xml_files)
+
     # Detect context hints across all filenames (e.g. OpenKNX detection)
     context_hints = " ".join(zf.namelist())
 
-    # 2. Extract ApplicationPrograms across all XML files in the archive
-    app_programs_map: Dict[str, ParsedApplication] = {}
-    for f in xml_files:
-        try:
-            f_root = _safe_parse_xml(zf.read(f), f)
-            app_nodes = _find_nodes_by_local_name(f_root, "ApplicationProgram")
-            for app in app_nodes:
-                app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
-                app_name = app.attrib.get("Name") or app.attrib.get("ProgramName") or app.attrib.get("Text") or "Applikationsprogramm"
-                app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
-                mask_version = app.attrib.get("MaskVersion")
-
-                com_objs = extract_com_objects_from_xml_node(app)
-                parameters = extract_parameters_from_xml_node(app)
-
-                if app_id:
-                    app_programs_map[app_id] = ParsedApplication(
-                        app_id=app_id,
-                        name=app_name,
-                        version=app_version,
-                        mask_version=mask_version,
-                        com_objects_count=len(com_objs),
-                        parameters_count=len(parameters),
-                        communication_objects=com_objs,
-                        parameters=parameters,
-                    )
-        except Exception:
-            pass
-
-    # 3. Prioritize Hardware.xml, or M-*.xml
+    # Find target XML for Hardware / Manufacturer resolution
     target_xml = None
     for f in xml_files:
         basename = f.split("/")[-1].upper()
@@ -196,17 +204,8 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
     # Check if target XML content has OpenKNX hints
     if "openknx" in xml_bytes.decode("utf-8", errors="ignore").lower():
         context_hints += " openknx"
-        context_hints += " openknx"
 
-    return _parse_knx_xml_root(root, target_xml, app_programs_map, context_hints)
-
-def _parse_knx_xml_root(
-    root: ET.Element,
-    xml_filename: str,
-    app_programs_map: Dict[str, ParsedApplication],
-    context_hints: str = ""
-) -> ParsedKnxprod:
-    # 1. Manufacturer resolution
+    # Pre-resolve manufacturer to determine slug code
     mfg_nodes = _find_nodes_by_local_name(root, "Manufacturer")
     raw_mfg_id = "M-UNKNOWN"
     raw_mfg_name = None
@@ -216,15 +215,61 @@ def _parse_knx_xml_root(
         raw_mfg_id = mfg_node.attrib.get("RefId") or mfg_node.attrib.get("Id") or raw_mfg_id
         raw_mfg_name = mfg_node.attrib.get("Name") or mfg_node.attrib.get("Text")
     else:
-        # Check manufacturer id from filename e.g. M-0083/Hardware.xml or M-00C5.xml
-        for part in xml_filename.split("/"):
+        for part in target_xml.split("/"):
             if part.upper().startswith("M-"):
                 raw_mfg_id = part.split(".")[0].upper()
                 break
 
-    # Use comprehensive master data & OpenKNX resolver
     mfg_id, mfg_name = resolve_manufacturer(raw_mfg_id, raw_mfg_name, context_hints)
+    mfg_code = generate_manufacturer_code(mfg_name, mfg_id).lower()
 
+    # 2. Extract ApplicationPrograms across all XML files in the archive
+    app_programs_map: Dict[str, ParsedApplication] = {}
+    for f in xml_files:
+        try:
+            f_root = _safe_parse_xml(zf.read(f), f)
+            app_nodes = _find_nodes_by_local_name(f_root, "ApplicationProgram")
+            for app in app_nodes:
+                raw_app_id = app.attrib.get("Id") or app.attrib.get("RefId") or ""
+                sanitized_app_id = sanitize_id(raw_app_id, mfg_code)
+                app_name = app.attrib.get("Name") or app.attrib.get("ProgramName") or app.attrib.get("Text") or "Applikationsprogramm"
+                app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
+                mask_version = app.attrib.get("MaskVersion")
+
+                # Extract Dynamic tree (pages, sections, conditions/choose/when, assign rules)
+                param_dyn, co_dyn, assign_rules = extract_dynamic_tree(app, mfg_code, translations_map)
+
+                com_objs = extract_com_objects_from_xml_node(app, mfg_code, translations_map, co_dyn)
+                parameters = extract_parameters_from_xml_node(app, mfg_code, translations_map, param_dyn)
+
+                parsed_app = ParsedApplication(
+                    app_id=sanitized_app_id,
+                    name=app_name,
+                    version=app_version,
+                    mask_version=mask_version,
+                    com_objects_count=len(com_objs),
+                    parameters_count=len(parameters),
+                    communication_objects=com_objs,
+                    parameters=parameters,
+                    assign_rules=assign_rules,
+                )
+
+                if raw_app_id:
+                    app_programs_map[raw_app_id] = parsed_app
+                    app_programs_map[sanitized_app_id] = parsed_app
+        except Exception:
+            pass
+
+    return _parse_knx_xml_root(root, target_xml, app_programs_map, mfg_id, mfg_name, mfg_code)
+
+def _parse_knx_xml_root(
+    root: ET.Element,
+    xml_filename: str,
+    app_programs_map: Dict[str, ParsedApplication],
+    mfg_id: str,
+    mfg_name: str,
+    mfg_code: str
+) -> ParsedKnxprod:
     # 2. Hardware / Products
     devices: List[ParsedDevice] = []
     hardware_nodes = _find_nodes_by_local_name(root, "Hardware")
@@ -246,7 +291,6 @@ def _parse_knx_xml_root(
         for h2p in hw2prog_nodes:
             app_ref = h2p.attrib.get("ApplicationProgramRefId")
             if not app_ref:
-                # In standard ETS format: <ApplicationProgramRef RefId="M-0083_A-..." />
                 for child in h2p:
                     if _strip_ns(child.tag) in ["ApplicationProgramRef", "ApplicationProgram"]:
                         app_ref = child.attrib.get("RefId") or child.attrib.get("Id")
@@ -256,9 +300,10 @@ def _parse_knx_xml_root(
             if app_ref and app_ref in app_programs_map:
                 hw_apps.append(app_programs_map[app_ref])
 
-        # If no explicit hw2prog, link all found apps if only 1 app exists
-        if not hw_apps and len(app_programs_map) == 1:
-            hw_apps = list(app_programs_map.values())
+        # If no explicit hw2prog, link all found apps if unique
+        unique_apps = list({a.app_id: a for a in app_programs_map.values()}.values())
+        if not hw_apps and len(unique_apps) == 1:
+            hw_apps = unique_apps
 
         # Products under this Hardware
         product_nodes = _find_nodes_by_local_name(hw, "Product")
@@ -276,10 +321,9 @@ def _parse_knx_xml_root(
                         hardware_name=hw_name,
                         hardware_version=hw_version,
                         bus_current_ma=bus_current_ma,
-                        applications=hw_apps or list(app_programs_map.values())
+                        applications=hw_apps or unique_apps
                     ))
         else:
-            # Fallback if no <Product> sub-element: use hardware itself as product
             serial_or_order = hw.attrib.get("SerialNumber") or hw.attrib.get("OrderNumber") or hw.attrib.get("Id")
             if serial_or_order:
                 devices.append(ParsedDevice(
@@ -289,12 +333,12 @@ def _parse_knx_xml_root(
                     hardware_name=hw_name,
                     hardware_version=hw_version,
                     bus_current_ma=bus_current_ma,
-                    applications=hw_apps or list(app_programs_map.values())
+                    applications=hw_apps or unique_apps
                 ))
 
-    # Global Fallback if no Hardware/Products were extracted (e.g. minimalist catalog XML)
+    # Global Fallback if no Hardware/Products were extracted
+    unique_apps = list({a.app_id: a for a in app_programs_map.values()}.values())
     if not devices:
-        # Check CatalogItem
         catalog_items = _find_nodes_by_local_name(root, "CatalogItem")
         for ci in catalog_items:
             order_no = ci.attrib.get("Number") or ci.attrib.get("OrderNumber") or ci.attrib.get("Id")
@@ -303,28 +347,28 @@ def _parse_knx_xml_root(
                 devices.append(ParsedDevice(
                     order_number=order_no,
                     name=ci_name,
-                    applications=list(app_programs_map.values())
+                    applications=unique_apps
                 ))
 
-    # If still empty, create default device from file metadata
     if not devices:
         fallback_order = xml_filename.split("/")[-1].replace(".xml", "")
         devices.append(ParsedDevice(
             order_number=fallback_order,
             name=f"KNX Device ({fallback_order})",
-            applications=list(app_programs_map.values())
+            applications=unique_apps
         ))
-
-    mfg_code = generate_manufacturer_code(mfg_name, mfg_id)
 
     # Build full KoNfiX-YAML specification for each extracted device
     for dev in devices:
         primary_app = dev.applications[0] if dev.applications else None
         all_cos: List[Dict[str, Any]] = []
         all_params: List[Dict[str, Any]] = []
+        all_assign_rules: List[Dict[str, Any]] = []
+
         for a in dev.applications:
             all_cos.extend(a.communication_objects)
             all_params.extend(a.parameters)
+            all_assign_rules.extend(a.assign_rules)
 
         dev.yaml_content = build_konfix_yaml(
             manufacturer_code=mfg_code,
@@ -342,6 +386,7 @@ def _parse_knx_xml_root(
             mask_version=primary_app.mask_version if primary_app else None,
             communication_objects=all_cos,
             parameters=all_params,
+            assign_rules=all_assign_rules,
         )
 
     return ParsedKnxprod(

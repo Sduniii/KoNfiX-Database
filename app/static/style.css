@@ -826,5 +826,95 @@ body {
   color: inherit;
 }
 
+/* Realtime Progress Bar */
+.progress-bar-wrap {
+  width: 100%;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+}
+.progress-bar-fill {
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+/* KoNfiX-YAML Editor Styling */
+.modal-editor {
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.9);
+}
+
+.editor-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+
+.editor-input {
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease;
+}
+
+.editor-input:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
+}
+
+.editor-item-card {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  margin-bottom: 0.65rem;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+
+.editor-item-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.editor-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.editor-item-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.editor-btn-delete {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+}
+
+.editor-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+@media (max-width: 900px) {
+  .editor-split-container {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+
+
 
 
