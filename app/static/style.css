@@ -932,6 +932,93 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
+/* Condition Editor Box & Rows */
+.editor-cond-box {
+  background: rgba(168, 85, 247, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.editor-cond-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.editor-cond-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.editor-cond-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr auto;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin-bottom: 0.4rem;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.editor-cond-row:last-child {
+  margin-bottom: 0;
+}
+
+.editor-cond-pill {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  transition: all 0.15s ease;
+  display: inline-block;
+}
+
+.editor-cond-pill:hover {
+  border-color: #c084fc;
+  color: #fff;
+}
+
+.editor-cond-pill.active {
+  background: rgba(168, 85, 247, 0.25);
+  border-color: #c084fc;
+  color: #e9d5ff;
+  font-weight: 600;
+}
+
+.editor-btn-add-cond {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px dashed rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 0.4rem;
+}
+
+.editor-btn-add-cond:hover {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: #c084fc;
+  color: #f3e8ff;
+}
+
 .editor-badge-option {
   display: inline-flex;
   align-items: center;

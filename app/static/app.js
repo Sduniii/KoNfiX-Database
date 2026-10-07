@@ -1807,6 +1807,7 @@ function setupEditorModal() {
         page: "Allgemein"
       });
       editorState.paramPage = Math.ceil(params.length / editorState.paramPageSize) || 1;
+      updateParamIdDatalist();
       updateParamPageFilterOptions();
       renderParamCards();
       syncFormToYaml();
@@ -1984,6 +1985,7 @@ function validateAndSyncYamlToForm(yamlText) {
     setVal("edAppId", (data.application && data.application.id) || "");
     setVal("edAppVersion", (data.application && data.application.version) || "1.0");
 
+    updateParamIdDatalist();
     updateParamPageFilterOptions();
     renderKoCards();
     renderParamCards();
@@ -2008,8 +2010,28 @@ function setVal(id, val) {
   if (el) el.value = val;
 }
 
+function updateParamIdDatalist() {
+  const dl = document.getElementById("editorParamIdDatalist");
+  if (!dl || !editorState.doc || !Array.isArray(editorState.doc.parameters)) return;
+  dl.innerHTML = editorState.doc.parameters.map(p => {
+    const id = p.id || "";
+    const name = p.name || p.text || "";
+    return `<option value="${escapeHtml(id)}">${escapeHtml(id)}${name ? ' (' + escapeHtml(name) + ')' : ''}</option>`;
+  }).join("");
+}
+
+function getItemConditions(item) {
+  if (!item) return null;
+  if (Array.isArray(item.conditions)) return item.conditions;
+  if (item.depends_on) {
+    if (Array.isArray(item.depends_on.conditions)) return item.depends_on.conditions;
+    if (item.depends_on.param_id) return [item.depends_on];
+  }
+  return null;
+}
+
 function formatConditionsSummary(item) {
-  const conds = item.conditions || (item.depends_on && (item.depends_on.conditions || [item.depends_on]));
+  const conds = getItemConditions(item);
   if (!conds || !Array.isArray(conds) || conds.length === 0) return null;
   return conds.map(c => {
     const p = c.param_id || c.parameter || "param";
@@ -2023,6 +2045,84 @@ function formatConditionsSummary(item) {
     }
     return `${p} = [${vals}]`;
   }).join("; ");
+}
+
+function renderConditionsEditorHtml(type, realIdx, item) {
+  const conds = getItemConditions(item);
+  const hasConds = Array.isArray(conds) && conds.length > 0;
+
+  if (!hasConds) {
+    return `
+      <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
+        <button type="button" class="editor-btn-add-cond" onclick="addConditionItem('${type}', ${realIdx})">
+          ⚡ Bedingung hinzufügen
+        </button>
+      </div>
+    `;
+  }
+
+  const rows = conds.map((cond, condIdx) => {
+    const paramId = cond.param_id || "";
+    const whenVals = Array.isArray(cond.when_values) ? cond.when_values.map(String) : (cond.value != null ? [String(cond.value)] : []);
+    const valsStr = whenVals.join(", ");
+
+    let quickPillsHtml = "";
+    if (paramId && editorState.doc && Array.isArray(editorState.doc.parameters)) {
+      const targetParam = editorState.doc.parameters.find(p => p.id === paramId);
+      if (targetParam && Array.isArray(targetParam.options) && targetParam.options.length > 0) {
+        quickPillsHtml = `
+          <div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed rgba(255,255,255,0.06);">
+            <span style="font-size: 0.68rem; color: #94a3b8;">Werte anklicken:</span>
+            ${targetParam.options.map(o => {
+              const oVal = typeof o === "object" ? String(o.value != null ? o.value : o.text) : String(o);
+              const oTxt = typeof o === "object" ? String(o.text || o.name || o.value) : String(o);
+              const isSelected = whenVals.includes(oVal);
+              return `
+                <span class="editor-cond-pill ${isSelected ? 'active' : ''}"
+                  onclick="toggleConditionValue('${type}', ${realIdx}, ${condIdx}, '${escapeHtml(oVal)}')"
+                  title="${isSelected ? 'Klicken zum Abwählen' : 'Klicken zum Auswählen'}">
+                  ${escapeHtml(oVal)}${oTxt && oTxt !== oVal ? ' (' + escapeHtml(oTxt) + ')' : ''}
+                </span>
+              `;
+            }).join("")}
+          </div>
+        `;
+      }
+    }
+
+    return `
+      <div class="editor-cond-row">
+        <div>
+          <label class="editor-label" style="font-size: 0.7rem;">Ziel-Parameter (param_id)</label>
+          <input type="text" class="editor-input" list="editorParamIdDatalist" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
+            value="${escapeHtml(paramId)}" placeholder="z. B. m-0002_p-12"
+            onchange="updateConditionParamId('${type}', ${realIdx}, ${condIdx}, this.value)">
+        </div>
+        <div>
+          <label class="editor-label" style="font-size: 0.7rem;">Wenn Wert (when_values)</label>
+          <input type="text" class="editor-input" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
+            value="${escapeHtml(valsStr)}" placeholder="z. B. 1, 2"
+            onchange="updateConditionValues('${type}', ${realIdx}, ${condIdx}, this.value)">
+        </div>
+        <div style="padding-top: 1.1rem;">
+          <button type="button" class="editor-btn-delete" title="Bedingung löschen"
+            onclick="removeConditionItem('${type}', ${realIdx}, ${condIdx})">&times;</button>
+        </div>
+        ${quickPillsHtml}
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="editor-cond-box">
+      <div class="editor-cond-header">
+        <span class="editor-cond-title">⚡ Bedingungen (Sichtbarkeit &amp; Aktivierung)</span>
+        <button type="button" class="btn btn-sm btn-ghost" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"
+          onclick="addConditionItem('${type}', ${realIdx})">➕ Bedingung</button>
+      </div>
+      <div>${rows}</div>
+    </div>
+  `;
 }
 
 function renderPaginationBar(containerId, currentPage, totalPages, totalItems, label, onPageFnName) {
@@ -2098,6 +2198,8 @@ function renderKoCards() {
   list.innerHTML = pageItems.map(({ ko, realIdx }) => {
     const condSummary = formatConditionsSummary(ko);
     const flags = ko.flags || { communication: true, read: false, write: true, transmit: false, update: false };
+    const condHtml = renderConditionsEditorHtml("ko", realIdx, ko);
+
     return `
       <div class="editor-item-card" data-real-idx="${realIdx}">
         <div class="editor-item-header">
@@ -2149,6 +2251,7 @@ function renderKoCards() {
             <input type="checkbox" ${flags.update ? 'checked' : ''} onchange="updateKoField(${realIdx}, 'flags.update', this.checked)"> U
           </label>
         </div>
+        ${condHtml}
       </div>
     `;
   }).join("");
@@ -2250,6 +2353,7 @@ function renderParamCards() {
     const optionsHtml = renderParamOptionsHtml(param);
     const ruleCount = Array.isArray(param.assign_rules) ? param.assign_rules.length : 0;
     const hasTrans = param.translations && Object.keys(param.translations).length > 0;
+    const condHtml = renderConditionsEditorHtml("param", realIdx, param);
 
     return `
       <div class="editor-item-card" data-real-idx="${realIdx}">
@@ -2294,6 +2398,7 @@ function renderParamCards() {
           </div>
         </div>
         ${optionsHtml}
+        ${condHtml}
       </div>
     `;
   }).join("");
@@ -2324,6 +2429,7 @@ window.updateKoField = function(realIdx, field, value) {
 window.deleteParamItem = function(realIdx) {
   ensureDocInit();
   editorState.doc.parameters.splice(realIdx, 1);
+  updateParamIdDatalist();
   updateParamPageFilterOptions();
   renderParamCards();
   syncFormToYaml();
@@ -2337,9 +2443,134 @@ window.updateParamField = function(realIdx, field, value) {
   if (field === "name" && !param.text) {
     param.text = value;
   }
+  if (field === "id" || field === "name") {
+    updateParamIdDatalist();
+  }
   if (field === "page") {
     updateParamPageFilterOptions();
   }
+  syncFormToYaml();
+};
+
+window.addConditionItem = function(type, realIdx) {
+  ensureDocInit();
+  const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
+  const item = list[realIdx];
+  if (!item) return;
+
+  if (!Array.isArray(item.conditions)) {
+    if (item.depends_on) {
+      if (Array.isArray(item.depends_on.conditions)) {
+        item.conditions = [...item.depends_on.conditions];
+      } else if (item.depends_on.param_id) {
+        item.conditions = [{ param_id: item.depends_on.param_id, when_values: item.depends_on.when_values || ["1"] }];
+      } else {
+        item.conditions = [];
+      }
+      delete item.depends_on;
+    } else {
+      item.conditions = [];
+    }
+  }
+
+  let defaultParamId = "";
+  if (Array.isArray(editorState.doc.parameters) && editorState.doc.parameters.length > 0) {
+    defaultParamId = editorState.doc.parameters[0].id || "";
+  }
+
+  item.conditions.push({
+    param_id: defaultParamId,
+    when_values: ["1"]
+  });
+
+  if (type === "ko") renderKoCards();
+  else renderParamCards();
+  syncFormToYaml();
+};
+
+window.removeConditionItem = function(type, realIdx, condIdx) {
+  ensureDocInit();
+  const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
+  const item = list[realIdx];
+  if (!item) return;
+
+  const conds = getItemConditions(item);
+  if (Array.isArray(conds)) {
+    conds.splice(condIdx, 1);
+    if (conds.length === 0) {
+      delete item.conditions;
+      delete item.depends_on;
+    } else {
+      item.conditions = conds;
+      delete item.depends_on;
+    }
+  }
+
+  if (type === "ko") renderKoCards();
+  else renderParamCards();
+  syncFormToYaml();
+};
+
+window.updateConditionParamId = function(type, realIdx, condIdx, newParamId) {
+  ensureDocInit();
+  const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
+  const item = list[realIdx];
+  if (!item) return;
+
+  const conds = getItemConditions(item);
+  if (Array.isArray(conds) && conds[condIdx]) {
+    conds[condIdx].param_id = (newParamId || "").trim();
+    item.conditions = conds;
+    delete item.depends_on;
+  }
+
+  if (type === "ko") renderKoCards();
+  else renderParamCards();
+  syncFormToYaml();
+};
+
+window.updateConditionValues = function(type, realIdx, condIdx, valStr) {
+  ensureDocInit();
+  const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
+  const item = list[realIdx];
+  if (!item) return;
+
+  const conds = getItemConditions(item);
+  if (Array.isArray(conds) && conds[condIdx]) {
+    const rawParts = (valStr || "").split(",").map(s => s.trim()).filter(s => s.length > 0);
+    conds[condIdx].when_values = rawParts.length > 0 ? rawParts : ["1"];
+    item.conditions = conds;
+    delete item.depends_on;
+  }
+
+  if (type === "ko") renderKoCards();
+  else renderParamCards();
+  syncFormToYaml();
+};
+
+window.toggleConditionValue = function(type, realIdx, condIdx, optVal) {
+  ensureDocInit();
+  const list = type === "ko" ? editorState.doc.communication_objects : editorState.doc.parameters;
+  const item = list[realIdx];
+  if (!item) return;
+
+  const conds = getItemConditions(item);
+  if (Array.isArray(conds) && conds[condIdx]) {
+    let whenVals = Array.isArray(conds[condIdx].when_values) ? [...conds[condIdx].when_values].map(String) : [];
+    const strOptVal = String(optVal);
+    const idx = whenVals.indexOf(strOptVal);
+    if (idx >= 0) {
+      whenVals.splice(idx, 1);
+    } else {
+      whenVals.push(strOptVal);
+    }
+    conds[condIdx].when_values = whenVals.length > 0 ? whenVals : ["1"];
+    item.conditions = conds;
+    delete item.depends_on;
+  }
+
+  if (type === "ko") renderKoCards();
+  else renderParamCards();
   syncFormToYaml();
 };
 
@@ -2413,6 +2644,7 @@ function syncFormToYaml() {
     }
   }
 }
+
 
 
 
