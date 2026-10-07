@@ -18,4 +18,6 @@ else:
     # Direkter Fallback falls doch im gleichen Verzeichnis ausgeführt
     from a2wsgi import ASGIMiddleware
     from app.main import app
+    from app.database import ensure_database_ready
+    ensure_database_ready()
     application = ASGIMiddleware(app)

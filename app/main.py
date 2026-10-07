@@ -154,6 +154,7 @@ def serve_schema_direct():
 # Root Web Frontend
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def serve_index():
+    ensure_database_ready()
     template_path = BASE_DIR / "app" / "templates" / "index.html"
     if template_path.exists():
         async with await anyio.open_file(template_path, "r", encoding="utf-8") as f:

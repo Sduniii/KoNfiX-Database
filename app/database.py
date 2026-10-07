@@ -47,9 +47,20 @@ def ensure_database_ready():
             needs_init = True
 
     if needs_init:
+        # Crucial for SQLite: dispose any lingering connections in the pool
+        # so open file handles on unlinked/deleted inodes are closed.
+        try:
+            engine.dispose()
+        except Exception:
+            pass
+
         # Import models so Base.metadata knows about all tables
         from app.models import ApplicationProgram, Device, KnxprodFile, Manufacturer  # noqa: F401
         Base.metadata.create_all(bind=engine)
+
+    # Ensure aliases/symlinks exist so any query to catalog.db or konfix_catalog.db works
+    if db_path and db_path.exists():
+        _ensure_database_symlinks(db_path)
 
     # Migrations: Add new columns if not present in existing SQLite DBs
     migrations = [
@@ -67,6 +78,45 @@ def ensure_database_ready():
 
     # Self-healing: Backfill yaml_content for legacy records
     _backfill_device_yaml_specifications()
+
+
+def _ensure_database_symlinks(canonical_db_path: Path):
+    """
+    Creates symlinks for legacy or alternate database names:
+    - data/catalog.db -> konfix_database.db
+    - data/konfix_catalog.db -> konfix_database.db
+    - root catalog.db -> data/konfix_database.db
+    Ensures that any external tools or users expecting these filenames find the active database.
+    """
+    try:
+        data_dir = canonical_db_path.parent
+        root_dir = data_dir.parent
+
+        alias_targets = [
+            (data_dir / "catalog.db", canonical_db_path.name),
+            (data_dir / "konfix_catalog.db", canonical_db_path.name),
+            (root_dir / "catalog.db", str(Path("data") / canonical_db_path.name)),
+        ]
+
+        for alias_path, target in alias_targets:
+            if alias_path.resolve() == canonical_db_path.resolve():
+                continue
+            # If alias exists as a broken/empty file or symlink, replace it
+            if alias_path.is_symlink() or alias_path.exists():
+                try:
+                    if alias_path.is_symlink() or alias_path.stat().st_size == 0:
+                        alias_path.unlink()
+                    else:
+                        continue  # do not overwrite a non-empty regular file
+                except Exception:
+                    continue
+
+            try:
+                alias_path.symlink_to(target)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def _backfill_device_yaml_specifications():
