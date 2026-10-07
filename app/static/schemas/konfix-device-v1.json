@@ -201,6 +201,17 @@
           "conditions": { "type": "array" }
         }
       }
+    },
+    "translations": {
+      "type": "object",
+      "description": "Dedizierter mehrsprachiger Übersetzungsblock für alle Geräteentitäten (Parameter, KOs, Kanäle), schlüsselbasiert nach Entity-ID.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Sprachcodes (de, en, etc.) und deren lokalisierter Text.",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
     }
   }
 }

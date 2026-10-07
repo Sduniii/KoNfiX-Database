@@ -528,6 +528,92 @@ function setupDropZone() {
     }
   });
 
+  function appendResultItem(item) {
+    if (!resultsList) return;
+    resultsList.style.display = "block";
+    const itemSuccess = item.status === "success";
+    const badgeClass = itemSuccess ? "success" : "error";
+    const badgeText = itemSuccess ? "OK" : "Fehler";
+    const devCount = item.devices_imported ? item.devices_imported.length : 0;
+    const detail = itemSuccess
+      ? `${devCount} Gerät(e) indexiert`
+      : escapeHtml(item.message || "Fehler beim Import");
+
+    const row = document.createElement("div");
+    row.className = "upload-result-item";
+    row.innerHTML = `
+      <div>
+        <div class="item-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</div>
+        <small style="color: #64748b; font-size: 0.72rem;">${detail}</small>
+      </div>
+      <span class="item-badge ${badgeClass}">${badgeText}</span>
+    `;
+    resultsList.appendChild(row);
+  }
+
+  function uploadSingleFile(file, sourceUrl, headers, onProgress, onStatus) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      let uploadEndpoint = "/api/v1/upload/batch";
+      if (sourceUrl) {
+        uploadEndpoint += `?source_url=${encodeURIComponent(sourceUrl)}`;
+      }
+      xhr.open("POST", uploadEndpoint);
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value);
+      }
+
+      const formData = new FormData();
+      formData.append("files", file);
+
+      let convTimer = null;
+      let convProgress = 50;
+
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable) {
+          const uploadPct = Math.round((evt.loaded / evt.total) * 50);
+          onProgress(uploadPct);
+          onStatus(`Übertrage '${file.name}' (${Math.round((evt.loaded / evt.total) * 100)}%)...`);
+        }
+      };
+
+      xhr.upload.onload = () => {
+        onProgress(50);
+        onStatus(`⚡ Konvertiere XML-Metadaten & erzeuge KoNfiX-YAML...`);
+        convTimer = setInterval(() => {
+          if (convProgress < 95) {
+            convProgress += Math.max(1, Math.round((95 - convProgress) * 0.1));
+            onProgress(convProgress);
+          }
+        }, 250);
+      };
+
+      xhr.onload = () => {
+        if (convTimer) clearInterval(convTimer);
+        let resJson;
+        try {
+          resJson = JSON.parse(xhr.responseText);
+        } catch (_) {
+          return reject(new Error(`Server-Fehler: Ungültige Antwort (HTTP ${xhr.status})`));
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(100);
+          resolve(resJson);
+        } else {
+          reject(new Error(resJson.detail || resJson.message || `HTTP ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => {
+        if (convTimer) clearInterval(convTimer);
+        reject(new Error(`Netzwerkfehler während des Uploads von '${file.name}'`));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
   async function handleFilesUpload(files) {
     if (!files || files.length === 0) return;
 
@@ -552,132 +638,99 @@ function setupDropZone() {
 
     const progressBar = document.getElementById("uploadProgressBar");
     const percentBadge = document.getElementById("uploadPercentBadge");
-    if (progressBar) progressBar.style.width = "0%";
+    if (progressBar) {
+      progressBar.style.width = "0%";
+      progressBar.style.background = "";
+      progressBar.classList.add("converting");
+    }
     if (percentBadge) percentBadge.textContent = "0%";
 
     const fileCount = files.length;
-    statusText.textContent = fileCount === 1
-      ? `Lade '${files[0].name}' hoch...`
-      : `Lade ${fileCount} Dateien hoch (0%)...`;
+    const headers = getAuthHeaders();
+    const allResults = [];
+    let successFiles = 0;
+    let failedFiles = 0;
 
-    try {
-      const formData = new FormData();
-      for (const file of files) {
-        formData.append("files", file);
-      }
+    for (let i = 0; i < fileCount; i++) {
+      const file = files[i];
+      const basePct = (i / fileCount) * 100;
+      const sliceWidth = 100 / fileCount;
 
-      const headers = getAuthHeaders();
-      let uploadEndpoint = "/api/v1/upload/batch";
-      if (sourceUrl) {
-        uploadEndpoint += `?source_url=${encodeURIComponent(sourceUrl)}`;
-      }
+      const setGlobalPct = (subPct) => {
+        const isFinal = (i === fileCount - 1 && subPct >= 100);
+        const globalPct = isFinal ? 100 : Math.min(99, Math.round(basePct + (subPct / 100) * sliceWidth));
+        if (progressBar) progressBar.style.width = globalPct + "%";
+        if (percentBadge) percentBadge.textContent = globalPct + "%";
+      };
 
-      // Use XMLHttpRequest for real-time upload progress events
-      const data = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", uploadEndpoint);
-
-        for (const [key, value] of Object.entries(headers)) {
-          xhr.setRequestHeader(key, value);
-        }
-
-        xhr.upload.onprogress = (evt) => {
-          if (evt.lengthComputable) {
-            const pct = Math.round((evt.loaded / evt.total) * 100);
-            if (progressBar) progressBar.style.width = pct + "%";
-            if (percentBadge) percentBadge.textContent = pct + "%";
+      try {
+        const fileData = await uploadSingleFile(
+          file,
+          sourceUrl,
+          headers,
+          (subPct) => setGlobalPct(subPct),
+          (subStatus) => {
             statusText.textContent = fileCount === 1
-              ? `Übertrage '${files[0].name}' (${pct}%)...`
-              : `Übertrage ${fileCount} Dateien (${pct}%)...`;
+              ? subStatus
+              : `[${i + 1}/${fileCount}] ${subStatus}`;
           }
-        };
+        );
 
-        xhr.onload = () => {
-          if (progressBar) progressBar.style.width = "100%";
-          if (percentBadge) percentBadge.textContent = "100%";
-          statusText.textContent = "Verarbeite XML-Metadaten & erzeuge KoNfiX-YAML...";
-
-          let resJson;
-          try {
-            resJson = JSON.parse(xhr.responseText);
-          } catch (_) {
-            return reject(new Error(`Server-Fehler: Ungültige Antwort (HTTP ${xhr.status})`));
+        if (fileData.results && fileData.results.length > 0) {
+          for (const item of fileData.results) {
+            allResults.push(item);
+            if (item.status === "success") successFiles++;
+            else failedFiles++;
+            appendResultItem(item);
           }
-
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(resJson);
-          } else {
-            reject(new Error(resJson.detail || resJson.message || `HTTP ${xhr.status}`));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error("Netzwerkfehler während des Uploads"));
-        xhr.send(formData);
-      });
-
-      if (uploadSpinner) uploadSpinner.style.display = "none";
-
-      if (data.results) {
-        const isSuccess = data.status === "success";
-        const isPartial = data.status === "partial";
-        const statusColor = isSuccess ? "#10b981" : (isPartial ? "#f59e0b" : "#ef4444");
-        const statusIcon = isSuccess ? "✓" : (isPartial ? "⚠️" : "❌");
-
-        statusText.innerHTML = `
-          <span style="color: ${statusColor}; font-weight: 600;">${statusIcon} ${escapeHtml(data.message)}</span>
-        `;
-
-        if (resultsList) {
-          resultsList.style.display = "block";
-          resultsList.innerHTML = data.results.map(item => {
-            const itemSuccess = item.status === "success";
-            const badgeClass = itemSuccess ? "success" : "error";
-            const badgeText = itemSuccess ? "OK" : "Fehler";
-            const devCount = item.devices_imported ? item.devices_imported.length : 0;
-            const detail = itemSuccess
-              ? `${devCount} Gerät(e) indexiert`
-              : escapeHtml(item.message || "Fehler beim Import");
-
-            return `
-              <div class="upload-result-item">
-                <div>
-                  <div class="item-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</div>
-                  <small style="color: #64748b; font-size: 0.72rem;">${detail}</small>
-                </div>
-                <span class="item-badge ${badgeClass}">${badgeText}</span>
-              </div>
-            `;
-          }).join("");
+        } else if (fileData.devices_imported) {
+          const item = {
+            filename: file.name,
+            status: "success",
+            devices_imported: fileData.devices_imported,
+            message: fileData.message || `${fileData.devices_imported.length} Geräte indexiert`
+          };
+          allResults.push(item);
+          successFiles++;
+          appendResultItem(item);
         }
-      } else {
-        statusText.innerHTML = `
-          <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich importiert!</span><br>
-          Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
-          Geräte: ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}
-        `;
+      } catch (err) {
+        failedFiles++;
+        const errItem = {
+          filename: file.name,
+          status: "error",
+          message: err.message
+        };
+        allResults.push(errItem);
+        appendResultItem(errItem);
       }
-
-      setTimeout(() => {
-        document.getElementById("uploadModal").classList.remove("open");
-        resetUploadUI();
-        loadStats();
-        loadManufacturers();
-        loadDevices();
-      }, data.results && data.results.length > 3 ? 3500 : 2000);
-
-    } catch (err) {
-      if (uploadSpinner) uploadSpinner.style.display = "none";
-      if (progressBar) progressBar.style.background = "#ef4444";
-      statusText.innerHTML = `
-        <span style="color: #ef4444; font-weight: 600;">❌ Fehler:</span><br>
-        ${escapeHtml(err.message)}<br><br>
-      `;
-      const retryBtn = document.createElement("button");
-      retryBtn.className = "btn btn-secondary btn-sm";
-      retryBtn.textContent = "Erneut versuchen";
-      retryBtn.addEventListener("click", resetUploadUI);
-      statusText.appendChild(retryBtn);
     }
+
+    if (progressBar) {
+      progressBar.classList.remove("converting");
+      progressBar.style.width = "100%";
+    }
+    if (percentBadge) percentBadge.textContent = "100%";
+    if (uploadSpinner) uploadSpinner.style.display = "none";
+
+    const isAllSuccess = failedFiles === 0 && successFiles > 0;
+    const isPartial = failedFiles > 0 && successFiles > 0;
+    const statusColor = isAllSuccess ? "#10b981" : (isPartial ? "#f59e0b" : "#ef4444");
+    const statusIcon = isAllSuccess ? "✓" : (isPartial ? "⚠️" : "❌");
+
+    statusText.innerHTML = `
+      <span style="color: ${statusColor}; font-weight: 600;">
+        ${statusIcon} Import abgeschlossen: ${successFiles} erfolgreich, ${failedFiles} Fehler
+      </span>
+    `;
+
+    setTimeout(() => {
+      document.getElementById("uploadModal").classList.remove("open");
+      resetUploadUI();
+      loadStats();
+      loadManufacturers();
+      loadDevices();
+    }, allResults.length > 3 ? 4000 : 2500);
   }
 }
 

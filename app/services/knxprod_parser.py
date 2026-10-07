@@ -33,6 +33,7 @@ class ParsedApplication:
     communication_objects: List[Dict[str, Any]] = field(default_factory=list)
     parameters: List[Dict[str, Any]] = field(default_factory=list)
     assign_rules: List[Dict[str, Any]] = field(default_factory=list)
+    translations: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
 @dataclass
 class ParsedDevice:
@@ -236,11 +237,31 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
                 app_version = app.attrib.get("ApplicationVersion") or app.attrib.get("ProgramVersion") or app.attrib.get("Version")
                 mask_version = app.attrib.get("MaskVersion")
 
-                # Extract Dynamic tree (pages, sections, conditions/choose/when, assign rules)
-                param_dyn, co_dyn, assign_rules = extract_dynamic_tree(app, mfg_code, translations_map)
+                # Build parameter/com-object reference maps and module definitions
+                pref_map = {
+                    pr.attrib["Id"]: pr.attrib.get("RefId", pr.attrib["Id"])
+                    for pr in app.iter()
+                    if _strip_ns(pr.tag) == "ParameterRef" and "Id" in pr.attrib
+                }
+                coref_map = {
+                    cr.attrib["Id"]: cr.attrib.get("RefId", cr.attrib["Id"])
+                    for cr in app.iter()
+                    if _strip_ns(cr.tag) == "ComObjectRef" and "Id" in cr.attrib
+                }
+                module_defs = {
+                    md.attrib["Id"]: md
+                    for md in app.iter()
+                    if _strip_ns(md.tag) == "ModuleDef" and "Id" in md.attrib
+                }
 
-                com_objs = extract_com_objects_from_xml_node(app, mfg_code, translations_map, co_dyn)
-                parameters = extract_parameters_from_xml_node(app, mfg_code, translations_map, param_dyn)
+                # Extract Dynamic tree (pages, sections, conditions/choose/when, assign rules)
+                param_dyn, co_dyn, assign_rules = extract_dynamic_tree(
+                    app, mfg_code, translations_map, pref_map, coref_map, module_defs
+                )
+
+                app_translations: Dict[str, Dict[str, str]] = {}
+                com_objs = extract_com_objects_from_xml_node(app, mfg_code, translations_map, co_dyn, app_translations)
+                parameters = extract_parameters_from_xml_node(app, mfg_code, translations_map, param_dyn, app_translations)
 
                 parsed_app = ParsedApplication(
                     app_id=sanitized_app_id,
@@ -252,6 +273,7 @@ def parse_knxprod_bytes(content: bytes) -> ParsedKnxprod:
                     communication_objects=com_objs,
                     parameters=parameters,
                     assign_rules=assign_rules,
+                    translations=app_translations,
                 )
 
                 if raw_app_id:
@@ -364,11 +386,13 @@ def _parse_knx_xml_root(
         all_cos: List[Dict[str, Any]] = []
         all_params: List[Dict[str, Any]] = []
         all_assign_rules: List[Dict[str, Any]] = []
+        all_translations: Dict[str, Dict[str, str]] = {}
 
         for a in dev.applications:
             all_cos.extend(a.communication_objects)
             all_params.extend(a.parameters)
             all_assign_rules.extend(a.assign_rules)
+            all_translations.update(a.translations)
 
         dev.yaml_content = build_konfix_yaml(
             manufacturer_code=mfg_code,
@@ -387,6 +411,7 @@ def _parse_knx_xml_root(
             communication_objects=all_cos,
             parameters=all_params,
             assign_rules=all_assign_rules,
+            translations=all_translations,
         )
 
     return ParsedKnxprod(

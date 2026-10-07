@@ -146,8 +146,8 @@ def test_translation_and_dynamic_extraction():
     # Check ID schema: lowercase mdt_p-1
     p1 = next(p for p in params if p["id"] == "mdt_p-1")
     assert p1["name"] == "Betriebsart Kanal A"  # German resolved text
-    assert p1["translations"]["de"] == "Betriebsart Kanal A"
-    assert p1["translations"]["en"] == "Operating mode Channel A"
+    # Inline translations must not be on the parameter itself
+    assert "translations" not in p1
 
     p2 = next(p for p in params if p["id"] == "mdt_p-2")
     assert p2["name"] == "Fahrzeit Lamelle"
@@ -157,6 +157,13 @@ def test_translation_and_dynamic_extraction():
     assert p2["depends_on"]["param_id"] == "mdt_p-1"
     assert p2["depends_on"]["when_values"] == ["1"]
 
+    # Verify dedicated root-level translations block
+    assert "translations" in yaml_data
+    tr_block = yaml_data["translations"]
+    assert tr_block["mdt_p-1"]["de"] == "Betriebsart Kanal A"
+    assert tr_block["mdt_p-1"]["en"] == "Operating mode Channel A"
+    assert tr_block["mdt_o-1"]["de"] == "Kanal A Auf/Ab"
+
     # Verify Communication Objects
     cos = yaml_data["communication_objects"]
     assert len(cos) == 1
@@ -164,6 +171,7 @@ def test_translation_and_dynamic_extraction():
     assert co1["id"] == "mdt_o-1"
     assert co1["name"] == "Kanal A Auf/Ab"
     assert co1["function"] == "Fahrbefehl"
+    assert "translations" not in co1
     assert "depends_on" in co1
     assert co1["depends_on"]["param_id"] == "mdt_p-1"
 
@@ -175,3 +183,82 @@ def test_translation_and_dynamic_extraction():
     assert assigns[0]["value"] == "100"
     assert assigns[0]["conditions"][0]["param_id"] == "mdt_p-1"
     assert assigns[0]["conditions"][0]["when_values"] == ["1"]
+
+
+def test_modular_dynamic_tree_and_pref_resolution():
+    """Verify recursive module dynamic trees and pref_map resolution (e.g. for MDT AKU)."""
+    xml_content = """<?xml version="1.0" encoding="utf-8"?>
+<KNX xmlns="http://knx.org/xml/project/20">
+  <ManufacturerData>
+    <Manufacturer RefId="M-0083" Name="MDT technologies">
+      <ApplicationPrograms>
+        <ApplicationProgram Id="M-0083_A-9999" Name="Modularer Aktor" ApplicationVersion="1.0" MaskVersion="MV-07B0">
+          <Static>
+            <Parameters>
+              <Parameter Id="M-0083_P-MODE" Name="ChannelMode" Value="1" />
+            </Parameters>
+            <ParameterRefs>
+              <ParameterRef Id="M-0083_PR-MODE" RefId="M-0083_P-MODE" />
+            </ParameterRefs>
+          </Static>
+          <ModuleDefs>
+            <ModuleDef Id="M-0083_MD-SWITCH" Name="SwitchModule">
+              <Static>
+                <Parameters>
+                  <Parameter Id="M-0083_P-ONTIME" Name="OnTime" Value="10" />
+                </Parameters>
+                <ParameterRefs>
+                  <ParameterRef Id="M-0083_PR-ONTIME" RefId="M-0083_P-ONTIME" />
+                </ParameterRefs>
+              </Static>
+              <Dynamic>
+                <Channel Id="CH-MOD" Text="Kanal {{0}}">
+                  <ParameterBlock Id="PB-MOD" Text="Schalten">
+                    <ParameterRefRef RefId="M-0083_PR-ONTIME" />
+                  </ParameterBlock>
+                </Channel>
+              </Dynamic>
+            </ModuleDef>
+          </ModuleDefs>
+          <Dynamic>
+            <choose ParamRefId="M-0083_PR-MODE">
+              <when test="1">
+                <Module RefId="M-0083_MD-SWITCH">
+                  <TextArg Value="A" />
+                </Module>
+              </when>
+            </choose>
+          </Dynamic>
+        </ApplicationProgram>
+      </ApplicationPrograms>
+      <Hardware Id="M-0083_H-99" Name="MOD-01">
+        <Products>
+          <Product Id="M-0083_PROD-99" OrderNumber="MOD-01.01" Text="Modulares Testgeraet" />
+        </Products>
+        <Hardware2Programs>
+          <Hardware2Program Id="H2P-99" ApplicationProgramRefId="M-0083_A-9999" />
+        </Hardware2Programs>
+      </Hardware>
+    </Manufacturer>
+  </ManufacturerData>
+</KNX>"""
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("M-0083.xml", xml_content.encode("utf-8"))
+
+    parsed = parse_knxprod_bytes(buf.getvalue())
+    assert len(parsed.devices) == 1
+    dev = parsed.devices[0]
+    yaml_data = yaml.safe_load(dev.yaml_content)
+
+    params = yaml_data["parameters"]
+    assert len(params) == 2
+
+    # The parameter inside the ModuleDef should have received page and depends_on
+    ontime_param = next(p for p in params if p["id"] == "mdt_p-ontime")
+    assert ontime_param["page"] == "Kanal A > Schalten"
+    assert "depends_on" in ontime_param
+    assert ontime_param["depends_on"]["param_id"] == "mdt_p-mode"
+    assert ontime_param["depends_on"]["when_values"] == ["1"]
+

@@ -134,16 +134,31 @@ def _get_translation_text(
     return best_text, out_translations
 
 
+def _resolve_ref(ref_id: str, mapping: Optional[Dict[str, str]]) -> str:
+    if not mapping or not ref_id:
+        return ref_id
+    curr = ref_id
+    visited = set()
+    while curr in mapping and curr not in visited:
+        visited.add(curr)
+        curr = mapping[curr]
+    return curr
+
+
 def extract_dynamic_tree(
     app_node: ET.Element,
     manufacturer_code: str = "generic",
-    translations: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
+    translations: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None,
+    pref_map: Optional[Dict[str, str]] = None,
+    coref_map: Optional[Dict[str, str]] = None,
+    module_defs: Optional[Dict[str, ET.Element]] = None
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Parses the <Dynamic> hierarchy of an ApplicationProgram:
     - Channel, ParameterBlock, ParameterSeparator (hierarchy / pages / sections)
     - choose / when blocks (visibility dependencies)
     - Assign rules (dynamic value assignments)
+    - Module definitions and recursive module dynamic trees
     Returns:
       (param_dynamic_info, com_object_dynamic_info, assign_rules)
     """
@@ -153,8 +168,29 @@ def extract_dynamic_tree(
 
     mfg = (manufacturer_code or "generic").lower()
 
-    # Find <Dynamic> node if present, otherwise iterate app_node directly
-    dynamic_nodes = [elem for elem in app_node.iter() if _strip_ns(elem.tag) == "Dynamic"]
+    if pref_map is None:
+        pref_map = {
+            pr.attrib["Id"]: pr.attrib.get("RefId", pr.attrib["Id"])
+            for pr in app_node.iter()
+            if _strip_ns(pr.tag) == "ParameterRef" and "Id" in pr.attrib
+        }
+    if coref_map is None:
+        coref_map = {
+            cr.attrib["Id"]: cr.attrib.get("RefId", cr.attrib["Id"])
+            for cr in app_node.iter()
+            if _strip_ns(cr.tag) == "ComObjectRef" and "Id" in cr.attrib
+        }
+    if module_defs is None:
+        module_defs = {
+            md.attrib["Id"]: md
+            for md in app_node.iter()
+            if _strip_ns(md.tag) == "ModuleDef" and "Id" in md.attrib
+        }
+
+    # Find direct <Dynamic> node of ApplicationProgram if present, otherwise fallback to any Dynamic
+    dynamic_nodes = [elem for elem in app_node if _strip_ns(elem.tag) == "Dynamic"]
+    if not dynamic_nodes:
+        dynamic_nodes = [elem for elem in app_node.iter() if _strip_ns(elem.tag) == "Dynamic"]
     search_root = dynamic_nodes[0] if dynamic_nodes else app_node
 
     # Helper recursive walker
@@ -163,36 +199,51 @@ def extract_dynamic_tree(
         channel_name: Optional[str],
         block_name: Optional[str],
         section_name: Optional[str],
-        choose_stack: List[Tuple[str, str]]
+        choose_stack: List[Tuple[str, str]],
+        arg_replacements: Optional[Dict[str, str]] = None
     ):
         cur_chan = channel_name
         cur_block = block_name
         cur_sec = section_name
+        args = arg_replacements or {}
 
         tag = _strip_ns(node.tag)
 
         if tag == "Channel":
             ch_id = node.attrib.get("Id", "")
             tr_text, _ = _get_translation_text(ch_id, translations, "Text")
-            cur_chan = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_chan
+            ch_text = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_chan
+            if ch_text and args:
+                for k, v in args.items():
+                    ch_text = ch_text.replace(k, str(v))
+            cur_chan = ch_text
             cur_block = None
             cur_sec = None
 
         elif tag == "ParameterBlock":
             pb_id = node.attrib.get("Id", "")
             tr_text, _ = _get_translation_text(pb_id, translations, "Text")
-            cur_block = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_block
+            pb_text = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_block
+            if pb_text and args:
+                for k, v in args.items():
+                    pb_text = pb_text.replace(k, str(v))
+            cur_block = pb_text
             cur_sec = None
 
         elif tag == "ParameterSeparator":
             sep_id = node.attrib.get("Id", "")
             tr_text, _ = _get_translation_text(sep_id, translations, "Text")
-            cur_sec = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_sec
+            sec_text = tr_text or node.attrib.get("Text") or node.attrib.get("Name") or cur_sec
+            if sec_text and args:
+                for k, v in args.items():
+                    sec_text = sec_text.replace(k, str(v))
+            cur_sec = sec_text
 
         elif tag == "ParameterRefRef":
             ref_id = node.attrib.get("RefId") or ""
             if ref_id:
-                sanitized_p_id = sanitize_id(ref_id, mfg)
+                target_p_id = _resolve_ref(ref_id, pref_map)
+                sanitized_p_id = sanitize_id(target_p_id, mfg)
                 page = f"{cur_chan} > {cur_block}" if (cur_chan and cur_block) else (cur_chan or cur_block)
                 entry = param_info.setdefault(sanitized_p_id, {})
                 if page:
@@ -212,7 +263,8 @@ def extract_dynamic_tree(
         elif tag == "ComObjectRefRef":
             ref_id = node.attrib.get("RefId") or ""
             if ref_id:
-                sanitized_co_id = sanitize_id(ref_id, mfg)
+                target_co_id = _resolve_ref(ref_id, coref_map)
+                sanitized_co_id = sanitize_id(target_co_id, mfg)
                 entry = co_info.setdefault(sanitized_co_id, {})
                 if choose_stack:
                     conds = [{"param_id": p_id, "when_values": [val]} for p_id, val in choose_stack]
@@ -228,8 +280,10 @@ def extract_dynamic_tree(
             source_ref = node.attrib.get("SourceParamRefRef") or ""
             val = node.attrib.get("Value")
             if target_ref:
-                target_sanitized = sanitize_id(target_ref, mfg)
-                source_sanitized = sanitize_id(source_ref, mfg) if source_ref else None
+                target_param = _resolve_ref(target_ref, pref_map)
+                source_param = _resolve_ref(source_ref, pref_map) if source_ref else None
+                target_sanitized = sanitize_id(target_param, mfg)
+                source_sanitized = sanitize_id(source_param, mfg) if source_param else None
                 conds = [{"param_id": p_id, "when_values": [v]} for p_id, v in choose_stack]
                 assign_rules.append({
                     "target": target_sanitized,
@@ -238,6 +292,26 @@ def extract_dynamic_tree(
                     "conditions": conds
                 })
 
+        elif tag == "Module":
+            mod_ref = node.attrib.get("RefId")
+            if mod_ref and mod_ref in module_defs:
+                mod_node = module_defs[mod_ref]
+                new_args = dict(args)
+                idx = 0
+                for child in node:
+                    ctag = _strip_ns(child.tag)
+                    if "Arg" in ctag:
+                        val = child.attrib.get("Value", "")
+                        new_args[f"{{{{{idx}}}}}"] = val
+                        new_args[f"{{{idx}}}"] = val
+                        if idx == 0:
+                            new_args["{{ChNo}}"] = val
+                        idx += 1
+                mod_dyn = [e for e in mod_node.iter() if _strip_ns(e.tag) == "Dynamic"]
+                m_root = mod_dyn[0] if mod_dyn else mod_node
+                walk(m_root, cur_chan, cur_block, cur_sec, choose_stack, new_args)
+                return
+
         # Process children
         cur_child_sec = cur_sec
         for child in node:
@@ -245,22 +319,26 @@ def extract_dynamic_tree(
             if child_tag == "ParameterSeparator":
                 sep_id = child.attrib.get("Id", "")
                 tr_text, _ = _get_translation_text(sep_id, translations, "Text")
-                cur_child_sec = tr_text or child.attrib.get("Text") or child.attrib.get("Name") or cur_child_sec
+                sec_text = tr_text or child.attrib.get("Text") or child.attrib.get("Name") or cur_child_sec
+                if sec_text and args:
+                    for k, v in args.items():
+                        sec_text = sec_text.replace(k, str(v))
+                cur_child_sec = sec_text
                 continue
             elif child_tag == "choose":
                 pref = child.attrib.get("ParamRefId") or ""
-                pref_sanitized = sanitize_id(pref, mfg)
+                target_pref = _resolve_ref(pref, pref_map)
+                pref_sanitized = sanitize_id(target_pref, mfg)
                 for when_node in child:
                     if _strip_ns(when_node.tag) == "when":
                         test_val = when_node.attrib.get("test", "")
                         new_stack = choose_stack + [(pref_sanitized, test_val)]
                         for grand_child in when_node:
-                            walk(grand_child, cur_chan, cur_block, cur_child_sec, new_stack)
-            else:
-                walk(child, cur_chan, cur_block, cur_child_sec, choose_stack)
+                            walk(grand_child, cur_chan, cur_block, cur_child_sec, new_stack, args)
+            elif child_tag != "Module":
+                walk(child, cur_chan, cur_block, cur_child_sec, choose_stack, args)
 
-
-    walk(search_root, None, None, None, [])
+    walk(search_root, None, None, None, [], {})
     return param_info, co_info, assign_rules
 
 
@@ -268,11 +346,13 @@ def extract_com_objects_from_xml_node(
     app_node: ET.Element,
     manufacturer_code: str = "generic",
     translations: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None,
-    dynamic_info: Optional[Dict[str, Dict[str, Any]]] = None
+    dynamic_info: Optional[Dict[str, Dict[str, Any]]] = None,
+    out_translations: Optional[Dict[str, Dict[str, str]]] = None
 ) -> List[Dict[str, Any]]:
     """
     Extracts all communication objects from an ApplicationProgram XML element,
-    resolving translations, dynamic dependencies, and lowercase sanitized IDs.
+    resolving dynamic dependencies, lowercase sanitized IDs, and storing translations
+    externally into out_translations if provided.
     """
     com_objects: List[Dict[str, Any]] = []
     mfg = (manufacturer_code or "generic").lower()
@@ -323,7 +403,8 @@ def extract_com_objects_from_xml_node(
                 for l, f in func_translations.items():
                     if l not in merged_tr:
                         merged_tr[l] = f
-                co_entry["translations"] = merged_tr
+                if out_translations is not None:
+                    out_translations[sanitized_id] = merged_tr
 
             # Check dynamic visibility / conditions
             if dynamic_info and sanitized_id in dynamic_info:
@@ -341,11 +422,13 @@ def extract_parameters_from_xml_node(
     app_node: ET.Element,
     manufacturer_code: str = "generic",
     translations: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None,
-    dynamic_info: Optional[Dict[str, Dict[str, Any]]] = None
+    dynamic_info: Optional[Dict[str, Dict[str, Any]]] = None,
+    out_translations: Optional[Dict[str, Dict[str, str]]] = None
 ) -> List[Dict[str, Any]]:
     """
     Extracts all parameters and parameter types from an ApplicationProgram XML element,
-    enriching with translations, pages/sections, depends_on, and lowercase IDs.
+    enriching with pages/sections, depends_on, lowercase IDs, and storing translations
+    externally into out_translations if provided.
     """
     mfg = (manufacturer_code or "generic").lower()
 
@@ -367,8 +450,9 @@ def extract_parameters_from_xml_node(
 
                     if val is not None:
                         opt_entry: Dict[str, Any] = {"value": str(val), "text": txt}
-                        if opt_tr_dict:
-                            opt_entry["translations"] = opt_tr_dict
+                        if opt_tr_dict and out_translations is not None:
+                            opt_sanitized = sanitize_id(child_id, mfg) if child_id else f"{pt_id}_{val}"
+                            out_translations[opt_sanitized] = opt_tr_dict
                         options.append(opt_entry)
 
             param_types_map[pt_id] = {
@@ -405,8 +489,8 @@ def extract_parameters_from_xml_node(
                 "default": p_val,
             }
 
-            if tr_dict:
-                param_entry["translations"] = tr_dict
+            if tr_dict and out_translations is not None:
+                out_translations[sanitized_id] = tr_dict
 
             if options:
                 param_entry["type"] = "enum"
@@ -450,11 +534,13 @@ def build_konfix_yaml(
     communication_objects: Optional[List[Dict[str, Any]]] = None,
     parameters: Optional[List[Dict[str, Any]]] = None,
     assign_rules: Optional[List[Dict[str, Any]]] = None,
+    translations: Optional[Dict[str, Dict[str, str]]] = None,
     source_url: Optional[str] = None,
 ) -> str:
     """
     Serializes a full KoNfiX Device Definition into standardized YAML adhering to Schema v1.
-    All IDs and slugs strictly lowercase.
+    All IDs and slugs strictly lowercase. Translations are housed in a dedicated root-level
+    block keyed by entity ID.
     """
     mfg_code_clean = (manufacturer_code or "generic").lower().strip()
     sanitized_app_id = sanitize_id(application_id or f"{mfg_code_clean}_{order_number}", mfg_code_clean)
@@ -491,11 +577,38 @@ def build_konfix_yaml(
             "mask_version": mask_version or "MV-07B0",
         }
 
-    doc["communication_objects"] = communication_objects or []
-    doc["parameters"] = parameters or []
+    merged_translations: Dict[str, Dict[str, str]] = {}
+    if translations:
+        for k, v in translations.items():
+            if isinstance(v, dict):
+                merged_translations[k.lower()] = v
+
+    clean_cos = []
+    for co in (communication_objects or []):
+        co_copy = dict(co)
+        if "translations" in co_copy:
+            co_tr = co_copy.pop("translations")
+            if co_tr and "id" in co_copy:
+                merged_translations.setdefault(co_copy["id"], {}).update(co_tr)
+        clean_cos.append(co_copy)
+
+    clean_params = []
+    for p in (parameters or []):
+        p_copy = dict(p)
+        if "translations" in p_copy:
+            p_tr = p_copy.pop("translations")
+            if p_tr and "id" in p_copy:
+                merged_translations.setdefault(p_copy["id"], {}).update(p_tr)
+        clean_params.append(p_copy)
+
+    doc["communication_objects"] = clean_cos
+    doc["parameters"] = clean_params
 
     if assign_rules:
         doc["assign_rules"] = assign_rules
+
+    if merged_translations:
+        doc["translations"] = merged_translations
 
     return yaml.dump(doc, sort_keys=False, allow_unicode=True, default_flow_style=False)
 
@@ -504,6 +617,7 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
     """
     Parses and validates a native KoNfiX-YAML device definition string.
     Ensures strict lowercase manufacturer codes and IDs.
+    Extracts root-level translations keyed by entity ID.
     """
     try:
         data = yaml.safe_load(yaml_content)
@@ -543,6 +657,13 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
     parameters = data.get("parameters") or []
     assign_rules = data.get("assign_rules") or []
 
+    raw_translations = data.get("translations") or {}
+    sanitized_translations: Dict[str, Dict[str, str]] = {}
+    if isinstance(raw_translations, dict):
+        for k, v in raw_translations.items():
+            if isinstance(v, dict):
+                sanitized_translations[sanitize_id(k, mfg_code)] = v
+
     # Ensure all IDs inside com_objects and parameters are lowercase
     sanitized_cos = []
     for co in com_objects:
@@ -550,6 +671,10 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
             c = dict(co)
             if "id" in c:
                 c["id"] = sanitize_id(c["id"], mfg_code)
+            if "translations" in c and isinstance(c["translations"], dict):
+                c_tr = c.pop("translations")
+                if "id" in c:
+                    sanitized_translations.setdefault(c["id"], {}).update(c_tr)
             sanitized_cos.append(c)
 
     sanitized_params = []
@@ -558,6 +683,10 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
             p_dict = dict(p)
             if "id" in p_dict:
                 p_dict["id"] = sanitize_id(p_dict["id"], mfg_code)
+            if "translations" in p_dict and isinstance(p_dict["translations"], dict):
+                p_tr = p.pop("translations")
+                if "id" in p_dict:
+                    sanitized_translations.setdefault(p_dict["id"], {}).update(p_tr)
             if "depends_on" in p_dict and isinstance(p_dict["depends_on"], dict):
                 dep = dict(p_dict["depends_on"])
                 if "param_id" in dep:
@@ -591,5 +720,6 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
         "communication_objects": sanitized_cos,
         "parameters": sanitized_params,
         "assign_rules": assign_rules,
+        "translations": sanitized_translations,
         "raw_yaml": yaml_content
     }

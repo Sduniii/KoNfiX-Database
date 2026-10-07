@@ -833,6 +833,17 @@ body {
 }
 .progress-bar-fill {
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  transition: width 0.25s ease-out;
+}
+.progress-bar-fill.converting {
+  background: linear-gradient(90deg, #0284c7, #38bdf8, #818cf8, #38bdf8, #0284c7) !important;
+  background-size: 200% 100% !important;
+  animation: pulseGradient 1.5s ease infinite;
+}
+@keyframes pulseGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* KoNfiX-YAML Editor Styling */
