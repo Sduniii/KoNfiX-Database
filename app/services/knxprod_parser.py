@@ -441,17 +441,135 @@ def _parse_knx_xml_root(
     )
 
 
-def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
+def is_knxproj(content: bytes) -> bool:
     """
-    Inspects a ZIP archive and extracts all .knxprod files contained within it
-    (including in subfolders).
-    Ignores macOS metadata (__MACOSX) and hidden files.
-    Returns a list of (filename, bytes).
+    Checks if binary content is an ETS project (.knxproj).
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            names = zf.namelist()
+            return any(n.endswith("project.xml") or n.startswith("P-") for n in names)
+    except Exception:
+        return False
+
+
+def extract_from_knxproj(content: bytes) -> List[Tuple[str, bytes]]:
+    """
+    Extracts manufacturer hardware definitions from an ETS project archive (.knxproj).
+    ETS projects store each manufacturer's hardware XML in directories like 'M-XXXX/'.
+    Re-bundles each manufacturer directory as an in-memory .knxprod zip archive.
     """
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile:
         return []
+
+    _validate_zip_archive(zf)
+
+    mfg_dirs: Dict[str, List[zipfile.ZipInfo]] = {}
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        fname = info.filename.replace("\\", "/")
+        parts = fname.split("/")
+        # Look for top-level or nested M-XXXX directory
+        for idx, part in enumerate(parts):
+            if part.startswith("M-") and len(part) == 6 and idx < len(parts) - 1:
+                mfg_id = part
+                mfg_dirs.setdefault(mfg_id, []).append(info)
+                break
+
+    results: List[Tuple[str, bytes]] = []
+    for mfg_id, file_infos in mfg_dirs.items():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as out_zf:
+            for finfo in file_infos:
+                raw_bytes = zf.read(finfo)
+                # Normalize path inside the generated knxprod: M-XXXX/...
+                fname = finfo.filename.replace("\\", "/")
+                idx = fname.find(mfg_id)
+                rel_path = fname[idx:]
+                out_zf.writestr(rel_path, raw_bytes)
+        buf.seek(0)
+        results.append((f"{mfg_id}.knxprod", buf.getvalue()))
+
+    return results
+
+
+def extract_from_vd5(content: bytes, passwords: Optional[List[bytes]] = None) -> List[Tuple[str, bytes]]:
+    """
+    Extracts contents of a legacy .vd5 (or .vd1-.vd4) file.
+    Legacy files may contain unencrypted XML files or password-protected archives.
+    Passwords can be provided via parameter or configured in KNX_LEGACY_PASSWORDS setting.
+    """
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        return []
+
+    available_passwords = passwords if passwords is not None else settings.knx_legacy_passwords_bytes
+
+    # Check entries
+    extracted_entries: List[Tuple[str, bytes]] = []
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        fname = info.filename.replace("\\", "/")
+        # If entry is an unencrypted XML or knxprod, read directly
+        if not (info.flag_bits & 0x1):
+            if fname.lower().endswith((".xml", ".knxprod")):
+                try:
+                    extracted_entries.append((fname.split("/")[-1], zf.read(info)))
+                except Exception:
+                    pass
+            continue
+
+        # Encrypted entry - try configured legacy passwords if any are provided
+        for pwd in available_passwords:
+            try:
+                data = zf.read(info, pwd=pwd)
+                basename = fname.split("/")[-1]
+                # If extracted data is itself a zip/knxprod archive
+                if data[:4] == b"PK\x03\x04":
+                    nested_prods = extract_knxprods_from_zip(data)
+                    if nested_prods:
+                        extracted_entries.extend(nested_prods)
+                    else:
+                        extracted_entries.append((f"{basename}.knxprod", data))
+                else:
+                    extracted_entries.append((basename, data))
+                break
+            except Exception:
+                continue
+
+    return extracted_entries
+
+
+def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
+    """
+    Inspects a ZIP archive and extracts all .knxprod files contained within it
+    (including in subfolders).
+    Also transparently detects .knxproj project exports and legacy .vd5 files.
+    Ignores macOS metadata (__MACOSX) and hidden files.
+    Returns a list of (filename, bytes).
+    """
+    if is_knxproj(content):
+        return extract_from_knxproj(content)
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        return []
+
+    # Check for vd5 archive with encrypted Ets/ets.vd_
+    names = zf.namelist()
+    if any(n.replace("\\", "/").startswith("Ets/") for n in names):
+        vd_entries = extract_from_vd5(content)
+        if vd_entries:
+            # Check if any nested knxprod was extracted
+            valid_prods = [e for e in vd_entries if e[0].endswith(".knxprod")]
+            if valid_prods:
+                return valid_prods
 
     # Validate archive against zip bombs and path traversal
     _validate_zip_archive(zf)
@@ -469,6 +587,20 @@ def extract_knxprods_from_zip(content: bytes) -> List[Tuple[str, bytes]]:
         if basename.lower().endswith((".knxprod", ".yaml", ".yml")):
             try:
                 results.append((basename, zf.read(info)))
+            except Exception:
+                pass
+        elif basename.lower().endswith(".knxproj"):
+            try:
+                proj_data = zf.read(info)
+                proj_results = extract_from_knxproj(proj_data)
+                results.extend(proj_results)
+            except Exception:
+                pass
+        elif basename.lower().endswith((".vd5", ".vd4", ".vd3", ".vd2", ".vd1")):
+            try:
+                vd_data = zf.read(info)
+                vd_results = extract_from_vd5(vd_data)
+                results.extend(vd_results)
             except Exception:
                 pass
 

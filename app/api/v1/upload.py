@@ -208,10 +208,20 @@ async def upload_knxprod(
     if extracted_knxprods:
         return _process_batch_knxprods(extracted_knxprods, db)
 
-    if resolved_filename.lower().endswith(".zip"):
+    if resolved_filename.lower().endswith((".zip", ".knxproj")):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
+            detail="Das Archiv enthält keine gültigen .knxprod-Dateien oder KNX-Gerätedefinitionen"
+        )
+
+    if resolved_filename.lower().endswith((".vd5", ".vd4", ".vd3", ".vd2", ".vd1")):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Die Datei ist eine historische ETS-Datei (EX-IM Format). "
+                "Tipp: Da sie in ETS importiert wurde, exportiere das Projekt aus der ETS als .knxproj "
+                "oder lade die .knxproj-Datei hoch, um alle Geräte direkt als KoNfiX-YAML zu importieren!"
+            )
         )
 
     return _process_single_knxprod(file_bytes, resolved_filename, db, source_url=resolved_source_url)
@@ -221,7 +231,7 @@ async def upload_knxprod(
     "/upload/form",
     response_model=Union[UploadResponse, BatchUploadResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Upload .knxprod or .zip via standard Form Multipart",
+    summary="Upload .knxprod, .knxproj, .vd5 or .zip via standard Form Multipart",
     include_in_schema=False
 )
 async def upload_knxprod_form(
@@ -245,10 +255,20 @@ async def upload_knxprod_form(
     if extracted_knxprods:
         return _process_batch_knxprods(extracted_knxprods, db)
 
-    if fname.lower().endswith(".zip"):
+    if fname.lower().endswith((".zip", ".knxproj")):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Das ZIP-Archiv enthält keine gültigen .knxprod-Dateien"
+            detail="Das Archiv enthält keine gültigen .knxprod-Dateien oder KNX-Gerätedefinitionen"
+        )
+
+    if fname.lower().endswith((".vd5", ".vd4", ".vd3", ".vd2", ".vd1")):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Die Datei ist eine historische ETS-Datei (EX-IM Format). "
+                "Tipp: Da sie in ETS importiert wurde, exportiere das Projekt aus der ETS als .knxproj "
+                "oder lade die .knxproj-Datei hoch, um alle Geräte direkt als KoNfiX-YAML zu importieren!"
+            )
         )
 
     return _process_single_knxprod(content, fname, db, source_url=resolved_source_url)
@@ -373,11 +393,18 @@ async def upload_knxprod_batch(
 
         if extracted:
             items_to_process.extend(extracted)
-        elif fname.lower().endswith(".zip"):
+        elif fname.lower().endswith((".zip", ".knxproj")):
             failed_items.append(BatchItemResult(
                 filename=fname,
                 status="error",
-                message="ZIP-Archiv enthält keine .knxprod-Dateien",
+                message="Archiv enthält keine gültigen KNX-Gerätedefinitionen (.knxprod oder M-XXXX XML)",
+                devices_imported=[]
+            ))
+        elif fname.lower().endswith((".vd5", ".vd4", ".vd3", ".vd2", ".vd1")):
+            failed_items.append(BatchItemResult(
+                filename=fname,
+                status="error",
+                message="Historische ETS-Datei (EX-IM). Bitte als .knxproj aus ETS exportieren und hochladen.",
                 devices_imported=[]
             ))
         else:

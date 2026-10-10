@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     # Legal & Compliance
     LEGAL_CONTACT_EMAIL: str = "legal@konfix.sduni.de"
     PREFER_SOURCE_REDIRECT: bool = False
+    # Optional comma-separated passwords for legacy archive decryption (.env)
+    KNX_LEGACY_PASSWORDS: str = ""
+
+    @property
+    def knx_legacy_passwords_bytes(self) -> list[bytes]:
+        if not self.KNX_LEGACY_PASSWORDS:
+            return []
+        return [p.strip().encode("utf-8") for p in self.KNX_LEGACY_PASSWORDS.split(",") if p.strip()]
 
     @property
     def cors_credentials_safe(self) -> bool:

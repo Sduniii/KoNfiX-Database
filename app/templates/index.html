@@ -113,7 +113,7 @@
         <!-- 1. Datei-Upload Tab -->
         <div id="uploadFileTab">
           <p class="modal-desc">
-            Lade native KoNfiX-Gerätedefinitionen (<code>.yaml</code>) oder legacy <code>.knxprod</code> / <code>.zip</code>-Dateien hoch. Legacy-Dateien werden automatisch vollständig in das offene KoNfiX-YAML-Format konvertiert.
+            Lade native KoNfiX-Gerätedefinitionen (<code>.yaml</code>), ETS-Projekte (<code>.knxproj</code>), <code>.vd5</code> oder klassische <code>.knxprod</code> / <code>.zip</code>-Dateien hoch. KNX-Dateien werden automatisch vollständig in das offene KoNfiX-YAML-Format konvertiert.
           </p>
 
           <div style="margin-bottom: 1rem;">
@@ -130,9 +130,9 @@
 
           <div class="drop-zone" id="dropZone">
             <div class="drop-icon">📦</div>
-            <h4>.yaml, .knxprod oder .zip hier ablegen</h4>
+            <h4>.yaml, .knxprod, .knxproj oder .vd5 hier ablegen</h4>
             <p>oder klicken zum Auswählen (auch mehrere Dateien)</p>
-            <input type="file" id="fileInput" accept=".yaml,.yml,.knxprod,.zip,application/octet-stream,application/zip,text/yaml" multiple hidden>
+            <input type="file" id="fileInput" accept=".yaml,.yml,.knxprod,.knxproj,.vd5,.vd4,.vd3,.vd2,.vd1,.zip,application/octet-stream,application/zip,text/yaml" multiple hidden>
           </div>
         </div>
 
