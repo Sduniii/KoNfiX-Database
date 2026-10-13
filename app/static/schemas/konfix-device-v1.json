@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://konfix.sduni.de/schemas/konfix-device-v1.json",
+  "$id": "https://db.konfix.sduni.de/schemas/konfix-device-v1.json",
   "title": "KoNfiX Device Definition Schema v1",
   "description": "Standardisiertes, herstellerunabhängiges Schema für KNX/KoNfiX-Gerätedefinitionen im YAML- und JSON-Format.",
   "type": "object",

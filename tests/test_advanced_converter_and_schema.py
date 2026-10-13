@@ -29,7 +29,7 @@ def test_schema_api_endpoints(client):
     assert res1.status_code == 200
     assert "application/schema+json" in res1.headers["content-type"]
     schema1 = res1.json()
-    assert schema1["$id"] == "https://konfix.sduni.de/schemas/konfix-device-v1.json"
+    assert schema1["$id"] == "https://db.konfix.sduni.de/schemas/konfix-device-v1.json"
     assert "properties" in schema1
     assert "manufacturer" in schema1["properties"]
 
@@ -136,7 +136,7 @@ def test_translation_and_dynamic_extraction():
     assert dev.yaml_content is not None
 
     yaml_data = yaml.safe_load(dev.yaml_content)
-    assert yaml_data["$schema"] == "https://konfix.sduni.de/schemas/konfix-device-v1.json"
+    assert yaml_data["$schema"] == "https://db.konfix.sduni.de/schemas/konfix-device-v1.json"
     assert yaml_data["manufacturer"]["code"] == "mdt"
 
     # Verify Parameters
@@ -340,7 +340,7 @@ def test_multi_level_conditions_and_multi_value_when_test():
 def test_backward_compatibility_depends_on():
     """Verify that legacy YAML containing depends_on is cleanly parsed and migrated to conditions."""
     legacy_yaml = """
-$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 manufacturer:
   code: mdt
   name: MDT

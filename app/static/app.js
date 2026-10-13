@@ -1487,7 +1487,7 @@ async function openYamlViewer(orderNumber, deviceName) {
 // ==========================================
 
 const EDITOR_TEMPLATES = {
-  switch: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  switch: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: openknx
@@ -1580,7 +1580,7 @@ parameters:
         when_values:
           - '3'
 `,
-  dimmer: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  dimmer: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: mdt
@@ -1645,7 +1645,7 @@ parameters:
     default: 2.0
     page: Kanal A > Dimmkurve
 `,
-  shutter: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  shutter: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: mdt
@@ -1710,7 +1710,7 @@ parameters:
     page: Kanal A > Fahrzeiten
     section: Grundfahrzeit
 `,
-  hvac: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  hvac: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: openknx
@@ -1768,7 +1768,7 @@ parameters:
     default: 21.0
     page: Regler > Sollwerte
 `,
-  binary_input: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  binary_input: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: abb
@@ -1813,7 +1813,7 @@ parameters:
       - { value: 'dimmer', text: Dimmen }
     page: Kanal A > Allgemein
 `,
-  blank: `$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+  blank: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 manufacturer:
   code: custom
@@ -1853,7 +1853,7 @@ let editorState = {
 function ensureDocInit() {
   if (!editorState.doc || typeof editorState.doc !== "object") {
     editorState.doc = {
-      $schema: "https://konfix.sduni.de/schemas/konfix-device-v1.json",
+      $schema: "https://db.konfix.sduni.de/schemas/konfix-device-v1.json",
       konfix_version: "1.0",
       manufacturer: { code: "custom", name: "Mein Hersteller" },
       device: { order_number: "DEV-001", name: "Neues Gerät", hardware: { name: "DEV-001", version: "1.0", bus_current_ma: 10.0 } },

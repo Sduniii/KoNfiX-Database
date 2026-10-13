@@ -556,7 +556,7 @@ def build_konfix_yaml(
     sanitized_app_id = sanitize_id(application_id or f"{mfg_code_clean}_{order_number}", mfg_code_clean)
 
     doc: Dict[str, Any] = {
-        "$schema": "https://konfix.sduni.de/schemas/konfix-device-v1.json",
+        "$schema": "https://db.konfix.sduni.de/schemas/konfix-device-v1.json",
         "konfix_version": "1.0",
         "manufacturer": {
             "code": mfg_code_clean,

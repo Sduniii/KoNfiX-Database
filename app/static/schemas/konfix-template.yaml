@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=https://konfix.sduni.de/schemas/konfix-device-v1.json
-$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+# yaml-language-server: $schema=https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
 konfix_version: '1.0'
 
 # Hersteller-Informationen

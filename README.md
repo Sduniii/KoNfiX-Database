@@ -34,7 +34,7 @@ Hersteller können eine `.knxprod`-Datei per 1-Zeiler hochladen:
 
 ```bash
 # Upload mit curl als application/octet-stream
-curl -X POST "https://deine-app.onrender.com/api/v1/upload" \
+curl -X POST "https://db.konfix.sduni.de/api/v1/upload" \
      -H "Content-Type: application/octet-stream" \
      -H "X-File-Name: MDT_AKS_081604.knxprod" \
      --data-binary "@MDT_AKS_081604.knxprod"
@@ -77,7 +77,7 @@ curl -X POST "https://deine-app.onrender.com/api/v1/upload" \
 Sendet JSON-Kriterien und erhält den Binär-Stream:
 
 ```bash
-curl -X POST "https://deine-app.onrender.com/api/v1/download" \
+curl -X POST "https://db.konfix.sduni.de/api/v1/download" \
      -H "Content-Type: application/json" \
      -d '{"order_number": "AKS-0816.04"}' \
      --output "MDT_AKS_081604.knxprod"
@@ -94,7 +94,7 @@ curl -X POST "https://deine-app.onrender.com/api/v1/download" \
 ### 3. Download per GET (`GET /api/v1/download/{order_number}`)
 
 ```bash
-curl -L -O "https://deine-app.onrender.com/api/v1/download/AKS-0816.04"
+curl -L -O "https://db.konfix.sduni.de/api/v1/download/AKS-0816.04"
 ```
 
 ---
@@ -103,10 +103,10 @@ curl -L -O "https://deine-app.onrender.com/api/v1/download/AKS-0816.04"
 
 ```bash
 # Volltextsuche
-curl "https://deine-app.onrender.com/api/v1/devices?q=Schaltaktor"
+curl "https://db.konfix.sduni.de/api/v1/devices?q=Schaltaktor"
 
 # Nach Hersteller filtern
-curl "https://deine-app.onrender.com/api/v1/devices?manufacturer_id=M-00C5"
+curl "https://db.konfix.sduni.de/api/v1/devices?manufacturer_id=M-00C5"
 ```
 
 ---
