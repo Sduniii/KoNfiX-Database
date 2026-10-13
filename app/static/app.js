@@ -271,13 +271,18 @@ async function initAdminAuth() {
 
   submitAdminAuthBtn.addEventListener("click", async () => {
     const key = adminKeyInput.value.trim();
+    if (!key) {
+      adminAuthError.textContent = "Bitte gib ein Admin-Passwort ein.";
+      adminAuthError.style.display = "block";
+      return;
+    }
     setAdminKey(key);
     const verified = await checkAdminStatus();
     if (verified) {
       closeAuth();
       loadDevices();
     } else {
-      adminAuthError.textContent = "Ungültiger Admin API-Key. Bitte prüfe deine Eingabe.";
+      adminAuthError.textContent = "Ungültiger Admin API-Key oder auf dem Server ist kein Admin-Passwort konfiguriert.";
       adminAuthError.style.display = "block";
     }
   });
@@ -290,19 +295,30 @@ async function initAdminAuth() {
 }
 
 async function checkAdminStatus() {
+  const currentKey = getAdminKey();
+  // Standard: Wenn kein Schlüssel im Browser hinterlegt ist, ist der Admin-Modus strikt AUS!
+  if (!currentKey) {
+    isAdmin = false;
+    renderAdminUI();
+    return false;
+  }
+
   try {
     const res = await fetch("/api/v1/auth/verify", {
       headers: getAuthHeaders()
     });
     if (res.ok) {
-      isAdmin = true;
-      renderAdminUI();
-      return true;
-    } else {
-      isAdmin = false;
-      renderAdminUI();
-      return false;
+      const data = await res.json();
+      if (data.is_admin === true) {
+        isAdmin = true;
+        renderAdminUI();
+        return true;
+      }
     }
+    setAdminKey("");
+    isAdmin = false;
+    renderAdminUI();
+    return false;
   } catch (e) {
     isAdmin = false;
     renderAdminUI();

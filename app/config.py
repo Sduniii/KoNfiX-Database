@@ -20,7 +20,12 @@ class Settings(BaseSettings):
       niemals im Git-Repository landen und bei einem 'git pull' nicht überschrieben werden.
     """
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.local"),
+        env_file=(
+            BASE_DIR / ".env",
+            BASE_DIR / ".env.local",
+            ".env",
+            ".env.local",
+        ),
         env_file_encoding="utf-8",
         extra="ignore"
     )

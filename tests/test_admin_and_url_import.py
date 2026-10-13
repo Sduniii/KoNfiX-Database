@@ -6,10 +6,11 @@ from app.models import Device
 
 
 def test_auth_verify_open_mode(client):
-    """When API_KEY is empty, anyone can verify."""
+    """When API_KEY is empty, admin mode is OFF / unconfigured."""
     res = client.get("/api/v1/auth/verify")
     assert res.status_code == 200
-    assert res.json()["status"] == "authenticated"
+    assert res.json()["status"] == "unconfigured"
+    assert res.json()["is_admin"] is False
     assert res.json()["auth_required"] is False
 
 
@@ -32,7 +33,9 @@ def test_auth_verify_with_key(client, monkeypatch):
     assert res_ok.json()["auth_required"] is True
 
 
-def test_update_device_metadata_and_source_url(client, sample_knxprod_bytes):
+def test_update_device_metadata_and_source_url(client, sample_knxprod_bytes, monkeypatch):
+    monkeypatch.setattr(settings, "ADMIN_KEY", "meta-admin-key")
+
     # Upload first
     client.post(
         "/api/v1/upload",
@@ -48,7 +51,16 @@ def test_update_device_metadata_and_source_url(client, sample_knxprod_bytes):
         "source_url": "https://www.mdt.de/download/MDT_AKS_new.knxprod"
     }
 
-    res = client.patch("/api/v1/devices/AKS-0816.04", json=update_payload)
+    # Without key or edit_code -> 401
+    res_fail = client.patch("/api/v1/devices/AKS-0816.04", json=update_payload)
+    assert res_fail.status_code == 401
+
+    # With admin key -> 200
+    res = client.patch(
+        "/api/v1/devices/AKS-0816.04",
+        json=update_payload,
+        headers={"X-API-Key": "meta-admin-key"}
+    )
     assert res.status_code == 200
     data = res.json()
     assert data["name"] == "Updated Device Name"
@@ -58,7 +70,9 @@ def test_update_device_metadata_and_source_url(client, sample_knxprod_bytes):
     assert data["knxprod_file"]["source_url"] == "https://www.mdt.de/download/MDT_AKS_new.knxprod"
 
 
-def test_delete_device(client, sample_knxprod_bytes):
+def test_delete_device(client, sample_knxprod_bytes, monkeypatch):
+    monkeypatch.setattr(settings, "ADMIN_KEY", "admin-del-key")
+
     # Upload first
     client.post(
         "/api/v1/upload",
@@ -70,8 +84,15 @@ def test_delete_device(client, sample_knxprod_bytes):
     res_check = client.get("/api/v1/devices/AKS-0816.04")
     assert res_check.status_code == 200
 
-    # Delete device
-    res_del = client.delete("/api/v1/devices/AKS-0816.04?delete_file=true")
+    # Delete device without key -> 401
+    res_fail = client.delete("/api/v1/devices/AKS-0816.04?delete_file=true")
+    assert res_fail.status_code == 401
+
+    # Delete device with valid key -> 200
+    res_del = client.delete(
+        "/api/v1/devices/AKS-0816.04?delete_file=true",
+        headers={"X-API-Key": "admin-del-key"}
+    )
     assert res_del.status_code == 200
     assert res_del.json()["status"] == "success"
 
@@ -149,7 +170,9 @@ async def test_upload_from_url_metadata_only_mode(client, sample_knxprod_bytes):
     assert "text/yaml" in res_yaml.headers["content-type"]
 
 
-def test_batch_delete_devices(client, sample_knxprod_bytes):
+def test_batch_delete_devices(client, sample_knxprod_bytes, monkeypatch):
+    monkeypatch.setattr(settings, "ADMIN_KEY", "batch-del-key")
+
     # Upload first
     client.post(
         "/api/v1/upload",
@@ -161,13 +184,24 @@ def test_batch_delete_devices(client, sample_knxprod_bytes):
     res_dev = client.get("/api/v1/devices/AKS-0816.04")
     assert res_dev.status_code == 200
 
-    # Batch delete with nonexistent and existent items
-    res_del = client.post(
+    # Batch delete without key -> 401
+    res_fail = client.post(
         "/api/v1/devices/batch-delete",
         json={
             "order_numbers": ["AKS-0816.04", "NON-EXISTENT-999"],
             "delete_files": True
         }
+    )
+    assert res_fail.status_code == 401
+
+    # Batch delete with nonexistent and existent items using valid admin key
+    res_del = client.post(
+        "/api/v1/devices/batch-delete",
+        json={
+            "order_numbers": ["AKS-0816.04", "NON-EXISTENT-999"],
+            "delete_files": True
+        },
+        headers={"X-API-Key": "batch-del-key"}
     )
     assert res_del.status_code == 200
     data = res_del.json()

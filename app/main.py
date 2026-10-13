@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import anyio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import api_v1_router
@@ -166,6 +166,19 @@ def serve_template_direct():
     from app.api.v1.schema import get_konfix_template_yaml
     return get_konfix_template_yaml()
 
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.svg", include_in_schema=False)
+def serve_favicon():
+    favicon_path = BASE_DIR / "app" / "static" / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(
+            str(favicon_path),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
+    return Response(status_code=404)
 
 
 # Root Web Frontend

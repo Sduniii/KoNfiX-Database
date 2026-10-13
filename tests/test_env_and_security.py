@@ -118,3 +118,29 @@ application:
         headers={"Content-Type": "text/yaml", "X-API-Key": secret}
     )
     assert res_ok.status_code == 201
+
+
+def test_admin_mode_default_off_when_key_empty(client, monkeypatch):
+    """
+    Verify that when ADMIN_KEY is empty / not configured:
+    - Admin mode is strictly OFF by default (is_admin=False).
+    - GET /api/v1/auth/verify returns status='unconfigured' and is_admin=False.
+    - Calling DELETE on any device returns 401 Unauthorized.
+    """
+    monkeypatch.setattr(settings, "ADMIN_KEY", "")
+    monkeypatch.setattr(settings, "API_KEY", "")
+
+    from app.api.v1.auth import is_admin_authenticated
+    assert is_admin_authenticated() is False
+    assert is_admin_authenticated(x_api_key="any-random-key") is False
+
+    res = client.get("/api/v1/auth/verify")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_admin"] is False
+    assert data["status"] == "unconfigured"
+
+    # Attempt delete -> 401
+    res_del = client.delete("/api/v1/devices/NONEXISTENT-99")
+    assert res_del.status_code == 401
+

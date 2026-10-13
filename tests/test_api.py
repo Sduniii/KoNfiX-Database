@@ -42,3 +42,25 @@ def test_api_devices_and_manufacturers(client, sample_knxprod_bytes):
     res_html = client.get("/")
     assert res_html.status_code == 200
     assert "KoNfiX-Database" in res_html.text
+    assert "/static/favicon.svg" in res_html.text
+
+
+def test_favicon_endpoints(client):
+    """Verify that /favicon.ico, /favicon.svg, and /static/favicon.svg serve the SVG icon."""
+    # 1. Root /favicon.ico fallback
+    res_ico = client.get("/favicon.ico")
+    assert res_ico.status_code == 200
+    assert "image/svg+xml" in res_ico.headers["content-type"]
+    assert "<svg" in res_ico.text
+
+    # 2. Root /favicon.svg fallback
+    res_svg = client.get("/favicon.svg")
+    assert res_svg.status_code == 200
+    assert "image/svg+xml" in res_svg.headers["content-type"]
+    assert "<svg" in res_svg.text
+
+    # 3. Static mount /static/favicon.svg
+    res_static = client.get("/static/favicon.svg")
+    assert res_static.status_code == 200
+    assert "<svg" in res_static.text
+
