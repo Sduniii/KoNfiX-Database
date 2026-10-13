@@ -145,14 +145,16 @@ function updateDraftSelectDropdown() {
   if (sortedKeys.length === 0) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "Kein Entwurf vorhanden";
+    opt.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.templates.blank") : "Kein Entwurf vorhanden";
     select.appendChild(opt);
   } else {
     sortedKeys.forEach(code => {
       const d = drafts[code];
       const opt = document.createElement("option");
       opt.value = code;
-      const displayTitle = d.title || (d.orderNumber ? `Gerät ${d.orderNumber}` : "Entwurf");
+      const displayTitle = d.title || (d.orderNumber
+        ? (typeof I18n !== "undefined" ? I18n.t("editorModal.deviceDraftTitle", { order: d.orderNumber }) : `Gerät ${d.orderNumber}`)
+        : (typeof I18n !== "undefined" ? I18n.t("editorModal.savedDraftDefaultTitle") : "Entwurf"));
       opt.textContent = `${d.code} (${displayTitle})`;
       if (code === activeCode) {
         opt.selected = true;
@@ -179,6 +181,19 @@ document.addEventListener("DOMContentLoaded", () => {
   loadStats();
   loadManufacturers();
   loadDevices();
+
+  // Listen for language change events
+  window.addEventListener("konfix:langchange", () => {
+    loadManufacturers();
+    loadDevices();
+    renderAdminUI();
+    updateDraftSelectDropdown();
+    const editorModal = document.getElementById("editorModal");
+    if (editorModal && editorModal.classList.contains("open")) {
+      if (typeof renderKoCards === "function") renderKoCards();
+      if (typeof renderParamCards === "function") renderParamCards();
+    }
+  });
 
   // Search input with debounce
   const searchInput = document.getElementById("searchInput");
@@ -251,7 +266,8 @@ async function initAdminAuth() {
 
   adminToggleBtn.addEventListener("click", async () => {
     if (isAdmin) {
-      if (confirm("Admin-Modus beenden und abmelden?")) {
+      const confirmMsg = typeof I18n !== "undefined" ? I18n.t("adminModal.logoutConfirm") : "Admin-Modus beenden und abmelden?";
+      if (confirm(confirmMsg)) {
         setAdminKey("");
         isAdmin = false;
         renderAdminUI();
@@ -272,7 +288,7 @@ async function initAdminAuth() {
   submitAdminAuthBtn.addEventListener("click", async () => {
     const key = adminKeyInput.value.trim();
     if (!key) {
-      adminAuthError.textContent = "Bitte gib ein Admin-Passwort ein.";
+      adminAuthError.textContent = typeof I18n !== "undefined" ? I18n.t("adminModal.emptyKeyError") : "Bitte gib ein Admin-Passwort ein.";
       adminAuthError.style.display = "block";
       return;
     }
@@ -282,7 +298,7 @@ async function initAdminAuth() {
       closeAuth();
       loadDevices();
     } else {
-      adminAuthError.textContent = "Ungültiger Admin API-Key oder auf dem Server ist kein Admin-Passwort konfiguriert.";
+      adminAuthError.textContent = typeof I18n !== "undefined" ? I18n.t("adminModal.invalidKeyError") : "Ungültiger Admin API-Key oder auf dem Server ist kein Admin-Passwort konfiguriert.";
       adminAuthError.style.display = "block";
     }
   });
@@ -332,11 +348,11 @@ function renderAdminUI() {
   if (isAdmin) {
     adminToggleBtn.classList.add("btn-primary");
     adminToggleBtn.classList.remove("btn-secondary");
-    adminToggleText.innerHTML = "🔓 Admin aktiv (Abmelden)";
+    adminToggleText.innerHTML = typeof I18n !== "undefined" ? I18n.t("nav.adminActive") : "🔓 Admin aktiv (Abmelden)";
   } else {
     adminToggleBtn.classList.remove("btn-primary");
     adminToggleBtn.classList.add("btn-secondary");
-    adminToggleText.innerHTML = "🔐 Admin";
+    adminToggleText.innerHTML = typeof I18n !== "undefined" ? I18n.t("nav.admin") : "🔐 Admin";
     selectedDevices.clear();
   }
   updateBulkToolbar();
@@ -362,7 +378,8 @@ async function loadManufacturers() {
     if (!res.ok) return;
     allManufacturers = await res.json();
     const select = document.getElementById("manufacturerFilter");
-    select.innerHTML = '<option value="">Alle Hersteller</option>';
+    const allMfgText = typeof I18n !== "undefined" ? I18n.t("hero.allManufacturers") : "Alle Hersteller";
+    select.innerHTML = `<option value="">${escapeHtml(allMfgText)}</option>`;
     allManufacturers.forEach(mfg => {
       const opt = document.createElement("option");
       opt.value = mfg.knx_id;
@@ -379,10 +396,11 @@ async function loadDevices() {
   const q = document.getElementById("searchInput").value.trim();
   const mfg = document.getElementById("manufacturerFilter").value;
 
+  const loadingText = typeof I18n !== "undefined" ? I18n.t("devices.loading") : "Lade Gerätedaten...";
   grid.innerHTML = `
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>Lade Gerätedaten...</p>
+      <p>${escapeHtml(loadingText)}</p>
     </div>
   `;
 
@@ -394,14 +412,19 @@ async function loadDevices() {
     const res = await fetch(`/api/v1/devices?${params.toString()}`);
     const data = await safeParseResponse(res);
 
-    document.getElementById("resultsCount").textContent = `${data.total} Einträge`;
+    const countText = typeof I18n !== "undefined"
+      ? I18n.t("results.count", { count: data.total })
+      : `${data.total} Einträge`;
+    document.getElementById("resultsCount").textContent = countText;
 
     if (data.devices.length === 0) {
+      const emptyTitle = typeof I18n !== "undefined" ? I18n.t("devices.emptyTitle") : "🔍 Keine passenden KNX-Geräte gefunden.";
+      const emptyHint = typeof I18n !== "undefined" ? I18n.t("devices.emptyHint") : "Lade eine .knxprod-Datei über den Upload-Button hoch oder passe den Suchbegriff an.";
       grid.innerHTML = `
         <div class="loading-state">
-          <p>🔍 Keine passenden KNX-Geräte gefunden.</p>
+          <p>${escapeHtml(emptyTitle)}</p>
           <small style="color: #64748b; margin-top: 0.5rem; display: block;">
-            Lade eine <code>.knxprod</code>-Datei über den Upload-Button hoch oder passe den Suchbegriff an.
+            ${escapeHtml(emptyHint)}
           </small>
         </div>
       `;
@@ -413,7 +436,10 @@ async function loadDevices() {
       grid.appendChild(createDeviceCard(device));
     });
   } catch (err) {
-    grid.innerHTML = `<div class="loading-state"><p>❌ Fehler beim Laden der Daten: ${escapeHtml(err.message)}</p></div>`;
+    const errorMsg = typeof I18n !== "undefined"
+      ? I18n.t("devices.error", { message: escapeHtml(err.message) })
+      : `❌ Fehler beim Laden der Daten: ${escapeHtml(err.message)}`;
+    grid.innerHTML = `<div class="loading-state"><p>${errorMsg}</p></div>`;
   }
 }
 
@@ -436,32 +462,44 @@ function createDeviceCard(device) {
   const sourceUrl = device.source_url || (device.knxprod_file && device.knxprod_file.source_url);
   const hasSource = !!sourceUrl;
   
+  const viewYamlText = typeof I18n !== "undefined" ? I18n.t("card.viewYaml") : "📄 YAML ansehen";
+  const downloadYamlTitle = typeof I18n !== "undefined" ? I18n.t("card.downloadYamlTitle") : "KoNfiX-YAML Gerätedefinition herunterladen";
   const actionButtons = `
     <button type="button" class="btn btn-secondary btn-sm btn-view-yaml" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}">
-      📄 YAML ansehen
+      ${escapeHtml(viewYamlText)}
     </button>
-    <a href="${yamlUrl}" class="btn btn-primary btn-sm" download="${escapeHtml(device.order_number)}.yaml" title="KoNfiX-YAML Gerätedefinition herunterladen">
+    <a href="${yamlUrl}" class="btn btn-primary btn-sm" download="${escapeHtml(device.order_number)}.yaml" title="${escapeHtml(downloadYamlTitle)}">
       ⬇️ .yaml
     </a>
   `;
 
+  const sourceBadgeTitle = typeof I18n !== "undefined" ? I18n.t("card.sourceBadgeTitle") : "Offizieller Hersteller-Download-Link";
+  const sourceBadgeText = typeof I18n !== "undefined" ? I18n.t("card.sourceBadge") : "🌐 Hersteller-Quelle";
   const sourceBadge = hasSource ? `
-    <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="Offizieller Hersteller-Download-Link">
-      🌐 Hersteller-Quelle
+    <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="badge-source" title="${escapeHtml(sourceBadgeTitle)}">
+      ${escapeHtml(sourceBadgeText)}
     </a>
   ` : '';
 
-  const takedownSubject = encodeURIComponent(`Takedown-Anfrage: KNX-Gerät ${device.order_number}`);
-  const takedownBody = encodeURIComponent(`Sehr geehrtes KoNfiX-Team,\n\nals Rechteinhaber bitte ich um Löschung / Sperrung des folgenden Eintrags:\nGerät: ${device.name}\nBestellnummer: ${device.order_number}\n\nBegründung:\n`);
+  const takedownSubjectText = typeof I18n !== "undefined"
+    ? I18n.t("card.takedownSubject", { order_number: device.order_number })
+    : `Takedown-Anfrage: KNX-Gerät ${device.order_number}`;
+  const takedownBodyText = typeof I18n !== "undefined"
+    ? I18n.t("card.takedownBody", { name: device.name, order_number: device.order_number })
+    : `Sehr geehrtes KoNfiX-Team,\n\nals Rechteinhaber bitte ich um Löschung / Sperrung des folgenden Eintrags:\nGerät: ${device.name}\nBestellnummer: ${device.order_number}\n\nBegründung:\n`;
+  const takedownLinkText = typeof I18n !== "undefined" ? I18n.t("card.takedownLink") : "🏳️ Rechteinhaber? Takedown anfordern";
+  const takedownSubject = encodeURIComponent(takedownSubjectText);
+  const takedownBody = encodeURIComponent(takedownBodyText);
   const takedownLink = `mailto:legal@konfix.sduni.de?subject=${takedownSubject}&body=${takedownBody}`;
 
   const mfgName = device.manufacturer ? device.manufacturer.name : '';
   const mfgCode = device.manufacturer && device.manufacturer.code ? ` (@${device.manufacturer.code})` : '';
   const mfgBadgeText = escapeHtml(mfgName + mfgCode);
 
+  const selectBulkTitle = typeof I18n !== "undefined" ? I18n.t("card.selectBulk") : "Auswählen für Sammelaktion";
   const leftHeader = isAdmin ? `
     <div style="display: flex; align-items: center; gap: 0.5rem;">
-      <input type="checkbox" class="device-select-checkbox" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}" ${isSelected ? 'checked' : ''} title="Auswählen für Sammelaktion">
+      <input type="checkbox" class="device-select-checkbox" data-order="${escapeHtml(device.order_number)}" data-name="${escapeHtml(device.name)}" ${isSelected ? 'checked' : ''} title="${escapeHtml(selectBulkTitle)}">
       <span class="badge badge-mfg">${mfgBadgeText}</span>
     </div>
   ` : `
@@ -473,22 +511,28 @@ function createDeviceCard(device) {
   const hasMyCode = !!getMyDeviceCode(device.order_number);
   const isEditable = isAdmin || hasMyCode;
 
+  const myDeviceTitle = typeof I18n !== "undefined" ? I18n.t("card.myDeviceTitle") : "Du besitzt den Bearbeitungscode für dieses Gerät";
+  const myDeviceText = typeof I18n !== "undefined" ? I18n.t("card.myDevice") : "🔑 Mein Gerät";
   const myPill = hasMyCode ? `
-    <span class="my-device-badge" title="Du besitzt den Bearbeitungscode für dieses Gerät">🔑 Mein Gerät</span>
+    <span class="my-device-badge" title="${escapeHtml(myDeviceTitle)}">${escapeHtml(myDeviceText)}</span>
   ` : '';
+
+  const editTooltip = typeof I18n !== "undefined" ? I18n.t("card.editTooltip") : "Gerät bearbeiten";
+  const editCreatorTooltip = typeof I18n !== "undefined" ? I18n.t("card.editCreatorTooltip") : "Gerät bearbeiten (Ersteller)";
+  const deleteTooltip = typeof I18n !== "undefined" ? I18n.t("card.deleteTooltip") : "Gerät löschen";
 
   const rightHeader = isAdmin ? `
     <div style="display: flex; align-items: center; gap: 0.35rem;">
       ${myPill}
       <span class="order-badge">${escapeHtml(device.order_number)}</span>
       <div class="card-admin-group">
-        <button type="button" class="admin-icon-btn btn-edit" title="Gerät bearbeiten" aria-label="Bearbeiten">
+        <button type="button" class="admin-icon-btn btn-edit" title="${escapeHtml(editTooltip)}" aria-label="Bearbeiten">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
         </button>
-        <button type="button" class="admin-icon-btn btn-delete" title="Gerät löschen" aria-label="Löschen">
+        <button type="button" class="admin-icon-btn btn-delete" title="${escapeHtml(deleteTooltip)}" aria-label="Löschen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -503,7 +547,7 @@ function createDeviceCard(device) {
       ${myPill}
       <span class="order-badge">${escapeHtml(device.order_number)}</span>
       <div class="card-admin-group">
-        <button type="button" class="admin-icon-btn btn-edit" title="Gerät bearbeiten (Ersteller)" aria-label="Bearbeiten">
+        <button type="button" class="admin-icon-btn btn-edit" title="${escapeHtml(editCreatorTooltip)}" aria-label="Bearbeiten">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -514,6 +558,8 @@ function createDeviceCard(device) {
   ` : `
     <span class="order-badge">${escapeHtml(device.order_number)}</span>
   `);
+
+  const noAppText = typeof I18n !== "undefined" ? I18n.t("card.noApp") : "Keine Applikation angegeben";
 
   card.innerHTML = `
     <div class="card-top">
@@ -530,7 +576,7 @@ function createDeviceCard(device) {
     </div>
 
     <div class="app-list">
-      ${appPills || '<small style="color: #64748b;">Keine Applikation angegeben</small>'}
+      ${appPills || `<small style="color: #64748b;">${escapeHtml(noAppText)}</small>`}
     </div>
 
     <div class="card-actions">
@@ -539,7 +585,7 @@ function createDeviceCard(device) {
 
     <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
       <a href="${takedownLink}" class="btn-text-link" style="color: #64748b; font-size: 0.72rem; text-decoration: underline;">
-        🏳️ Rechteinhaber? Takedown anfordern
+        ${escapeHtml(takedownLinkText)}
       </a>
     </div>
   `;
@@ -555,15 +601,15 @@ function createDeviceCard(device) {
   // REST Details Button
   const restBtn = document.createElement("button");
   restBtn.className = "btn btn-secondary btn-sm";
-  restBtn.textContent = "💻 REST Info";
+  restBtn.textContent = typeof I18n !== "undefined" ? I18n.t("card.restInfo") : "💻 REST Info";
   restBtn.addEventListener("click", () => showRestDetails(device));
   card.querySelector(".card-actions").appendChild(restBtn);
 
   // Open in Sandbox Editor Button
   const editSandboxBtn = document.createElement("button");
   editSandboxBtn.className = "btn btn-secondary btn-sm";
-  editSandboxBtn.textContent = "🛠️ Im Editor öffnen";
-  editSandboxBtn.title = "Im lokalen KoNfiX-YAML Editor bearbeiten";
+  editSandboxBtn.textContent = typeof I18n !== "undefined" ? I18n.t("card.openInEditor") : "🛠️ Im Editor öffnen";
+  editSandboxBtn.title = typeof I18n !== "undefined" ? I18n.t("card.openInEditorTitle") : "Im lokalen KoNfiX-YAML Editor bearbeiten";
   editSandboxBtn.addEventListener("click", () => {
     openDeviceInSandbox(device.order_number);
   });
@@ -618,24 +664,30 @@ function showRestDetails(device) {
 
   const modalSourceUrl = device.source_url || (device.knxprod_file && device.knxprod_file.source_url);
 
+  const restDesc = typeof I18n !== "undefined" ? I18n.t("restModal.desc") : "Diese KoNfiX-Gerätedefinition kann direkt per REST-API automatisiert in Skripte oder CI/CD-Pipelines eingebunden werden.";
+  const dlPostHeader = typeof I18n !== "undefined" ? I18n.t("restModal.downloadPost") : "1. Download per POST (YAML):";
+  const dlGetHeader = typeof I18n !== "undefined" ? I18n.t("restModal.downloadGet") : "2. Download per GET (YAML):";
+  const dlRedirectHeader = typeof I18n !== "undefined" ? I18n.t("restModal.downloadRedirect") : "3. Download mit Hersteller-Redirect (HTTP 302):";
+  const officialSourceLabel = typeof I18n !== "undefined" ? I18n.t("restModal.officialSource") : "Offizielle Hersteller-Quelle:";
+
   body.innerHTML = `
     <p style="margin-bottom: 1rem; color: #94a3b8;">
-      Diese KoNfiX-Gerätedefinition kann direkt per REST-API automatisiert in Skripte oder CI/CD-Pipelines eingebunden werden.
+      ${escapeHtml(restDesc)}
     </p>
 
-    <h4 style="font-size: 0.95rem; margin-bottom: 0.35rem; color: #f8fafc;">1. Download per POST (YAML):</h4>
+    <h4 style="font-size: 0.95rem; margin-bottom: 0.35rem; color: #f8fafc;">${escapeHtml(dlPostHeader)}</h4>
     <div class="code-block">${escapeHtml(postCurl)}</div>
 
-    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">2. Download per GET (YAML):</h4>
+    <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">${escapeHtml(dlGetHeader)}</h4>
     <div class="code-block">${escapeHtml(getCurl)}</div>
 
     ${modalSourceUrl ? `
-      <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">3. Download mit Hersteller-Redirect (HTTP 302):</h4>
+      <h4 style="font-size: 0.95rem; margin-top: 1.25rem; margin-bottom: 0.35rem; color: #f8fafc;">${escapeHtml(dlRedirectHeader)}</h4>
       <div class="code-block">${escapeHtml(`curl -L "${baseUrl}/api/v1/download/${device.order_number}?redirect=true"`)}</div>
 
       <div style="margin-top: 1.25rem; font-size: 0.8rem; color: #94a3b8;">
         <div>
-          <strong>Offizielle Hersteller-Quelle:</strong><br>
+          <strong>${escapeHtml(officialSourceLabel)}</strong><br>
           <a href="${escapeHtml(modalSourceUrl)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; word-break: break-all;">
             ${escapeHtml(modalSourceUrl)}
           </a>
@@ -683,7 +735,7 @@ function setupDropZone() {
   dropZone.addEventListener("click", () => {
     const consent = document.getElementById("uploadConsentCheckbox");
     if (consent && !consent.checked) {
-      alert("Bitte bestätigen Sie vor der Dateiauswahl das Berechtigungs-Häkchen.");
+      alert(typeof I18n !== "undefined" ? I18n.t("uploadModal.selectFileConsentAlert") : "Bitte bestätigen Sie vor der Dateiauswahl das Berechtigungs-Häkchen.");
       return;
     }
     fileInput.click();
@@ -717,11 +769,11 @@ function setupDropZone() {
     resultsList.style.display = "block";
     const itemSuccess = item.status === "success";
     const badgeClass = itemSuccess ? "success" : "error";
-    const badgeText = itemSuccess ? "OK" : "Fehler";
+    const badgeText = itemSuccess ? "OK" : (typeof I18n !== "undefined" && I18n.currentLang === "en" ? "Error" : "Fehler");
     const devCount = item.devices_imported ? item.devices_imported.length : 0;
     const detail = itemSuccess
-      ? `${devCount} Gerät(e) indexiert`
-      : escapeHtml(item.message || "Fehler beim Import");
+      ? (typeof I18n !== "undefined" ? I18n.t("uploadModal.devicesIndexed", { count: devCount }) : `${devCount} Gerät(e) indexiert`)
+      : escapeHtml(item.message || (typeof I18n !== "undefined" ? I18n.t("uploadModal.importError") : "Fehler beim Import"));
 
     const row = document.createElement("div");
     row.className = "upload-result-item";
@@ -757,13 +809,20 @@ function setupDropZone() {
         if (evt.lengthComputable) {
           const uploadPct = Math.round((evt.loaded / evt.total) * 50);
           onProgress(uploadPct);
-          onStatus(`Übertrage '${file.name}' (${Math.round((evt.loaded / evt.total) * 100)}%)...`);
+          const percent = Math.round((evt.loaded / evt.total) * 100);
+          const uploadMsg = typeof I18n !== "undefined"
+            ? I18n.t("uploadModal.uploadingFile", { filename: file.name, percent })
+            : `Übertrage '${file.name}' (${percent}%)...`;
+          onStatus(uploadMsg);
         }
       };
 
       xhr.upload.onload = () => {
         onProgress(50);
-        onStatus(`⚡ Konvertiere XML-Metadaten & erzeuge KoNfiX-YAML...`);
+        const convMsg = typeof I18n !== "undefined"
+          ? I18n.t("uploadModal.convertingText")
+          : `⚡ Konvertiere XML-Metadaten & erzeuge KoNfiX-YAML...`;
+        onStatus(convMsg);
         convTimer = setInterval(() => {
           if (convProgress < 95) {
             convProgress += Math.max(1, Math.round((95 - convProgress) * 0.1));
@@ -778,7 +837,10 @@ function setupDropZone() {
         try {
           resJson = JSON.parse(xhr.responseText);
         } catch (_) {
-          return reject(new Error(`Server-Fehler: Ungültige Antwort (HTTP ${xhr.status})`));
+          const srvErrMsg = typeof I18n !== "undefined"
+            ? I18n.t("uploadModal.serverError", { status: xhr.status })
+            : `Server-Fehler: Ungültige Antwort (HTTP ${xhr.status})`;
+          return reject(new Error(srvErrMsg));
         }
 
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -791,7 +853,10 @@ function setupDropZone() {
 
       xhr.onerror = () => {
         if (convTimer) clearInterval(convTimer);
-        reject(new Error(`Netzwerkfehler während des Uploads von '${file.name}'`));
+        const netErrMsg = typeof I18n !== "undefined"
+          ? I18n.t("uploadModal.networkError", { filename: file.name })
+          : `Netzwerkfehler während des Uploads von '${file.name}'`;
+        reject(new Error(netErrMsg));
       };
 
       xhr.send(formData);
@@ -803,7 +868,7 @@ function setupDropZone() {
 
     const consent = document.getElementById("uploadConsentCheckbox");
     if (consent && !consent.checked) {
-      alert("Bitte bestätigen Sie vor dem Upload die rechtliche Berechtigung bzw. die freie Verfügbarkeit der Datei.");
+      alert(typeof I18n !== "undefined" ? I18n.t("uploadModal.consentAlert") : "Bitte bestätigen Sie vor dem Upload die rechtliche Berechtigung bzw. die freie Verfügbarkeit der Datei.");
       if (fileInput) fileInput.value = "";
       return;
     }
@@ -883,7 +948,7 @@ function setupDropZone() {
             status: "success",
             edit_code: fileData.edit_code,
             devices_imported: fileData.devices_imported,
-            message: fileData.message || `${fileData.devices_imported.length} Geräte indexiert`
+            message: fileData.message || (typeof I18n !== "undefined" ? I18n.t("uploadModal.devicesIndexed", { count: fileData.devices_imported.length }) : `${fileData.devices_imported.length} Geräte indexiert`)
           };
           allResults.push(item);
           successFiles++;
@@ -919,9 +984,13 @@ function setupDropZone() {
     const statusColor = isAllSuccess ? "#10b981" : (isPartial ? "#f59e0b" : "#ef4444");
     const statusIcon = isAllSuccess ? "✓" : (isPartial ? "⚠️" : "❌");
 
+    const importFinishedText = typeof I18n !== "undefined"
+      ? I18n.t("uploadModal.importCompleted", { success: successFiles, failed: failedFiles })
+      : `Import abgeschlossen: ${successFiles} erfolgreich, ${failedFiles} Fehler`;
+
     statusText.innerHTML = `
       <span style="color: ${statusColor}; font-weight: 600;">
-        ${statusIcon} Import abgeschlossen: ${successFiles} erfolgreich, ${failedFiles} Fehler
+        ${statusIcon} ${escapeHtml(importFinishedText)}
       </span>
     `;
 
@@ -972,12 +1041,12 @@ function setupUrlImport() {
   startBtn.addEventListener("click", async () => {
     const url = urlInput.value.trim();
     if (!url) {
-      alert("Bitte gib eine gültige Hersteller-URL ein.");
+      alert(typeof I18n !== "undefined" ? I18n.t("uploadModal.urlMissingAlert") : "Bitte gib eine gültige Hersteller-URL ein.");
       urlInput.focus();
       return;
     }
     if (!consentCheckbox.checked) {
-      alert("Bitte bestätige das Häkchen für die freie Verfügbarkeit des Hersteller-Links.");
+      alert(typeof I18n !== "undefined" ? I18n.t("uploadModal.consentAlert") : "Bitte bestätige das Häkchen für die freie Verfügbarkeit des Hersteller-Links.");
       return;
     }
 
@@ -985,7 +1054,9 @@ function setupUrlImport() {
     document.getElementById("uploadUrlTab").style.display = "none";
     uploadProgress.style.display = "block";
     if (uploadSpinner) uploadSpinner.style.display = "block";
-    statusText.textContent = `Lade Datei von ${url} herunter und indexiere Metadaten...`;
+    statusText.textContent = typeof I18n !== "undefined"
+      ? I18n.t("uploadModal.importingUrl", { url })
+      : `Lade Datei von ${url} herunter und indexiere Metadaten...`;
 
     try {
       const res = await fetch("/api/v1/upload/url", {
@@ -1019,11 +1090,18 @@ function setupUrlImport() {
         }
       }
 
+      const indexedSuccessMsg = typeof I18n !== "undefined" ? I18n.t("uploadModal.indexedFromUrlSuccess") : "✓ Erfolgreich von Hersteller-Link indexiert!";
+      const mfgLabel = typeof I18n !== "undefined" ? I18n.t("uploadModal.urlManufacturerLabel") : "Hersteller:";
+      const devLabel = typeof I18n !== "undefined" ? I18n.t("uploadModal.urlDevicesLabel") : "Geräte:";
+      const noticeText = storeBinaryCheckbox.checked
+        ? (typeof I18n !== "undefined" ? I18n.t("uploadModal.urlCachedNotice") : "Datei wurde lokal gecacht.")
+        : (typeof I18n !== "undefined" ? I18n.t("uploadModal.urlRedirectNotice") : "100% rechtssicher: Reines Metadaten-Indexing & Verlinkung.");
+
       statusText.innerHTML = `
-        <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich von Hersteller-Link indexiert!</span><br>
-        Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
-        Geräte: ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}<br>
-        <small style="color: #94a3b8;">${storeBinaryCheckbox.checked ? "Datei wurde lokal gecacht." : "100% rechtssicher: Reines Metadaten-Indexing & Verlinkung."}</small>
+        <span style="color: #10b981; font-weight: 600;">${escapeHtml(indexedSuccessMsg)}</span><br>
+        ${escapeHtml(mfgLabel)} <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
+        ${escapeHtml(devLabel)} ${data.devices_imported.map(d => `<code>${escapeHtml(d.order_number)}</code>`).join(", ")}<br>
+        <small style="color: #94a3b8;">${escapeHtml(noticeText)}</small>
       `;
 
       loadStats();
@@ -1039,13 +1117,16 @@ function setupUrlImport() {
 
     } catch (err) {
       if (uploadSpinner) uploadSpinner.style.display = "none";
+      const importErrHeader = typeof I18n !== "undefined" ? I18n.t("uploadModal.urlImportError") : "❌ Fehler beim Import von URL:";
+      const retryBtnText = typeof I18n !== "undefined" ? I18n.t("uploadModal.retryBtn") : "Erneut versuchen";
+
       statusText.innerHTML = `
-        <span style="color: #ef4444; font-weight: 600;">❌ Fehler beim Import von URL:</span><br>
+        <span style="color: #ef4444; font-weight: 600;">${escapeHtml(importErrHeader)}</span><br>
         ${escapeHtml(err.message)}<br><br>
       `;
       const retryBtn = document.createElement("button");
       retryBtn.className = "btn btn-secondary btn-sm";
-      retryBtn.textContent = "Erneut versuchen";
+      retryBtn.textContent = retryBtnText;
       retryBtn.addEventListener("click", resetUploadUI);
       statusText.appendChild(retryBtn);
     }
@@ -1134,7 +1215,7 @@ function setupEditModal() {
     }
 
     saveBtn.disabled = true;
-    saveBtn.textContent = "Speichere...";
+    saveBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editModal.saving") : "Speichere...";
     statusDiv.style.display = "none";
 
     try {
@@ -1153,19 +1234,20 @@ function setupEditModal() {
       if (editCode) {
         setMyDeviceCode(orderNumber, editCode);
       }
-      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gerät erfolgreich aktualisiert!</span>`;
+      const successMsg = typeof I18n !== "undefined" ? I18n.t("editModal.success") : "✅ Gerät erfolgreich aktualisiert!";
+      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">${escapeHtml(successMsg)}</span>`;
       statusDiv.style.display = "block";
 
       setTimeout(() => {
         closeModal();
         saveBtn.disabled = false;
-        saveBtn.textContent = "Änderungen speichern";
+        saveBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editModal.saveBtn") : "Änderungen speichern";
         loadDevices();
       }, 1000);
 
     } catch (err) {
       saveBtn.disabled = false;
-      saveBtn.textContent = "Änderungen speichern";
+      saveBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editModal.saveBtn") : "Änderungen speichern";
       statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
       statusDiv.style.display = "block";
     }
@@ -1208,7 +1290,7 @@ function setupDeleteModal() {
 
     const deleteFile = document.getElementById("deleteFileCheckbox").checked;
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "Lösche...";
+    confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("deleteModal.deleting") : "Lösche...";
     statusDiv.style.display = "none";
 
     try {
@@ -1218,13 +1300,14 @@ function setupDeleteModal() {
       });
 
       await safeParseResponse(res);
-      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gerät erfolgreich gelöscht!</span>`;
+      const delSuccessMsg = typeof I18n !== "undefined" ? I18n.t("deleteModal.success") : "✅ Gerät erfolgreich gelöscht.";
+      statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">${escapeHtml(delSuccessMsg)}</span>`;
       statusDiv.style.display = "block";
 
       setTimeout(() => {
         closeModal();
         confirmBtn.disabled = false;
-        confirmBtn.textContent = "Endgültig löschen";
+        confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("deleteModal.confirmBtn") : "Endgültig löschen";
         loadStats();
         loadManufacturers();
         loadDevices();
@@ -1232,7 +1315,7 @@ function setupDeleteModal() {
 
     } catch (err) {
       confirmBtn.disabled = false;
-      confirmBtn.textContent = "Endgültig löschen";
+      confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("deleteModal.confirmBtn") : "Endgültig löschen";
       statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
       statusDiv.style.display = "block";
     }
@@ -1242,9 +1325,10 @@ function setupDeleteModal() {
 function openDeleteDeviceModal(device) {
   currentDeleteOrderNumber = device.order_number;
   const modal = document.getElementById("deleteDeviceModal");
-  document.getElementById("deleteDeviceDesc").innerHTML = `
-    Möchtest du das Gerät <strong>${escapeHtml(device.name)}</strong> (<code>${escapeHtml(device.order_number)}</code>) wirklich dauerhaft aus dem Katalog entfernen?
-  `;
+  const descHtml = typeof I18n !== "undefined"
+    ? I18n.t("deleteModal.confirmDesc", { name: escapeHtml(device.name), order: escapeHtml(device.order_number) })
+    : `Möchtest du das Gerät <strong>${escapeHtml(device.name)}</strong> (<code>${escapeHtml(device.order_number)}</code>) wirklich dauerhaft aus dem Katalog entfernen?`;
+  document.getElementById("deleteDeviceDesc").innerHTML = descHtml;
   document.getElementById("deleteDeviceStatus").style.display = "none";
   modal.classList.add("open");
 }
@@ -1321,7 +1405,7 @@ function updateBulkToolbar() {
 
   const count = selectedDevices.size;
   countBadge.textContent = count;
-  countText.textContent = count === 1 ? "Gerät ausgewählt" : "Geräte ausgewählt";
+  countText.textContent = typeof I18n !== "undefined" ? I18n.t("bulkToolbar.selected") : "Geräte ausgewählt";
 
   if (isAdmin && count > 0) {
     toolbar.style.display = "block";
@@ -1374,7 +1458,10 @@ function setupBatchDeleteModal() {
     bulkDeleteBtn.addEventListener("click", () => {
       if (selectedDevices.size === 0) return;
 
-      descP.innerHTML = `Möchtest du die folgenden <strong>${selectedDevices.size}</strong> ausgewählten Geräte wirklich unwiderruflich aus dem Katalog entfernen?`;
+      const descMsg = typeof I18n !== "undefined"
+        ? I18n.t("batchDeleteModal.confirmDesc", { count: selectedDevices.size })
+        : `Möchtest du die folgenden <strong>${selectedDevices.size}</strong> ausgewählten Geräte wirklich unwiderruflich aus dem Katalog entfernen?`;
+      descP.innerHTML = descMsg;
       listDiv.innerHTML = "";
       selectedDevices.forEach((name, order) => {
         const item = document.createElement("div");
@@ -1398,7 +1485,7 @@ function setupBatchDeleteModal() {
       if (orderNumbers.length === 0) return;
 
       confirmBtn.disabled = true;
-      confirmBtn.textContent = "Lösche...";
+      confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("batchDeleteModal.deleting") : "Lösche...";
       statusDiv.style.display = "none";
 
       try {
@@ -1421,7 +1508,7 @@ function setupBatchDeleteModal() {
         setTimeout(() => {
           closeModal();
           confirmBtn.disabled = false;
-          confirmBtn.textContent = "Ausgewählte endgültig löschen";
+          confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("batchDeleteModal.confirmBtn") : "Ausgewählte endgültig löschen";
           loadStats();
           loadManufacturers();
           loadDevices();
@@ -1429,7 +1516,7 @@ function setupBatchDeleteModal() {
 
       } catch (err) {
         confirmBtn.disabled = false;
-        confirmBtn.textContent = "Ausgewählte endgültig löschen";
+        confirmBtn.textContent = typeof I18n !== "undefined" ? I18n.t("batchDeleteModal.confirmBtn") : "Ausgewählte endgültig löschen";
         statusDiv.innerHTML = `<span style="color: #ef4444; font-weight: 600;">❌ Fehler: ${escapeHtml(err.message)}</span>`;
         statusDiv.style.display = "block";
       }
@@ -1453,12 +1540,13 @@ function setupYamlModal() {
       try {
         await navigator.clipboard.writeText(code);
         const originalText = copyYamlBtn.textContent;
-        copyYamlBtn.textContent = "✅ Kopiert!";
+        copyYamlBtn.textContent = typeof I18n !== "undefined" ? I18n.t("yamlModal.copied") : "✅ Kopiert!";
         setTimeout(() => {
           copyYamlBtn.textContent = originalText;
         }, 2000);
       } catch (err) {
-        alert("Fehler beim Kopieren in die Zwischenablage");
+        const copyErrMsg = typeof I18n !== "undefined" ? I18n.t("editorModal.copyError") : "Fehler beim Kopieren in die Zwischenablage";
+        alert(copyErrMsg);
       }
     });
   }
@@ -1473,7 +1561,8 @@ async function openYamlViewer(orderNumber, deviceName) {
 
   title.textContent = `📄 ${deviceName || orderNumber}`;
   subtitle.textContent = `KoNfiX-YAML: ${orderNumber}`;
-  pre.innerHTML = `<code>Lade YAML-Definition...</code>`;
+  const loadingText = typeof I18n !== "undefined" ? I18n.t("yamlModal.loadingText") : "Lade YAML-Definition...";
+  pre.innerHTML = `<code>${escapeHtml(loadingText)}</code>`;
   const yamlUrl = `/api/v1/devices/yaml?order_number=${encodeURIComponent(orderNumber)}`;
   dlBtn.href = yamlUrl;
   dlBtn.setAttribute("download", `${orderNumber}.yaml`);
@@ -1483,7 +1572,7 @@ async function openYamlViewer(orderNumber, deviceName) {
   try {
     const res = await fetch(yamlUrl);
     if (!res.ok) {
-      let errDetail = "Fehler beim Laden der YAML-Definition.";
+      let errDetail = typeof I18n !== "undefined" ? I18n.t("yamlModal.errorText") : "Fehler beim Laden der YAML-Definition.";
       try {
         const errJson = await res.json();
         if (errJson && errJson.detail) errDetail = errJson.detail;
@@ -1494,7 +1583,8 @@ async function openYamlViewer(orderNumber, deviceName) {
     const yamlText = await res.text();
     pre.textContent = yamlText;
   } catch (err) {
-    pre.textContent = `Netzwerkfehler: ${err.message}`;
+    const netErr = typeof I18n !== "undefined" ? I18n.t("yamlModal.networkErrorText", { message: err.message }) : `Netzwerkfehler: ${err.message}`;
+    pre.textContent = netErr;
   }
 }
 
@@ -1852,6 +1942,364 @@ parameters: []
 `
 };
 
+const EDITOR_TEMPLATES_EN = {
+  switch: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: openknx
+  name: OpenKNX Community
+device:
+  order_number: OFM-SA-0416
+  name: Switch Actuator 4-fold 16A
+  description: 4-fold KNX switch actuator with relay monitoring and staircase lighting timer
+  hardware:
+    name: OFM-SA4
+    version: '1.0'
+    bus_current_ma: 10.0
+application:
+  id: openknx_sa-0416_v1
+  name: Switching 4f 16A
+  version: '1.0'
+  mask_version: MV-07B0
+communication_objects:
+  - id: openknx_o-1
+    number: 1
+    name: Channel A Switch
+    function: On/Off
+    dpt: 1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: false
+      write: true
+      transmit: false
+      update: false
+  - id: openknx_o-2
+    number: 2
+    name: Channel A Status
+    function: Feedback
+    dpt: 1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: true
+      write: false
+      transmit: true
+      update: false
+  - id: openknx_o-3
+    number: 3
+    name: Channel B Switch
+    function: On/Off
+    dpt: 1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: false
+      write: true
+      transmit: false
+      update: false
+  - id: openknx_o-4
+    number: 4
+    name: Channel B Status
+    function: Feedback
+    dpt: 1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: true
+      write: false
+      transmit: true
+      update: false
+parameters:
+  - id: openknx_p-1
+    name: Operation Mode Channel A
+    text: Operation Mode Channel A
+    type: enum
+    default: '1'
+    options:
+      - value: '1'
+        text: Normally Open (NO)
+      - value: '2'
+        text: Normally Closed (NC)
+      - value: '3'
+        text: Staircase Lighting
+    page: Channel A > General
+  - id: openknx_p-2
+    name: Staircase Time (seconds)
+    text: Staircase Time
+    type: number
+    default: 180
+    page: Channel A > Timer Functions
+    section: Staircase
+    conditions:
+      - param_id: openknx_p-1
+        when_values:
+          - '3'
+`,
+  dimmer: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: mdt
+  name: MDT technologies
+device:
+  order_number: AKD-0201.02
+  name: Dimming Actuator 2-fold 250W
+  description: Universal dimming actuator for leading and trailing edge phase control
+  hardware:
+    name: AKD-0201
+    version: '2.0'
+    bus_current_ma: 12.0
+application:
+  id: mdt_akd-0201_v2
+  name: Dimming 2f 250W
+  version: '2.0'
+  mask_version: MV-07B0
+communication_objects:
+  - id: mdt_o-1
+    number: 1
+    name: Channel A Switch
+    function: On/Off
+    dpt: 1.001
+    size: 1 Bit
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-2
+    number: 2
+    name: Channel A Dimming Relative
+    function: Brighter/Darker
+    dpt: 3.007
+    size: 4 Bit
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-3
+    number: 3
+    name: Channel A Dimming Value
+    function: Brightness Value
+    dpt: 5.001
+    size: 1 Byte
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-4
+    number: 4
+    name: Channel A Status Dimming Value
+    function: Brightness Feedback
+    dpt: 5.001
+    size: 1 Byte
+    flags: { communication: true, read: true, write: false, transmit: true, update: false }
+parameters:
+  - id: mdt_p-1
+    name: Load Type Channel A
+    text: Load Type Channel A
+    type: enum
+    default: 'auto'
+    options:
+      - { value: 'auto', text: Automatic Load Detection }
+      - { value: 'trailing', text: Trailing Edge (LED) }
+      - { value: 'leading', text: Leading Edge }
+    page: Channel A > Dimming Curve
+  - id: mdt_p-2
+    name: Ramp Time (seconds)
+    text: Ramp Time
+    type: number
+    default: 2.0
+    page: Channel A > Dimming Curve
+`,
+  shutter: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: mdt
+  name: MDT technologies
+device:
+  order_number: JAL-0410.02
+  name: Shutter Actuator 4-fold 10A
+  description: 4-fold shutter / blind actuator with automatic travel time detection
+  hardware:
+    name: JAL-0410
+    version: '2.0'
+    bus_current_ma: 10.0
+application:
+  id: mdt_jal-0410_v2
+  name: Shutter 4f 10A
+  version: '2.0'
+  mask_version: MV-07B0
+communication_objects:
+  - id: mdt_o-1
+    number: 1
+    name: Channel A Up/Down
+    function: Long Operation / Drive Command
+    dpt: 1.008
+    size: 1 Bit
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-2
+    number: 2
+    name: Channel A Slat/Stop
+    function: Short Operation / Stop
+    dpt: 1.007
+    size: 1 Bit
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-3
+    number: 3
+    name: Channel A Position Absolute
+    function: Height in %
+    dpt: 5.001
+    size: 1 Byte
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: mdt_o-4
+    number: 4
+    name: Channel A Status Height
+    function: Height Feedback
+    dpt: 5.001
+    size: 1 Byte
+    flags: { communication: true, read: true, write: false, transmit: true, update: false }
+parameters:
+  - id: mdt_p-1
+    name: Operation Mode Channel A
+    text: Operation Mode Channel A
+    type: enum
+    default: 'shutter'
+    options:
+      - { value: 'shutter', text: Shutter with Slats }
+      - { value: 'blind', text: Roller Shutter }
+    page: Channel A > General
+  - id: mdt_p-2
+    name: Travel Time Up/Down (seconds)
+    text: Travel Time Up/Down
+    type: number
+    default: 45
+    page: Channel A > Travel Times
+    section: Base Travel Time
+`,
+  hvac: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: openknx
+  name: OpenKNX Community
+device:
+  order_number: OFM-RTR-01
+  name: Room Temperature Controller
+  description: Integrated PI temperature controller with operating mode switching
+  hardware:
+    name: OFM-RTR
+    version: '1.0'
+    bus_current_ma: 8.0
+application:
+  id: openknx_rtr-01_v1
+  name: RTR Heating/Cooling
+  version: '1.0'
+  mask_version: MV-07B0
+communication_objects:
+  - id: openknx_o-1
+    number: 1
+    name: Actual Temperature
+    function: Temperature Value
+    dpt: 9.001
+    size: 2 Bytes
+    flags: { communication: true, read: false, write: true, transmit: false, update: false }
+  - id: openknx_o-2
+    number: 2
+    name: Setpoint Temperature Base
+    function: Base Setpoint
+    dpt: 9.001
+    size: 2 Bytes
+    flags: { communication: true, read: true, write: true, transmit: true, update: false }
+  - id: openknx_o-3
+    number: 3
+    name: Control Value Heating
+    function: PI Value (PWM / Continuous)
+    dpt: 5.001
+    size: 1 Byte
+    flags: { communication: true, read: true, write: false, transmit: true, update: false }
+parameters:
+  - id: openknx_p-1
+    name: Controller Type
+    text: Controller Type
+    type: enum
+    default: 'pi_continuous'
+    options:
+      - { value: 'pi_continuous', text: PI Controller Continuous (0-100%) }
+      - { value: 'pi_pwm', text: PI Controller Switching (PWM) }
+      - { value: '2point', text: 2-Point Controller }
+    page: Controller > General
+  - id: openknx_p-2
+    name: Base Setpoint Temperature (°C)
+    text: Base Setpoint Temperature
+    type: number
+    default: 21.0
+    page: Controller > Setpoints
+`,
+  binary_input: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: abb
+  name: ABB Stotz-Kontakt
+device:
+  order_number: US/U4.2
+  name: Binary Input 4-fold
+  description: 4-channel universal interface for potential-free contacts
+  hardware:
+    name: US/U
+    version: '1.0'
+    bus_current_ma: 6.0
+application:
+  id: abb_us-u4-2_v1
+  name: Binary Input 4-fold
+  version: '1.0'
+  mask_version: MV-07B0
+communication_objects:
+  - id: abb_o-1
+    number: 1
+    name: Channel A Switch
+    function: Input A On/Off
+    dpt: 1.001
+    size: 1 Bit
+    flags: { communication: true, read: true, write: false, transmit: true, update: false }
+  - id: abb_o-2
+    number: 2
+    name: Channel B Switch
+    function: Input B On/Off
+    dpt: 1.001
+    size: 1 Bit
+    flags: { communication: true, read: true, write: false, transmit: true, update: false }
+parameters:
+  - id: abb_p-1
+    name: Function Channel A
+    text: Function Channel A
+    type: enum
+    default: 'switch'
+    options:
+      - { value: 'switch', text: Switch }
+      - { value: 'button', text: Push Button }
+      - { value: 'dimmer', text: Dimming }
+    page: Channel A > General
+`,
+  blank: `$schema: https://db.konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+manufacturer:
+  code: custom
+  name: My Manufacturer
+device:
+  order_number: DEV-001
+  name: New Device
+  description: Insert device description here
+  hardware:
+    name: DEV-001
+    version: '1.0'
+    bus_current_ma: 10.0
+application:
+  id: custom_dev-001_v1
+  name: Application 1.0
+  version: '1.0'
+  mask_version: MV-07B0
+communication_objects: []
+parameters: []
+`
+};
+
+function getEditorTemplate(key) {
+  const isEn = typeof I18n !== "undefined" && I18n.currentLang === "en";
+  if (isEn && EDITOR_TEMPLATES_EN[key]) {
+    return EDITOR_TEMPLATES_EN[key];
+  }
+  return EDITOR_TEMPLATES[key] || EDITOR_TEMPLATES.switch;
+}
+
 let editorState = {
   activeTab: "general", // "general", "objects", "params"
   isSyncing: false,
@@ -1929,7 +2377,8 @@ function setupEditorModal() {
 
   if (newDraftBtn) {
     newDraftBtn.addEventListener("click", () => {
-      const newDraft = createNewDraft(EDITOR_TEMPLATES.switch, "Neuer Entwurf");
+      const defaultTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.newDraftDefaultTitle") : "Neuer Entwurf";
+      const newDraft = createNewDraft(getEditorTemplate("switch"), defaultTitle);
       loadDraft(newDraft.code, true);
     });
   }
@@ -1940,10 +2389,12 @@ function setupEditorModal() {
       const drafts = getDrafts();
       const keys = Object.keys(drafts);
       if (keys.length <= 1) {
-        alert("Der einzige verbleibende Entwurf kann nicht gelöscht werden.");
+        const onlyOneMsg = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteDraftOnlyOne") : "Der einzige verbleibende Entwurf kann nicht gelöscht werden.";
+        alert(onlyOneMsg);
         return;
       }
-      if (confirm(`Entwurf '${activeCode}' wirklich unwiderruflich löschen?`)) {
+      const confirmMsg = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteDraftConfirm", { code: activeCode }) : `Entwurf '${activeCode}' wirklich unwiderruflich löschen?`;
+      if (confirm(confirmMsg)) {
         delete drafts[activeCode];
         saveDrafts(drafts);
         const remaining = Object.keys(drafts)[0];
@@ -1961,7 +2412,7 @@ function setupEditorModal() {
       try {
         await navigator.clipboard.writeText(url);
         const prev = copyDraftLinkBtn.textContent;
-        copyDraftLinkBtn.textContent = "✅ Link kopiert!";
+        copyDraftLinkBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.linkCopied") : "✅ Link kopiert!";
         setTimeout(() => { copyDraftLinkBtn.textContent = prev; }, 2000);
       } catch (_) {
         alert("Link: " + url);
@@ -1977,10 +2428,11 @@ function setupEditorModal() {
         const url = `${window.location.origin}${window.location.pathname}#editor?data=${encodeURIComponent(b64)}`;
         await navigator.clipboard.writeText(url);
         const prev = sharePortableBtn.textContent;
-        sharePortableBtn.textContent = "✅ Portabler Link kopiert!";
+        sharePortableBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.portableCopied") : "✅ Portabler Link kopiert!";
         setTimeout(() => { sharePortableBtn.textContent = prev; }, 2500);
       } catch (_) {
-        alert("Fehler beim Erzeugen des portablen Links");
+        const portableErrMsg = typeof I18n !== "undefined" ? I18n.t("editorModal.portableLinkError") : "Fehler beim Erzeugen des portablen Links";
+        alert(portableErrMsg);
       }
     });
   }
@@ -1988,7 +2440,7 @@ function setupEditorModal() {
   // Template change
   if (templateSelect) {
     templateSelect.addEventListener("change", (e) => {
-      const tpl = EDITOR_TEMPLATES[e.target.value];
+      const tpl = getEditorTemplate(e.target.value);
       if (tpl) {
         setEditorYamlContent(tpl);
       }
@@ -2016,10 +2468,11 @@ function setupEditorModal() {
       try {
         await navigator.clipboard.writeText(textarea.value);
         const prev = copyBtn.textContent;
-        copyBtn.textContent = "✅ Kopiert!";
+        copyBtn.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.copied") : "✅ Kopiert!";
         setTimeout(() => copyBtn.textContent = prev, 2000);
       } catch (_) {
-        alert("Fehler beim Kopieren in die Zwischenablage");
+        const copyErrMsg = typeof I18n !== "undefined" ? I18n.t("editorModal.copyError") : "Fehler beim Kopieren in die Zwischenablage";
+        alert(copyErrMsg);
       }
     });
   }
@@ -2288,7 +2741,11 @@ function openDeviceInSandbox(orderNumber) {
   if (!editorModal) return;
 
   const saveStatus = document.getElementById("editorSaveStatus");
-  if (saveStatus) saveStatus.textContent = `Lade ${orderNumber}...`;
+  if (saveStatus) {
+    saveStatus.textContent = typeof I18n !== "undefined"
+      ? I18n.t("devices.loading")
+      : `Lade ${orderNumber}...`;
+  }
 
   fetch(`/api/v1/devices/yaml?order_number=${encodeURIComponent(orderNumber)}`)
     .then(res => {
@@ -2297,15 +2754,24 @@ function openDeviceInSandbox(orderNumber) {
     })
     .then(yamlText => {
       const myCode = getMyDeviceCode(orderNumber);
-      const title = `${orderNumber} (Katalog)`;
+      const catalogLabel = typeof I18n !== "undefined" && I18n.currentLang === "en" ? "Catalog" : "Katalog";
+      const title = `${orderNumber} (${catalogLabel})`;
       const newDraft = createNewDraft(yamlText, title, orderNumber);
       openEditor(newDraft.code);
       if (saveStatus) {
-        saveStatus.textContent = `Geladen aus Katalog: ${orderNumber}${myCode ? ' (Bearbeitbar mit deinem Code)' : ''}`;
+        const editableText = myCode
+          ? (typeof I18n !== "undefined" ? I18n.t("editorModal.editableWithCode") : " (Bearbeitbar mit deinem Code)")
+          : "";
+        saveStatus.textContent = typeof I18n !== "undefined"
+          ? I18n.t("editorModal.loadedFromCatalog", { order: orderNumber, editable: editableText })
+          : `Geladen aus Katalog: ${orderNumber}${editableText}`;
       }
     })
     .catch(err => {
-      alert(`Konnte Gerät nicht in den Editor laden: ${err.message}`);
+      const errMsg = typeof I18n !== "undefined"
+        ? I18n.t("editorModal.loadError", { error: err.message })
+        : `Konnte Gerät nicht in den Editor laden: ${err.message}`;
+      alert(errMsg);
     });
 }
 
@@ -2331,10 +2797,11 @@ function saveDraftToStorage(yamlText) {
   try {
     const activeCode = getActiveDraftCode();
     const drafts = getDrafts();
+    const defaultTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.savedDraftDefaultTitle") : "Entwurf";
     if (!drafts[activeCode]) {
       drafts[activeCode] = {
         code: activeCode,
-        title: "Entwurf",
+        title: defaultTitle,
         orderNumber: "",
         yaml: yamlText,
         updatedAt: new Date().toISOString()
@@ -2361,7 +2828,9 @@ function saveDraftToStorage(yamlText) {
 
     const saveStatus = document.getElementById("editorSaveStatus");
     if (saveStatus) {
-      saveStatus.textContent = "✓ Automatisch lokal gespeichert";
+      saveStatus.textContent = typeof I18n !== "undefined"
+        ? `✓ ${I18n.t("editorModal.autoSaved")}`
+        : "✓ Automatisch lokal gespeichert";
       saveStatus.style.color = "#10b981";
     }
 
@@ -2369,7 +2838,8 @@ function saveDraftToStorage(yamlText) {
     if (select && select.querySelector(`option[value="${activeCode}"]`)) {
       const opt = select.querySelector(`option[value="${activeCode}"]`);
       const d = drafts[activeCode];
-      const displayTitle = d.title || (d.orderNumber ? `Gerät ${d.orderNumber}` : "Entwurf");
+      const deviceTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.deviceDraftTitle", { order: d.orderNumber }) : `Gerät ${d.orderNumber}`;
+      const displayTitle = d.title || (d.orderNumber ? deviceTitle : defaultTitle);
       opt.textContent = `${d.code} (${displayTitle})`;
     }
   } catch (_) {}
@@ -2449,17 +2919,19 @@ function validateAndSyncYamlToForm(yamlText) {
 
     if (!mfg.code || !mfg.name || !dev.order_number || !dev.name) {
       if (badge) {
-        badge.textContent = "⚠️ Unvollständig";
+        badge.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.incomplete") : "⚠️ Unvollständig";
         badge.style.background = "rgba(245,158,11,0.2)";
         badge.style.color = "#f59e0b";
       }
       if (errBox) {
         errBox.style.display = "block";
-        errBox.textContent = "Pflichtfelder fehlen: manufacturer.code, manufacturer.name, device.order_number, device.name";
+        errBox.textContent = typeof I18n !== "undefined"
+          ? I18n.t("editorModal.missingFields")
+          : "Pflichtfelder fehlen: manufacturer.code, manufacturer.name, device.order_number, device.name";
       }
     } else {
       if (badge) {
-        badge.textContent = "✓ Schema v1 valide";
+        badge.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.valid") : "✓ Schema v1 valide";
         badge.style.background = "rgba(16,185,129,0.2)";
         badge.style.color = "#10b981";
       }
@@ -2489,7 +2961,7 @@ function validateAndSyncYamlToForm(yamlText) {
 
   } catch (err) {
     if (badge) {
-      badge.textContent = "❌ Syntaxfehler";
+      badge.textContent = typeof I18n !== "undefined" ? I18n.t("editorModal.syntaxError") : "❌ Syntaxfehler";
       badge.style.background = "rgba(239,68,68,0.2)";
       badge.style.color = "#ef4444";
     }
@@ -2547,14 +3019,22 @@ function renderConditionsEditorHtml(type, realIdx, item) {
   const hasConds = Array.isArray(conds) && conds.length > 0;
 
   if (!hasConds) {
+    const addCondText = typeof I18n !== "undefined" ? I18n.t("editorModal.addCondition") : "⚡ Bedingung hinzufügen";
     return `
       <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
         <button type="button" class="editor-btn-add-cond" data-action="cond-add" data-type="${type}" data-idx="${realIdx}">
-          ⚡ Bedingung hinzufügen
+          ${escapeHtml(addCondText)}
         </button>
       </div>
     `;
   }
+
+  const clickValuesText = typeof I18n !== "undefined" ? I18n.t("editorModal.clickValues") : "Werte anklicken:";
+  const targetParamLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.targetParam") : "Ziel-Parameter (param_id)";
+  const whenValueLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.whenValue") : "Wenn Wert (when_values)";
+  const deleteCondTooltip = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteCondTooltip") : "Bedingung löschen";
+  const condsHeader = typeof I18n !== "undefined" ? I18n.t("editorModal.conditionsHeader") : "⚡ Bedingungen (Sichtbarkeit & Aktivierung)";
+  const addCondBtnText = typeof I18n !== "undefined" ? I18n.t("editorModal.addCondition") : "➕ Bedingung";
 
   const rows = conds.map((cond, condIdx) => {
     const paramId = cond.param_id || "";
@@ -2567,7 +3047,7 @@ function renderConditionsEditorHtml(type, realIdx, item) {
       if (targetParam && Array.isArray(targetParam.options) && targetParam.options.length > 0) {
         quickPillsHtml = `
           <div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed rgba(255,255,255,0.06);">
-            <span style="font-size: 0.68rem; color: #94a3b8;">Werte anklicken:</span>
+            <span style="font-size: 0.68rem; color: #94a3b8;">${escapeHtml(clickValuesText)}</span>
             ${targetParam.options.map(o => {
               const oVal = typeof o === "object" ? String(o.value != null ? o.value : o.text) : String(o);
               const oTxt = typeof o === "object" ? String(o.text || o.name || o.value) : String(o);
@@ -2588,19 +3068,19 @@ function renderConditionsEditorHtml(type, realIdx, item) {
     return `
       <div class="editor-cond-row">
         <div>
-          <label class="editor-label" style="font-size: 0.7rem;">Ziel-Parameter (param_id)</label>
+          <label class="editor-label" style="font-size: 0.7rem;">${escapeHtml(targetParamLabel)}</label>
           <input type="text" class="editor-input" list="editorParamIdDatalist" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
             value="${escapeHtml(paramId)}" placeholder="z. B. m-0002_p-12"
             data-cond-field="param_id" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">
         </div>
         <div>
-          <label class="editor-label" style="font-size: 0.7rem;">Wenn Wert (when_values)</label>
+          <label class="editor-label" style="font-size: 0.7rem;">${escapeHtml(whenValueLabel)}</label>
           <input type="text" class="editor-input" style="font-size: 0.78rem; padding: 0.25rem 0.5rem;"
             value="${escapeHtml(valsStr)}" placeholder="z. B. 1, 2"
             data-cond-field="when_values" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">
         </div>
         <div style="padding-top: 1.1rem;">
-          <button type="button" class="editor-btn-delete" title="Bedingung löschen"
+          <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteCondTooltip)}"
             data-action="cond-remove" data-type="${type}" data-idx="${realIdx}" data-cond="${condIdx}">&times;</button>
         </div>
         ${quickPillsHtml}
@@ -2611,9 +3091,9 @@ function renderConditionsEditorHtml(type, realIdx, item) {
   return `
     <div class="editor-cond-box">
       <div class="editor-cond-header">
-        <span class="editor-cond-title">⚡ Bedingungen (Sichtbarkeit &amp; Aktivierung)</span>
+        <span class="editor-cond-title">${escapeHtml(condsHeader)}</span>
         <button type="button" class="btn btn-sm btn-ghost" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"
-          data-action="cond-add" data-type="${type}" data-idx="${realIdx}">➕ Bedingung</button>
+          data-action="cond-add" data-type="${type}" data-idx="${realIdx}">${escapeHtml(addCondBtnText)}</button>
       </div>
       <div>${rows}</div>
     </div>
@@ -2631,22 +3111,40 @@ function renderPaginationBar(containerId, currentPage, totalPages, totalItems, l
   const startItem = (currentPage - 1) * 50 + 1;
   const endItem = Math.min(currentPage * 50, totalItems);
 
+  const localizedLabel = target === "ko"
+    ? (typeof I18n !== "undefined" ? I18n.t("editorModal.objectsLabel") : label)
+    : (typeof I18n !== "undefined" ? I18n.t("editorModal.paramsLabel") : label);
+
   if (totalPages <= 1) {
+    const totalText = typeof I18n !== "undefined"
+      ? I18n.t("editorModal.itemsTotal", { total: totalItems, label: localizedLabel })
+      : `${totalItems} ${localizedLabel}`;
+    const pageText = typeof I18n !== "undefined"
+      ? I18n.t("editorModal.pageOf", { current: 1, total: 1 })
+      : "Seite 1 von 1";
     el.innerHTML = `
-      <span>${totalItems} ${label}</span>
-      <span style="font-size: 0.75rem; color: #64748b;">Seite 1 von 1</span>
+      <span>${escapeHtml(totalText)}</span>
+      <span style="font-size: 0.75rem; color: #64748b;">${escapeHtml(pageText)}</span>
     `;
     return;
   }
 
+  const showingText = typeof I18n !== "undefined"
+    ? I18n.t("editorModal.showingItems", { start: startItem, end: endItem, total: totalItems, label: localizedLabel })
+    : `Zeige ${startItem}–${endItem} von ${totalItems} ${localizedLabel}`;
+  const firstTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.firstPage") : "Erste Seite";
+  const prevTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.prevPage") : "Vorherige Seite";
+  const nextTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.nextPage") : "Nächste Seite";
+  const lastTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.lastPage") : "Letzte Seite";
+
   el.innerHTML = `
-    <span>Zeige ${startItem}–${endItem} von ${totalItems} ${label}</span>
+    <span>${escapeHtml(showingText)}</span>
     <div class="editor-pagination-buttons">
-      <button type="button" data-action="page" data-target="${target}" data-page="1" ${currentPage === 1 ? "disabled" : ""} title="Erste Seite">&laquo;</button>
-      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage - 1}" ${currentPage === 1 ? "disabled" : ""} title="Vorherige Seite">&lsaquo; Zurück</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="1" ${currentPage === 1 ? "disabled" : ""} title="${escapeHtml(firstTitle)}">&laquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage - 1}" ${currentPage === 1 ? "disabled" : ""} title="${escapeHtml(prevTitle)}">&lsaquo; ${escapeHtml(prevTitle)}</button>
       <span style="padding: 0 0.4rem; font-weight: 600; color: #f8fafc; font-size: 0.8rem;">${currentPage} / ${totalPages}</span>
-      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage + 1}" ${currentPage === totalPages ? "disabled" : ""} title="Nächste Seite">Weiter &rsaquo;</button>
-      <button type="button" data-action="page" data-target="${target}" data-page="${totalPages}" ${currentPage === totalPages ? "disabled" : ""} title="Letzte Seite">&raquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${currentPage + 1}" ${currentPage === totalPages ? "disabled" : ""} title="${escapeHtml(nextTitle)}">${escapeHtml(nextTitle)} &rsaquo;</button>
+      <button type="button" data-action="page" data-target="${target}" data-page="${totalPages}" ${currentPage === totalPages ? "disabled" : ""} title="${escapeHtml(lastTitle)}">&raquo;</button>
     </div>
   `;
 }
@@ -2683,12 +3181,22 @@ function renderKoCards() {
   renderPaginationBar("editorKoPaginationBottom", editorState.koPage, totalPages, totalItems, "Objekte", "ko");
 
   if (totalItems === 0) {
-    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Kommunikationsobjekte gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
+    const emptyMsg = typeof I18n !== "undefined"
+      ? (query ? `${I18n.t("editorModal.noObjectsFound")} (${query})` : I18n.t("editorModal.noObjectsFound"))
+      : `Keine Kommunikationsobjekte gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.`;
+    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">${escapeHtml(emptyMsg)}</div>`;
     return;
   }
 
   const startIdx = (editorState.koPage - 1) * editorState.koPageSize;
   const pageItems = items.slice(startIdx, startIdx + editorState.koPageSize);
+
+  const deleteBtnText = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteItem") : "Löschen";
+  const koNumLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.koNum") : "KO-Nr.";
+  const koNameLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.koName") : "Name / Kanal";
+  const koFuncLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.koFunc") : "Funktion";
+  const koDptLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.koDpt") : "DPT (z. B. 1.001)";
+  const koSizeLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.koSize") : "Größe (z. B. 1 Bit)";
 
   list.innerHTML = pageItems.map(({ ko, realIdx }) => {
     const condSummary = formatConditionsSummary(ko);
@@ -2702,29 +3210,29 @@ function renderKoCards() {
             <span class="editor-item-title">#${ko.number != null ? ko.number : realIdx + 1} &bull; ${escapeHtml(ko.id || '')}</span>
             ${condSummary ? `<span class="editor-badge-cond" title="${escapeHtml(condSummary)}">⚡ ${escapeHtml(condSummary)}</span>` : ''}
           </div>
-          <button type="button" class="editor-btn-delete" title="Löschen" data-action="delete-item" data-type="ko" data-idx="${realIdx}">&times; Löschen</button>
+          <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteBtnText)}" data-action="delete-item" data-type="ko" data-idx="${realIdx}">&times; ${escapeHtml(deleteBtnText)}</button>
         </div>
         <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
-            <label class="editor-label">KO-Nr.</label>
+            <label class="editor-label">${escapeHtml(koNumLabel)}</label>
             <input type="number" class="editor-input" value="${ko.number != null ? ko.number : realIdx + 1}" data-field="number" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
-            <label class="editor-label">Name / Kanal</label>
+            <label class="editor-label">${escapeHtml(koNameLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(ko.name || '')}" data-field="name" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
-            <label class="editor-label">Funktion</label>
+            <label class="editor-label">${escapeHtml(koFuncLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(ko.function || '')}" data-field="function" data-type="ko" data-idx="${realIdx}">
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
-            <label class="editor-label">DPT (z. B. 1.001)</label>
+            <label class="editor-label">${escapeHtml(koDptLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(ko.dpt || '1.001')}" data-field="dpt" data-type="ko" data-idx="${realIdx}">
           </div>
           <div>
-            <label class="editor-label">Größe (z. B. 1 Bit)</label>
+            <label class="editor-label">${escapeHtml(koSizeLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(ko.size || '1 Bit')}" data-field="size" data-type="ko" data-idx="${realIdx}">
           </div>
         </div>
@@ -2764,8 +3272,12 @@ function updateParamPageFilterOptions() {
     }
   });
 
+  const allPagesText = typeof I18n !== "undefined"
+    ? I18n.t("editorModal.allPages", { count: editorState.doc.parameters.length })
+    : `Alle Seiten / Menüs (${editorState.doc.parameters.length})`;
+
   const sortedPages = Array.from(pageMap.keys()).sort();
-  select.innerHTML = `<option value="">Alle Seiten / Menüs (${editorState.doc.parameters.length})</option>` +
+  select.innerHTML = `<option value="">${escapeHtml(allPagesText)}</option>` +
     sortedPages.map(pg => `
       <option value="${escapeHtml(pg)}" ${pg === currentVal ? "selected" : ""}>${escapeHtml(pg)} (${pageMap.get(pg)})</option>
     `).join("");
@@ -2774,7 +3286,8 @@ function updateParamPageFilterOptions() {
 function renderParamOptionsHtml(param) {
   if (!param.options || !Array.isArray(param.options) || param.options.length === 0) {
     if (param.type === "enum") {
-      return `<div style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.35rem;">⚠️ Keine Optionen definiert für enum</div>`;
+      const noEnumText = typeof I18n !== "undefined" ? I18n.t("editorModal.noEnumOptions") : "⚠️ Keine Optionen definiert für enum";
+      return `<div style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.35rem;">${escapeHtml(noEnumText)}</div>`;
     }
     return "";
   }
@@ -2792,10 +3305,14 @@ function renderParamOptionsHtml(param) {
     return `<span class="editor-badge-option" title="Wert: ${escapeHtml(String(val))}"><strong>${escapeHtml(String(val))}</strong>: ${escapeHtml(String(txt))}</span>`;
   }).join("");
 
+  const optionsTitle = typeof I18n !== "undefined"
+    ? I18n.t("editorModal.optionsCount", { count: opts.length })
+    : `Auswahloptionen (${opts.length})`;
+
   return `
     <div class="editor-options-box">
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">
-        <span>Auswahloptionen (${opts.length})</span>
+        <span>${escapeHtml(optionsTitle)}</span>
       </div>
       <div class="editor-options-list">${pills}</div>
     </div>
@@ -2836,12 +3353,22 @@ function renderParamCards() {
   renderPaginationBar("editorParamPaginationBottom", editorState.paramPage, totalPages, totalItems, "Parameter", "param");
 
   if (totalItems === 0) {
-    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">Keine Parameter gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.</div>`;
+    const emptyMsg = typeof I18n !== "undefined"
+      ? (query ? `${I18n.t("editorModal.noParamsFound")} (${query})` : I18n.t("editorModal.noParamsFound"))
+      : `Keine Parameter gefunden ${query ? 'für die Suche "' + escapeHtml(query) + '"' : ''}.`;
+    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">${escapeHtml(emptyMsg)}</div>`;
     return;
   }
 
   const startIdx = (editorState.paramPage - 1) * editorState.paramPageSize;
   const pageItems = items.slice(startIdx, startIdx + editorState.paramPageSize);
+
+  const deleteBtnText = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteItem") : "Löschen";
+  const paramIdLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.paramId") : "ID (lowercase)";
+  const paramNameLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.paramName") : "Bezeichnung / Text";
+  const paramTypeLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.paramType") : "Typ";
+  const paramDefaultLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.paramDefault") : "Default-Wert";
+  const paramPageLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.paramPage") : "Seite / Menüpfad";
 
   list.innerHTML = pageItems.map(({ param, realIdx }) => {
     const condSummary = formatConditionsSummary(param);
@@ -2860,21 +3387,21 @@ function renderParamCards() {
             ${ruleCount > 0 ? `<span class="editor-meta-pill" title="Regeln">⚙️ ${ruleCount} Regeln</span>` : ''}
             ${hasTrans ? `<span class="editor-meta-pill" title="Übersetzungen">🌐 Übersetzt</span>` : ''}
           </div>
-          <button type="button" class="editor-btn-delete" title="Löschen" data-action="delete-item" data-type="param" data-idx="${realIdx}">&times; Löschen</button>
+          <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteBtnText)}" data-action="delete-item" data-type="param" data-idx="${realIdx}">&times; ${escapeHtml(deleteBtnText)}</button>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
           <div>
-            <label class="editor-label">ID (lowercase)</label>
+            <label class="editor-label">${escapeHtml(paramIdLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(param.id || '')}" data-field="id" data-type="param" data-idx="${realIdx}">
           </div>
           <div>
-            <label class="editor-label">Bezeichnung / Text</label>
+            <label class="editor-label">${escapeHtml(paramNameLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(param.name || param.text || '')}" data-field="name" data-type="param" data-idx="${realIdx}">
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 130px 1fr 1fr; gap: 0.5rem;">
           <div>
-            <label class="editor-label">Typ</label>
+            <label class="editor-label">${escapeHtml(paramTypeLabel)}</label>
             <select class="editor-input" data-field="type" data-type="param" data-idx="${realIdx}">
               <option value="number" ${param.type === 'number' ? 'selected' : ''}>Zahl (number)</option>
               <option value="enum" ${param.type === 'enum' ? 'selected' : ''}>Auswahl (enum)</option>
@@ -2884,11 +3411,11 @@ function renderParamCards() {
             </select>
           </div>
           <div>
-            <label class="editor-label">Default-Wert</label>
+            <label class="editor-label">${escapeHtml(paramDefaultLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(String(param.default != null ? param.default : ''))}" data-field="default" data-type="param" data-idx="${realIdx}">
           </div>
           <div>
-            <label class="editor-label">Seite / Menüpfad</label>
+            <label class="editor-label">${escapeHtml(paramPageLabel)}</label>
             <input type="text" class="editor-input" value="${escapeHtml(param.page || '')}" placeholder="Kanal A > Zeit" data-field="page" data-type="param" data-idx="${realIdx}">
           </div>
         </div>
@@ -3157,7 +3684,7 @@ function setupHeroDevTools() {
     if (!resumeInput) return;
     const code = resumeInput.value.trim().toUpperCase();
     if (!code) {
-      alert("Bitte gib einen Entwurfscode ein (z. B. DFT-7X9K2M).");
+      alert(typeof I18n !== "undefined" ? I18n.t("editorModal.enterDraftCode") : "Bitte gib einen Entwurfscode ein (z. B. DFT-7X9K2M).");
       resumeInput.focus();
       return;
     }
@@ -3165,11 +3692,12 @@ function setupHeroDevTools() {
     if (drafts[code]) {
       openEditor(code);
     } else {
+      const defaultTitle = typeof I18n !== "undefined" ? I18n.t("editorModal.newDraftDefaultTitle") : "Neuer Entwurf";
       const newDraft = {
         code: code,
-        title: "Neuer Entwurf",
+        title: defaultTitle,
         orderNumber: "",
-        yaml: EDITOR_TEMPLATES.switch,
+        yaml: getEditorTemplate("switch"),
         updatedAt: new Date().toISOString()
       };
       drafts[code] = newDraft;
@@ -3195,8 +3723,10 @@ function setupHeroDevTools() {
       if (input && input.value) {
         try {
           await navigator.clipboard.writeText(input.value);
-          copyUploadCodeBtn.textContent = "✅ Kopiert!";
-          setTimeout(() => { copyUploadCodeBtn.textContent = "📋 Kopieren"; }, 2000);
+          const copiedText = typeof I18n !== "undefined" ? I18n.t("uploadModal.copiedEditCodeBtn") : "✅ Kopiert!";
+          const originalText = typeof I18n !== "undefined" ? I18n.t("uploadModal.copyEditCodeBtn") : "📋 Kopieren";
+          copyUploadCodeBtn.textContent = copiedText;
+          setTimeout(() => { copyUploadCodeBtn.textContent = originalText; }, 2000);
         } catch (_) {}
       }
     });
@@ -3228,7 +3758,7 @@ function setupPublishModal() {
       if (statusBox) statusBox.style.display = "none";
       const yamlStr = textarea ? textarea.value : "";
       if (!yamlStr || !yamlStr.trim()) {
-        alert("Der Editor enthält keine YAML-Daten.");
+        alert(typeof I18n !== "undefined" ? I18n.t("editorModal.noYamlData") : "Der Editor enthält keine YAML-Daten.");
         return;
       }
 
@@ -3236,18 +3766,18 @@ function setupPublishModal() {
       try {
         parsed = jsyaml.load(yamlStr);
       } catch (e) {
-        alert("Ungültiges YAML: " + e.message);
+        alert(typeof I18n !== "undefined" ? I18n.t("editorModal.invalidYaml", { error: e.message }) : "Ungültiges YAML: " + e.message);
         return;
       }
 
       if (!parsed || !parsed.device || !parsed.device.order_number) {
-        alert("Bitte gib im YAML mindestens eine Bestellnummer unter 'device.order_number' an.");
+        alert(typeof I18n !== "undefined" ? I18n.t("editorModal.orderNumberRequired") : "Bitte gib im YAML mindestens eine Bestellnummer unter 'device.order_number' an.");
         return;
       }
 
       const orderNumber = parsed.device.order_number;
-      const devName = parsed.device.name || "Unbenanntes Gerät";
-      const mfgName = (parsed.manufacturer && parsed.manufacturer.name) || (parsed.manufacturer && parsed.manufacturer.code) || "Unbekannt";
+      const devName = parsed.device.name || (typeof I18n !== "undefined" && I18n.currentLang === "en" ? "Unnamed Device" : "Unbenanntes Gerät");
+      const mfgName = (parsed.manufacturer && parsed.manufacturer.name) || (parsed.manufacturer && parsed.manufacturer.code) || (typeof I18n !== "undefined" && I18n.currentLang === "en" ? "Unknown" : "Unbekannt");
 
       const tEl = document.getElementById("publishDevTitle");
       const oEl = document.getElementById("publishDevOrder");
@@ -3268,7 +3798,7 @@ function setupPublishModal() {
   if (submitBtn) {
     submitBtn.addEventListener("click", async () => {
       if (consent && !consent.checked) {
-        alert("Bitte bestätige die Berechtigung zur Veröffentlichung.");
+        alert(typeof I18n !== "undefined" ? I18n.t("editorModal.consentRequired") : "Bitte bestätige die Berechtigung zur Veröffentlichung.");
         return;
       }
 
@@ -3278,7 +3808,7 @@ function setupPublishModal() {
       const editCode = editCodeInput ? editCodeInput.value.trim() : "";
 
       submitBtn.disabled = true;
-      submitBtn.textContent = "Veröffentliche...";
+      submitBtn.textContent = typeof I18n !== "undefined" ? I18n.t("publishModal.publishing") : "Veröffentliche...";
       if (statusBox) statusBox.style.display = "none";
 
       const headers = {
@@ -3307,41 +3837,61 @@ function setupPublishModal() {
         }
 
         if (statusBox) {
+          const successTitle = typeof I18n !== "undefined" ? I18n.t("publishModal.success") : "✓ Erfolgreich im Katalog veröffentlicht!";
+          const orderLabel = typeof I18n !== "undefined" ? I18n.t("publishModal.orderNumberLabel") : "Bestellnummer:";
+          const editCodeTitle = typeof I18n !== "undefined" ? I18n.t("uploadModal.editCodeTitle") : "🔑 Dein Bearbeitungscode:";
+          const copyBtnText = typeof I18n !== "undefined" ? I18n.t("uploadModal.copyEditCodeBtn") : "📋 Kopieren";
+
           statusBox.innerHTML = `
             <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.75rem 1rem; border-radius: 8px; color: #34d399; font-size: 0.85rem;">
-              <div style="font-weight: 600; margin-bottom: 0.25rem;">✓ Erfolgreich im Katalog veröffentlicht!</div>
-              <div>Bestellnummer: <code>${escapeHtml(orderNumber)}</code></div>
+              <div style="font-weight: 600; margin-bottom: 0.25rem;">${escapeHtml(successTitle)}</div>
+              <div>${escapeHtml(orderLabel)} <code>${escapeHtml(orderNumber)}</code></div>
               ${newCode ? `
                 <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
-                  <strong>🔑 Dein Bearbeitungscode:</strong>
+                  <strong>${escapeHtml(editCodeTitle)}</strong>
                   <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
                     <input type="text" readonly value="${escapeHtml(newCode)}" style="flex: 1; font-family: monospace; font-size: 0.85rem; padding: 0.25rem 0.5rem; background: #0f172a; border: 1px solid rgba(56,189,248,0.4); color: #38bdf8; border-radius: 4px;">
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${escapeHtml(newCode)}'); this.textContent='✓ Kopiert!';">📋 Kopieren</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="publishCopyCodeBtn" data-code="${escapeHtml(newCode)}">${escapeHtml(copyBtnText)}</button>
                   </div>
                 </div>
               ` : ''}
             </div>
           `;
           statusBox.style.display = "block";
+
+          const copyBtnEl = document.getElementById("publishCopyCodeBtn");
+          if (copyBtnEl) {
+            copyBtnEl.addEventListener("click", async () => {
+              const codeToCopy = copyBtnEl.dataset.code;
+              try {
+                await navigator.clipboard.writeText(codeToCopy);
+                const copiedLabel = typeof I18n !== "undefined" ? I18n.t("uploadModal.copiedEditCodeBtn") : "✅ Kopiert!";
+                copyBtnEl.textContent = copiedLabel;
+                setTimeout(() => { copyBtnEl.textContent = copyBtnText; }, 2000);
+              } catch (_) {}
+            });
+          }
         }
         submitBtn.disabled = false;
-        submitBtn.textContent = "Aktualisieren";
+        submitBtn.textContent = typeof I18n !== "undefined" ? I18n.t("publishModal.publishBtn") : "Veröffentlichen";
 
         loadStats();
         loadManufacturers();
         loadDevices();
       } catch (err) {
         if (statusBox) {
+          const errMsg = typeof I18n !== "undefined"
+            ? I18n.t("publishModal.error", { message: escapeHtml(err.message) })
+            : `❌ Fehler beim Veröffentlichen: ${escapeHtml(err.message)}`;
           statusBox.innerHTML = `
             <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.75rem 1rem; border-radius: 8px; color: #f87171; font-size: 0.85rem;">
-              <div style="font-weight: 600; margin-bottom: 0.25rem;">❌ Fehler beim Veröffentlichen:</div>
-              <div>${escapeHtml(err.message)}</div>
+              <div style="font-weight: 600;">${escapeHtml(errMsg)}</div>
             </div>
           `;
           statusBox.style.display = "block";
         }
         submitBtn.disabled = false;
-        submitBtn.textContent = "Veröffentlichen";
+        submitBtn.textContent = typeof I18n !== "undefined" ? I18n.t("publishModal.publishBtn") : "Veröffentlichen";
       }
     });
   }

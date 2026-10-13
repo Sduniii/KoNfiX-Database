@@ -21,26 +21,30 @@
         </div>
         <div>
           <h1>KoNfiX-Database</h1>
-          <p class="tagline">Offene Online-Datenbank &amp; YAML-Gerätedefinitionen für KNX / KoNfiX</p>
+          <p class="tagline" data-i18n="hero.tagline">Offene Online-Datenbank &amp; YAML-Gerätedefinitionen für KNX / KoNfiX</p>
         </div>
       </div>
       <div class="nav-actions">
+        <div class="lang-switch" id="langSwitch" role="group" aria-label="Language selection">
+          <button type="button" class="lang-btn active" data-lang="de" title="Deutsch">DE</button>
+          <button type="button" class="lang-btn" data-lang="en" title="English">EN</button>
+        </div>
         <div id="adminNavSection" style="display: inline-flex; align-items: center; gap: 0.5rem;">
           <button id="adminToggleBtn" class="btn btn-secondary">
-            <span id="adminToggleText">🔐 Admin</span>
+            <span id="adminToggleText" data-i18n="nav.admin">🔐 Admin</span>
           </button>
         </div>
         <a href="/docs" target="_blank" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          Swagger API Doku
+          <span data-i18n="nav.swagger">Swagger API Doku</span>
         </a>
         <button id="openEditorNavBtn" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          🛠️ YAML-Editor
+          <span data-i18n="nav.yamlEditor">🛠️ YAML-Editor</span>
         </button>
         <button id="openUploadBtn" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          ⚡ .yaml / .knxprod Upload
+          <span data-i18n="nav.upload">⚡ .yaml / .knxprod Upload</span>
         </button>
       </div>
     </div>
@@ -52,22 +56,22 @@
       <div class="stats-bar" id="statsBar">
         <div class="stat-item">
           <span class="stat-value" id="statDevices">-</span>
-          <span class="stat-label">Geräte</span>
+          <span class="stat-label" data-i18n="hero.stats.devices">Geräte</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-value" id="statManufacturers">-</span>
-          <span class="stat-label">Hersteller</span>
+          <span class="stat-label" data-i18n="hero.stats.manufacturers">Hersteller</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-value" id="statFiles">-</span>
-          <span class="stat-label">Dateien</span>
+          <span class="stat-label" data-i18n="hero.stats.files">Dateien</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-value" id="statSize">- MB</span>
-          <span class="stat-label">Kataloggröße</span>
+          <span class="stat-label" data-i18n="hero.stats.catalogSize">Kataloggröße</span>
         </div>
       </div>
 
@@ -75,11 +79,11 @@
       <div class="search-card">
         <div class="search-input-wrap">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="searchInput" placeholder="Suche nach Bestellnummer (z. B. AKS-0816.04), Name, Applikation...">
+          <input type="text" id="searchInput" placeholder="Suche nach Bestellnummer (z. B. AKS-0816.04), Name, Applikation..." data-i18n-placeholder="hero.searchPlaceholder">
         </div>
         <div class="filter-wrap">
           <select id="manufacturerFilter">
-            <option value="">Alle Hersteller</option>
+            <option value="" data-i18n="hero.allManufacturers">Alle Hersteller</option>
           </select>
         </div>
       </div>
@@ -92,38 +96,38 @@
       <div class="schema-hero-header">
         <div class="schema-hero-title">
           <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
-            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">📐 Open Standard</span>
-            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">100% Offline-First</span>
+            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" data-i18n="devTools.openStandard">📐 Open Standard</span>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);" data-i18n="devTools.offlineFirst">100% Offline-First</span>
           </div>
-          <h3 style="margin: 0 0 0.35rem 0; font-size: 1.25rem; color: #fff;">KoNfiX-YAML Gerätedefinitionen</h3>
-          <p style="margin: 0; color: #94a3b8; font-size: 0.9rem; max-width: 650px; line-height: 1.45;">
+          <h3 style="margin: 0 0 0.35rem 0; font-size: 1.25rem; color: #fff;" data-i18n="devTools.title">KoNfiX-YAML Gerätedefinitionen</h3>
+          <p style="margin: 0; color: #94a3b8; font-size: 0.9rem; max-width: 650px; line-height: 1.45;" data-i18n="devTools.desc">
             Erstelle offene, herstellerunabhängige KNX-Gerätedefinitionen lokal auf deinem Computer oder bearbeite sie im interaktiven Web-Editor mit eindeutigem Link und lokalem Auto-Save.
           </p>
         </div>
         <div class="schema-hero-actions">
-          <a href="/api/v1/schema/konfix-device-v1.json?download=true" class="btn btn-secondary" download="konfix-device-v1.json" title="Offizielles JSON Schema für Autovervollständigung in IDEs">
+          <a href="/api/v1/schema/konfix-device-v1.json?download=true" class="btn btn-secondary" download="konfix-device-v1.json" title="Offizielles JSON Schema für Autovervollständigung in IDEs" data-i18n-title="devTools.jsonSchemaTitle">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            JSON-Schema (.json)
+            <span data-i18n="devTools.jsonSchemaBtn">JSON-Schema (.json)</span>
           </a>
-          <a href="/api/v1/schema/template.yaml" class="btn btn-secondary" download="konfix-template.yaml" title="Kommentierte Starter-Vorlage für eigene Geräte">
+          <a href="/api/v1/schema/template.yaml" class="btn btn-secondary" download="konfix-template.yaml" title="Kommentierte Starter-Vorlage für eigene Geräte" data-i18n-title="devTools.templateTitle">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Starter-Vorlage (.yaml)
+            <span data-i18n="devTools.templateBtn">Starter-Vorlage (.yaml)</span>
           </a>
-          <button id="openEditorHeroBtn" class="btn btn-primary">
+          <button id="openEditorHeroBtn" class="btn btn-primary" data-i18n="devTools.openEditorBtn">
             🚀 Web-Editor öffnen
           </button>
         </div>
       </div>
       <div class="schema-hero-footer">
         <div class="schema-resume-box">
-          <span style="font-size: 0.85rem; color: #cbd5e1; font-weight: 500;">Entwurf fortsetzen:</span>
+          <span style="font-size: 0.85rem; color: #cbd5e1; font-weight: 500;" data-i18n="devTools.resumeDraftLabel">Entwurf fortsetzen:</span>
           <div style="display: flex; gap: 0.4rem; align-items: center;">
-            <input type="text" id="quickResumeDraftInput" placeholder="Entwurfs-Code (z. B. DFT-7X9K2M)..." style="padding: 0.35rem 0.65rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; width: 220px;">
-            <button type="button" id="quickResumeDraftBtn" class="btn btn-secondary btn-sm">Laden ➔</button>
+            <input type="text" id="quickResumeDraftInput" placeholder="Entwurfs-Code (z. B. DFT-7X9K2M)..." data-i18n-placeholder="devTools.resumeDraftPlaceholder" style="padding: 0.35rem 0.65rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; width: 220px;">
+            <button type="button" id="quickResumeDraftBtn" class="btn btn-secondary btn-sm" data-i18n="devTools.resumeDraftBtn">Laden ➔</button>
           </div>
         </div>
         <div class="schema-ide-hint">
-          <span style="font-size: 0.75rem; color: #64748b;">IDE-Autovervollständigung:</span>
+          <span style="font-size: 0.75rem; color: #64748b;" data-i18n="devTools.ideHintLabel">IDE-Autovervollständigung:</span>
           <code># yaml-language-server: $schema=https://db.konfix.sduni.de/schemas/konfix-device-v1.json</code>
         </div>
       </div>
@@ -133,14 +137,14 @@
   <!-- Main Content: Catalog Devices Grid -->
   <main class="container main-content">
     <div class="section-header">
-      <h2 id="resultsHeading">Gerätekatalog</h2>
+      <h2 id="resultsHeading" data-i18n="results.heading">Gerätekatalog</h2>
       <span class="badge" id="resultsCount">0 Einträge</span>
     </div>
 
     <div class="devices-grid" id="devicesGrid">
       <div class="loading-state">
         <div class="spinner"></div>
-        <p>Lade KNX-Katalogdaten...</p>
+        <p data-i18n="devices.loading">Lade KNX-Katalogdaten...</p>
       </div>
     </div>
   </main>
@@ -149,67 +153,67 @@
   <div class="modal-backdrop" id="uploadModal">
     <div class="modal">
       <div class="modal-header">
-        <h3 id="uploadModalTitle">⚡ Gerätedefinition bereitstellen</h3>
+        <h3 id="uploadModalTitle" data-i18n="uploadModal.title">⚡ Gerätedefinition bereitstellen</h3>
         <button class="modal-close" id="closeUploadBtn">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.75rem;">
-          <button type="button" id="tabUploadFileBtn" class="btn btn-sm btn-primary">📁 Datei-Upload</button>
-          <button type="button" id="tabUploadUrlBtn" class="btn btn-sm btn-secondary">🌐 Aus Hersteller-Link importieren</button>
+          <button type="button" id="tabUploadFileBtn" class="btn btn-sm btn-primary" data-i18n="uploadModal.tabFile">📁 Datei-Upload</button>
+          <button type="button" id="tabUploadUrlBtn" class="btn btn-sm btn-secondary" data-i18n="uploadModal.tabUrl">🌐 Aus Hersteller-Link importieren</button>
         </div>
 
         <!-- 1. Datei-Upload Tab -->
         <div id="uploadFileTab">
-          <p class="modal-desc">
+          <p class="modal-desc" data-i18n="uploadModal.fileDesc" data-i18n-html="true">
             Lade native KoNfiX-Gerätedefinitionen (<code>.yaml</code>), ETS-Projekte (<code>.knxproj</code>), <code>.vd5</code> oder klassische <code>.knxprod</code> / <code>.zip</code>-Dateien hoch. KNX-Dateien werden automatisch vollständig in das offene KoNfiX-YAML-Format konvertiert.
           </p>
 
           <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;">🔗 Offizielle Hersteller-Download-URL (optional):</label>
-            <input type="url" id="uploadFileSourceUrl" placeholder="https://hersteller.de/download/produkt.knxprod" style="width: 100%; padding: 0.5rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.85rem;">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;" data-i18n="uploadModal.sourceUrlLabel">🔗 Offizielle Hersteller-Download-URL (optional):</label>
+            <input type="url" id="uploadFileSourceUrl" placeholder="https://hersteller.de/download/produkt.knxprod" data-i18n-placeholder="uploadModal.sourceUrlPlaceholder" style="width: 100%; padding: 0.5rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.85rem;">
           </div>
 
           <div class="consent-box" style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
             <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
               <input type="checkbox" id="uploadConsentCheckbox" style="margin-top: 0.2rem; cursor: pointer;">
-              <span>Ich bestätige, dass ich berechtigt bin, diese Gerätedatei hochzuladen oder dass es sich um frei bereitgestellte Gerätedefinitionen handelt.</span>
+              <span data-i18n="uploadModal.fileConsent">Ich bestätige, dass ich berechtigt bin, diese Gerätedatei hochzuladen oder dass es sich um frei bereitgestellte Gerätedefinitionen handelt.</span>
             </label>
           </div>
 
           <div class="drop-zone" id="dropZone">
             <div class="drop-icon">📦</div>
-            <h4>.yaml, .knxprod, .knxproj oder .vd5 hier ablegen</h4>
-            <p>oder klicken zum Auswählen (auch mehrere Dateien)</p>
+            <h4 data-i18n="uploadModal.dropZoneTitle">.yaml, .knxprod, .knxproj oder .vd5 hier ablegen</h4>
+            <p data-i18n="uploadModal.dropZoneSub">oder klicken zum Auswählen (auch mehrere Dateien)</p>
             <input type="file" id="fileInput" accept=".yaml,.yml,.knxprod,.knxproj,.vd5,.vd4,.vd3,.vd2,.vd1,.zip,application/octet-stream,application/zip,text/yaml" multiple hidden>
           </div>
         </div>
 
         <!-- 2. URL-Import Tab (Rechtssicher / Metadata-only) -->
         <div id="uploadUrlTab" style="display: none;">
-          <p class="modal-desc">
+          <p class="modal-desc" data-i18n="uploadModal.urlDesc" data-i18n-html="true">
             Gib den offiziellen Download-Link des Herstellers an. KoNfiX parst die XML-Metadaten direkt im Speicher und leitet Downloads transparent per HTTP 302 zum Hersteller weiter (<strong>100% rechtssicher</strong>, kein lokaler Speicherbedarf!).
           </p>
 
           <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;">🌐 Hersteller-Download-Link (.knxprod oder .zip):</label>
-            <input type="url" id="urlImportInput" placeholder="https://www.mdt.de/download/MDT_AKS.knxprod" style="width: 100%; padding: 0.55rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.9rem;">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;" data-i18n="uploadModal.urlInputLabel">🌐 Hersteller-Download-Link (.knxprod oder .zip):</label>
+            <input type="url" id="urlImportInput" placeholder="https://www.mdt.de/download/MDT_AKS.knxprod" data-i18n-placeholder="uploadModal.urlInputPlaceholder" style="width: 100%; padding: 0.55rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.9rem;">
           </div>
 
           <div style="margin-bottom: 1rem;">
             <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #94a3b8; cursor: pointer;">
               <input type="checkbox" id="urlImportStoreBinary">
-              <span>Binärdatei auch auf dem Server cachen (Standard: aus = reines Verlinken)</span>
+              <span data-i18n="uploadModal.urlCacheCheckbox">Binärdatei auch auf dem Server cachen (Standard: aus = reines Verlinken)</span>
             </label>
           </div>
 
           <div class="consent-box" style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
             <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
               <input type="checkbox" id="urlConsentCheckbox" style="margin-top: 0.2rem; cursor: pointer;">
-              <span>Ich bestätige, dass es sich um einen offiziellen, öffentlich frei zugänglichen Download des Herstellers handelt.</span>
+              <span data-i18n="uploadModal.urlConsent">Ich bestätige, dass es sich um einen offiziellen, öffentlich frei zugänglichen Download des Herstellers handelt.</span>
             </label>
           </div>
 
-          <button type="button" id="startUrlImportBtn" class="btn btn-primary" style="width: 100%;">
+          <button type="button" id="startUrlImportBtn" class="btn btn-primary" style="width: 100%;" data-i18n="uploadModal.startUrlImportBtn">
             ⬇️ Von Hersteller-Link importieren & indexieren
           </button>
         </div>
@@ -220,7 +224,7 @@
             <div id="uploadProgressBar" class="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.2s ease;"></div>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <div id="uploadStatusText" style="font-weight: 500; font-size: 0.85rem; color: #f8fafc;">Analysiere KNX-XML und importiere Geräte...</div>
+            <div id="uploadStatusText" style="font-weight: 500; font-size: 0.85rem; color: #f8fafc;" data-i18n="uploadModal.analyzingText">Analysiere KNX-XML und importiere Geräte...</div>
             <span id="uploadPercentBadge" class="badge" style="background: rgba(56,189,248,0.2); color: #38bdf8;">0%</span>
           </div>
           <div class="spinner" id="uploadSpinner"></div>
@@ -229,23 +233,23 @@
           <!-- Edit Code Box upon Upload Success -->
           <div id="uploadEditCodeBox" class="edit-code-result-box" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-              <span style="font-weight: 600; font-size: 0.9rem; color: #38bdf8;">🔑 Dein Bearbeitungscode</span>
-              <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">Gespeichert</span>
+              <span style="font-weight: 600; font-size: 0.9rem; color: #38bdf8;" data-i18n="uploadModal.editCodeTitle">🔑 Dein Bearbeitungscode</span>
+              <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;" data-i18n="uploadModal.editCodeBadge">Gespeichert</span>
             </div>
-            <p style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 0.75rem; line-height: 1.4;">
+            <p style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 0.75rem; line-height: 1.4;" data-i18n="uploadModal.editCodeDesc">
               Wichtig: Speichere diesen Bearbeitungscode gut ab! Nur mit diesem Code (oder als Administrator) kannst du deine importierten Geräte nachträglich bearbeiten, aktualisieren oder überschreiben.
             </p>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
               <input type="text" id="uploadEditCodeInput" readonly style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #38bdf8; letter-spacing: 1px;">
-              <button type="button" id="copyUploadEditCodeBtn" class="btn btn-sm btn-primary">📋 Kopieren</button>
+              <button type="button" id="copyUploadEditCodeBtn" class="btn btn-sm btn-primary" data-i18n="uploadModal.copyEditCodeBtn">📋 Kopieren</button>
             </div>
           </div>
         </div>
 
         <div class="rest-hint" style="margin-top: 1rem;">
-          <strong>Tipp für Automatisierung:</strong><br>
-          • Per URL importieren: <code>curl -X POST /api/v1/upload/url -H "Content-Type: application/json" -d '{"url":"https://..."}'</code><br>
-          • Datei-Upload: <code>curl -X POST /api/v1/upload -H "Content-Type: application/octet-stream" -H "X-Source-URL: https://..." --data-binary @datei.knxprod</code>
+          <strong data-i18n="uploadModal.restHintTitle">Tipp für Automatisierung:</strong><br>
+          <span data-i18n="uploadModal.restHintUrl">• Per URL importieren:</span> <code>curl -X POST /api/v1/upload/url -H "Content-Type: application/json" -d '{"url":"https://..."}'</code><br>
+          <span data-i18n="uploadModal.restHintFile">• Datei-Upload:</span> <code>curl -X POST /api/v1/upload -H "Content-Type: application/octet-stream" -H "X-Source-URL: https://..." --data-binary @datei.knxprod</code>
         </div>
       </div>
     </div>
@@ -255,7 +259,7 @@
   <div class="modal-backdrop" id="detailModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3 id="modalDeviceTitle">Gerätedetails</h3>
+        <h3 id="modalDeviceTitle" data-i18n="restModal.title">Gerätedetails</h3>
         <button class="modal-close" id="closeDetailBtn">&times;</button>
       </div>
       <div class="modal-body" id="modalDeviceBody">
@@ -268,31 +272,31 @@
   <div class="modal-backdrop" id="legalModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>Rechtliche Hinweise &amp; Disclaimer</h3>
+        <h3 data-i18n="legalModal.title">Rechtliche Hinweise &amp; Disclaimer</h3>
         <button class="modal-close" id="closeLegalBtn">&times;</button>
       </div>
       <div class="modal-body" style="line-height: 1.6; color: #cbd5e1; font-size: 0.9rem;">
-        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">1. Markenzeichen und Kompatibilität (§ 23 MarkenG)</h4>
-        <p style="margin-bottom: 1rem;">
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;" data-i18n="legalModal.sec1Title">1. Markenzeichen und Kompatibilität (§ 23 MarkenG)</h4>
+        <p style="margin-bottom: 1rem;" data-i18n="legalModal.sec1Body">
           KNX® und das KNX-Logo sind eingetragene Marken der KNX Association cvba, Brüssel. 
           Dieses Projekt (&bdquo;KoNfiX-Database&ldquo;) ist ein unabhängiges Open-Source-Katalogsystem und steht in keiner geschäftlichen Verbindung, Partnerschaft oder offiziellen Beziehung zur KNX Association cvba oder den gelisteten Herstellern. 
           Die Nennung von Marken, Herstellernamen und Produktbezeichnungen erfolgt ausschließlich zur sachgerechten Identifikation und Interoperabilitätsbestimmung im Sinne von § 23 MarkenG.
         </p>
 
-        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">2. Zweck und Herkunft der Produktdaten</h4>
-        <p style="margin-bottom: 1rem;">
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;" data-i18n="legalModal.sec2Title">2. Zweck und Herkunft der Produktdaten</h4>
+        <p style="margin-bottom: 1rem;" data-i18n="legalModal.sec2Body">
           Die in dieser Datenbank indexierten Metadaten und <code>.knxprod</code>-Dateien dienen der technischen Parametrierung von Gebäudeautomationsanlagen. 
           Sofern eine offizielle Hersteller-URL hinterlegt ist, leitet der Download-Endpunkt bevorzugt direkt auf den originalen CDN/Server des jeweiligen Herstellers weiter.
         </p>
 
-        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;">3. Notice-and-Takedown-Verfahren (Rechteinhaber)</h4>
-        <p style="margin-bottom: 1rem;">
+        <h4 style="color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem;" data-i18n="legalModal.sec3Title">3. Notice-and-Takedown-Verfahren (Rechteinhaber)</h4>
+        <p style="margin-bottom: 1rem;" data-i18n="legalModal.sec3Body1">
           Sollten Sie Rechteinhaber eines gelisteten Produkts sein und der Bereitstellung oder Verlinkung widersprechen wollen, senden Sie bitte eine formlose Mitteilung an:
         </p>
         <div class="code-block" style="display: inline-block; padding: 0.5rem 1rem; margin-bottom: 1rem; color: #38bdf8;">
           legal@konfix.sduni.de
         </div>
-        <p>
+        <p data-i18n="legalModal.sec3Body2">
           Wir prüfen eingehende Meldungen unverzüglich und entfernen beanstandete Dateien bzw. Einträge innerhalb kürzester Frist (&bdquo;Notice and Takedown&ldquo;).
         </p>
       </div>
@@ -303,20 +307,20 @@
   <div class="modal-backdrop" id="adminAuthModal">
     <div class="modal">
       <div class="modal-header">
-        <h3>🔐 Admin-Authentifizierung</h3>
+        <h3 data-i18n="adminModal.title">🔐 Admin-Authentifizierung</h3>
         <button class="modal-close" id="closeAdminAuthBtn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">
+        <p class="modal-desc" data-i18n="adminModal.desc">
           Gib den Admin API-Key ein, um Geräte zu verwalten, Metadaten anzupassen oder Takedowns durchzuführen.
         </p>
         <div style="margin-bottom: 1rem;">
-          <input type="password" id="adminKeyInput" placeholder="Admin API-Key eingeben..." style="width: 100%; padding: 0.6rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.9rem;">
+          <input type="password" id="adminKeyInput" placeholder="Admin API-Key eingeben..." data-i18n-placeholder="adminModal.placeholder" style="width: 100%; padding: 0.6rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; font-size: 0.9rem;">
         </div>
         <div id="adminAuthError" style="display: none; color: #ef4444; font-size: 0.85rem; margin-bottom: 1rem;"></div>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-          <button type="button" id="cancelAdminAuthBtn" class="btn btn-secondary">Abbrechen</button>
-          <button type="button" id="submitAdminAuthBtn" class="btn btn-primary">Anmelden</button>
+          <button type="button" id="cancelAdminAuthBtn" class="btn btn-secondary" data-i18n="adminModal.cancelBtn">Abbrechen</button>
+          <button type="button" id="submitAdminAuthBtn" class="btn btn-primary" data-i18n="adminModal.submitBtn">Anmelden</button>
         </div>
       </div>
     </div>
@@ -326,7 +330,7 @@
   <div class="modal-backdrop" id="editDeviceModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>✏️ Gerät bearbeiten</h3>
+        <h3 data-i18n="editModal.title">✏️ Gerät bearbeiten</h3>
         <button class="modal-close" id="closeEditDeviceBtn">&times;</button>
       </div>
       <div class="modal-body">
@@ -334,40 +338,40 @@
           <input type="hidden" id="editOrderNumber">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div>
-              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Bestellnummer:</label>
+              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;" data-i18n="editModal.orderNumber">Bestellnummer:</label>
               <input type="text" id="editOrderNumberDisplay" disabled style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #94a3b8;">
             </div>
             <div>
-              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Gerätename:</label>
+              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;" data-i18n="editModal.name">Gerätename:</label>
               <input type="text" id="editDeviceName" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;">
             </div>
           </div>
 
           <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.25rem;">🌐 Offizielle Hersteller-Download-URL (source_url):</label>
-            <input type="url" id="editSourceUrl" placeholder="https://hersteller.de/download/..." style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.25rem;" data-i18n="editModal.sourceUrl">🌐 Offizielle Hersteller-Download-URL (source_url):</label>
+            <input type="url" id="editSourceUrl" placeholder="https://hersteller.de/download/..." data-i18n-placeholder="editModal.sourceUrlPlaceholder" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;">
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div>
-              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Hardware-Version:</label>
+              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;" data-i18n="editModal.hwVersion">Hardware-Version:</label>
               <input type="text" id="editHardwareVersion" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;">
             </div>
             <div>
-              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Bus-Strom (mA):</label>
+              <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;" data-i18n="editModal.busCurrent">Bus-Strom (mA):</label>
               <input type="number" step="0.1" id="editBusCurrent" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;">
             </div>
           </div>
 
           <div style="margin-bottom: 1.25rem;">
-            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Beschreibung:</label>
+            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;" data-i18n="editModal.description">Beschreibung:</label>
             <textarea id="editDescription" rows="3" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;"></textarea>
           </div>
 
           <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px;">
-            <label style="display: block; font-size: 0.85rem; color: #38bdf8; font-weight: 500; margin-bottom: 0.35rem;">🔑 Bearbeitungscode (oder Admin-Key): *</label>
-            <input type="text" id="editDeviceCodeInput" placeholder="z. B. 3f9a7c2b... (vom Import/Upload)" style="width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
-            <small style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.35rem;">
+            <label style="display: block; font-size: 0.85rem; color: #38bdf8; font-weight: 500; margin-bottom: 0.35rem;" data-i18n="editModal.editCodeLabel">🔑 Bearbeitungscode (oder Admin-Key): *</label>
+            <input type="text" id="editDeviceCodeInput" placeholder="z. B. 3f9a7c2b... (vom Import/Upload)" data-i18n-placeholder="editModal.editCodePlaceholder" style="width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+            <small style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.35rem;" data-i18n="editModal.editCodeHint">
               Wird benötigt, wenn du nicht als Administrator eingeloggt bist. Falls du das Gerät in diesem Browser hochgeladen hast, wird der Code automatisch ausgefüllt.
             </small>
           </div>
@@ -375,8 +379,8 @@
           <div id="editDeviceStatus" style="margin-bottom: 1rem; display: none;"></div>
 
           <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <button type="button" id="cancelEditDeviceBtn" class="btn btn-secondary">Abbrechen</button>
-            <button type="button" id="saveEditDeviceBtn" class="btn btn-primary">Änderungen speichern</button>
+            <button type="button" id="cancelEditDeviceBtn" class="btn btn-secondary" data-i18n="editModal.cancelBtn">Abbrechen</button>
+            <button type="button" id="saveEditDeviceBtn" class="btn btn-primary" data-i18n="editModal.saveBtn">Änderungen speichern</button>
           </div>
         </form>
       </div>
@@ -387,23 +391,23 @@
   <div class="modal-backdrop" id="deleteDeviceModal">
     <div class="modal">
       <div class="modal-header">
-        <h3 style="color: #ef4444;">🗑️ Gerät löschen (Takedown)</h3>
+        <h3 style="color: #ef4444;" data-i18n="deleteModal.title">🗑️ Gerät löschen (Takedown)</h3>
         <button class="modal-close" id="closeDeleteDeviceBtn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc" id="deleteDeviceDesc">
+        <p class="modal-desc" id="deleteDeviceDesc" data-i18n="deleteModal.desc">
           Möchtest du das Gerät wirklich aus dem Katalog entfernen?
         </p>
         <div style="margin-bottom: 1.25rem;">
           <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
             <input type="checkbox" id="deleteFileCheckbox" checked>
-            <span>Zugehörige .knxprod-Datei ebenfalls vom Server löschen</span>
+            <span data-i18n="deleteModal.deleteFileCheckbox">Zugehörige .knxprod-Datei ebenfalls vom Server löschen</span>
           </label>
         </div>
         <div id="deleteDeviceStatus" style="margin-bottom: 1rem; display: none;"></div>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-          <button type="button" id="cancelDeleteDeviceBtn" class="btn btn-secondary">Abbrechen</button>
-          <button type="button" id="confirmDeleteDeviceBtn" class="btn btn-danger" style="background: #dc2626; color: white;">Endgültig löschen</button>
+          <button type="button" id="cancelDeleteDeviceBtn" class="btn btn-secondary" data-i18n="deleteModal.cancelBtn">Abbrechen</button>
+          <button type="button" id="confirmDeleteDeviceBtn" class="btn btn-danger" style="background: #dc2626; color: white;" data-i18n="deleteModal.confirmBtn">Endgültig löschen</button>
         </div>
       </div>
     </div>
@@ -413,11 +417,11 @@
   <div class="modal-backdrop" id="batchDeleteModal">
     <div class="modal">
       <div class="modal-header">
-        <h3 style="color: #ef4444;">🗑️ Mehrere Geräte löschen (Batch)</h3>
+        <h3 style="color: #ef4444;" data-i18n="batchDeleteModal.title">🗑️ Mehrere Geräte löschen (Batch)</h3>
         <button class="modal-close" id="closeBatchDeleteBtn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc" id="batchDeleteDesc">
+        <p class="modal-desc" id="batchDeleteDesc" data-i18n="batchDeleteModal.desc">
           Möchtest du die folgenden ausgewählten Geräte wirklich unwiderruflich aus dem Katalog entfernen?
         </p>
         <div id="batchDeleteList" class="batch-delete-list">
@@ -426,13 +430,13 @@
         <div style="margin-top: 1rem; margin-bottom: 1.25rem;">
           <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
             <input type="checkbox" id="batchDeleteFilesCheckbox" checked>
-            <span>Zugehörige .knxprod-Dateien ebenfalls vom Server entfernen (falls keine anderen Geräte darauf verweisen)</span>
+            <span data-i18n="batchDeleteModal.deleteFilesCheckbox">Zugehörige .knxprod-Dateien ebenfalls vom Server entfernen (falls keine anderen Geräte darauf verweisen)</span>
           </label>
         </div>
         <div id="batchDeleteStatus" style="margin-bottom: 1rem; display: none;"></div>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-          <button type="button" id="cancelBatchDeleteBtn" class="btn btn-secondary">Abbrechen</button>
-          <button type="button" id="confirmBatchDeleteBtn" class="btn btn-danger" style="background: #dc2626; color: white;">Ausgewählte endgültig löschen</button>
+          <button type="button" id="cancelBatchDeleteBtn" class="btn btn-secondary" data-i18n="batchDeleteModal.cancelBtn">Abbrechen</button>
+          <button type="button" id="confirmBatchDeleteBtn" class="btn btn-danger" style="background: #dc2626; color: white;" data-i18n="batchDeleteModal.confirmBtn">Ausgewählte endgültig löschen</button>
         </div>
       </div>
     </div>
@@ -443,12 +447,12 @@
     <div class="bulk-actions-content">
       <div class="bulk-selection-info">
         <span class="bulk-badge" id="bulkSelectedCount">0</span>
-        <span id="bulkSelectedText">Geräte ausgewählt</span>
+        <span id="bulkSelectedText" data-i18n="bulkToolbar.selected">Geräte ausgewählt</span>
       </div>
       <div class="bulk-actions-buttons">
-        <button type="button" id="bulkSelectAllBtn" class="btn btn-sm btn-ghost">Alle sichtbaren wählen</button>
-        <button type="button" id="bulkDeselectAllBtn" class="btn btn-sm btn-ghost">Auswahl aufheben</button>
-        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-danger" style="background: #dc2626; color: white;">🗑️ Ausgewählte löschen</button>
+        <button type="button" id="bulkSelectAllBtn" class="btn btn-sm btn-ghost" data-i18n="bulkToolbar.selectAll">Alle sichtbaren wählen</button>
+        <button type="button" id="bulkDeselectAllBtn" class="btn btn-sm btn-ghost" data-i18n="bulkToolbar.deselectAll">Auswahl aufheben</button>
+        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-danger" style="background: #dc2626; color: white;" data-i18n="bulkToolbar.deleteSelected">🗑️ Ausgewählte löschen</button>
       </div>
     </div>
   </div>
@@ -457,18 +461,18 @@
   <div class="modal-backdrop" id="yamlModal">
     <div class="modal" style="max-width: 800px; width: 92%;">
       <div class="modal-header">
-        <h3 id="yamlModalTitle">📄 KoNfiX-YAML Definition</h3>
+        <h3 id="yamlModalTitle" data-i18n="yamlModal.title">📄 KoNfiX-YAML Definition</h3>
         <button class="modal-close" id="closeYamlBtn">&times;</button>
       </div>
       <div class="modal-body">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-          <span style="font-size: 0.85rem; color: #94a3b8;" id="yamlModalSubtitle">Gerätedefinition</span>
+          <span style="font-size: 0.85rem; color: #94a3b8;" id="yamlModalSubtitle" data-i18n="yamlModal.subtitle">Gerätedefinition</span>
           <div style="display: flex; gap: 0.5rem;">
-            <button type="button" id="copyYamlBtn" class="btn btn-sm btn-secondary">📋 Kopieren</button>
-            <a id="downloadYamlModalBtn" href="#" class="btn btn-sm btn-primary">⬇️ Herunterladen</a>
+            <button type="button" id="copyYamlBtn" class="btn btn-sm btn-secondary" data-i18n="yamlModal.copyBtn">📋 Kopieren</button>
+            <a id="downloadYamlModalBtn" href="#" class="btn btn-sm btn-primary" data-i18n="yamlModal.downloadBtn">⬇️ Herunterladen</a>
           </div>
         </div>
-        <pre id="yamlContentPre" class="yaml-viewer"><code>Lade YAML...</code></pre>
+        <pre id="yamlContentPre" class="yaml-viewer"><code data-i18n="yamlModal.loading">Lade YAML...</code></pre>
       </div>
     </div>
   </div>
@@ -478,30 +482,30 @@
     <div class="modal modal-editor" style="max-width: 1300px; width: 96vw; height: 92vh; display: flex; flex-direction: column;">
       <div class="modal-header" style="padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-          <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;" data-i18n="editorModal.title">
             🛠️ KoNfiX-YAML Editor
           </h3>
-          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);" data-i18n="editorModal.sandboxBadge">
             🔒 Lokale Sandbox (Offline-First)
           </span>
-          <span id="editorSaveStatus" style="font-size: 0.75rem; color: #94a3b8;">Automatisch lokal gespeichert</span>
+          <span id="editorSaveStatus" style="font-size: 0.75rem; color: #94a3b8;" data-i18n="editorModal.autoSaved">Automatisch lokal gespeichert</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
           <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
-            <label style="font-size: 0.8rem; color: #94a3b8;">Vorlage:</label>
+            <label style="font-size: 0.8rem; color: #94a3b8;" data-i18n="editorModal.templateLabel">Vorlage:</label>
             <select id="editorTemplateSelect" class="form-select-sm" style="background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.8rem;">
-              <option value="switch">⚡ Schaltaktor (4-fach)</option>
-              <option value="dimmer">💡 Dimmaktor (2-fach)</option>
-              <option value="shutter">🪟 Jalousieaktor (4-fach)</option>
-              <option value="hvac">🌡️ Raumtemperaturregler</option>
-              <option value="binary_input">🔌 Binäreingang (4-fach)</option>
-              <option value="blank">📄 Leeres Template</option>
+              <option value="switch" data-i18n="editorModal.templates.switch">⚡ Schaltaktor (4-fach)</option>
+              <option value="dimmer" data-i18n="editorModal.templates.dimmer">💡 Dimmaktor (2-fach)</option>
+              <option value="shutter" data-i18n="editorModal.templates.shutter">🪟 Jalousieaktor (4-fach)</option>
+              <option value="hvac" data-i18n="editorModal.templates.hvac">🌡️ Raumtemperaturregler</option>
+              <option value="binary_input" data-i18n="editorModal.templates.binary_input">🔌 Binäreingang (4-fach)</option>
+              <option value="blank" data-i18n="editorModal.templates.blank">📄 Leeres Template</option>
             </select>
           </div>
-          <button type="button" id="editorOpenFileBtn" class="btn btn-sm btn-secondary">📂 Öffnen</button>
+          <button type="button" id="editorOpenFileBtn" class="btn btn-sm btn-secondary" data-i18n="editorModal.openBtn">📂 Öffnen</button>
           <input type="file" id="editorFileInput" accept=".yaml,.yml,.knxprod" hidden>
-          <button type="button" id="editorCopyBtn" class="btn btn-sm btn-secondary">📋 Kopieren</button>
-          <button type="button" id="editorDownloadBtn" class="btn btn-sm btn-primary">⬇️ YAML Download</button>
+          <button type="button" id="editorCopyBtn" class="btn btn-sm btn-secondary" data-i18n="editorModal.copyBtn">📋 Kopieren</button>
+          <button type="button" id="editorDownloadBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.downloadBtn">⬇️ YAML Download</button>
           <button class="modal-close" id="closeEditorBtn" style="font-size: 1.5rem; line-height: 1; cursor: pointer;">&times;</button>
         </div>
       </div>
@@ -509,20 +513,20 @@
       <!-- Draft Bar -->
       <div class="editor-draft-bar" style="background: rgba(15, 23, 42, 0.75); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0.5rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-          <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 500;">💾 Lokaler Entwurf:</span>
+          <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 500;" data-i18n="editorModal.localDraftLabel">💾 Lokaler Entwurf:</span>
           <select id="editorDraftSelect" style="background: #0b0f19; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 180px; max-width: 260px;"></select>
-          <button type="button" id="editorNewDraftBtn" class="btn btn-sm btn-ghost" title="Neuen leeren Entwurf anlegen">➕ Neuer Entwurf</button>
-          <button type="button" id="editorDeleteDraftBtn" class="btn btn-sm btn-ghost" style="color: #ef4444;" title="Diesen Entwurf löschen">🗑️</button>
+          <button type="button" id="editorNewDraftBtn" class="btn btn-sm btn-ghost" title="Neuen leeren Entwurf anlegen" data-i18n="editorModal.newDraftBtn" data-i18n-title="editorModal.newDraftTitle">➕ Neuer Entwurf</button>
+          <button type="button" id="editorDeleteDraftBtn" class="btn btn-sm btn-ghost" style="color: #ef4444;" title="Diesen Entwurf löschen" data-i18n-title="editorModal.deleteDraftTitle">🗑️</button>
           <span class="draft-code-badge" id="editorDraftCodeBadge" title="Lokaler Entwurfscode" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); padding: 0.2rem 0.5rem; border-radius: 4px;">DFT-000000</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-          <button type="button" id="editorCopyDraftLinkBtn" class="btn btn-sm btn-secondary" title="Dauerhaften Link zu diesem lokalen Entwurf kopieren">
+          <button type="button" id="editorCopyDraftLinkBtn" class="btn btn-sm btn-secondary" title="Dauerhaften Link zu diesem lokalen Entwurf kopieren" data-i18n="editorModal.draftLinkBtn" data-i18n-title="editorModal.draftLinkTitle">
             🔗 Entwurf-Link
           </button>
-          <button type="button" id="editorSharePortableBtn" class="btn btn-sm btn-secondary" title="Teilbaren Link mit allen Daten in der URL erzeugen">
+          <button type="button" id="editorSharePortableBtn" class="btn btn-sm btn-secondary" title="Teilbaren Link mit allen Daten in der URL erzeugen" data-i18n="editorModal.portableLinkBtn" data-i18n-title="editorModal.portableLinkTitle">
             🌐 Portabler Link
           </button>
-          <button type="button" id="editorOpenPublishBtn" class="btn btn-sm btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;">
+          <button type="button" id="editorOpenPublishBtn" class="btn btn-sm btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;" data-i18n="editorModal.publishBtn">
             🚀 In Katalog veröffentlichen
           </button>
         </div>
@@ -534,58 +538,58 @@
         <!-- Left: Visual Form Editor -->
         <div class="editor-pane editor-visual-pane" style="overflow-y: auto; padding: 1rem 1.25rem; border-right: 1px solid rgba(255,255,255,0.1); background: rgba(15, 23, 42, 0.4);">
           <div class="editor-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
-            <button type="button" id="tabEditorGeneralBtn" class="btn btn-sm btn-primary">🏢 Allgemein & Hardware</button>
-            <button type="button" id="tabEditorObjectsBtn" class="btn btn-sm btn-secondary">📡 KOs (<span id="editorKoCount">0</span>)</button>
-            <button type="button" id="tabEditorParamsBtn" class="btn btn-sm btn-secondary">⚙️ Parameter (<span id="editorParamCount">0</span>)</button>
+            <button type="button" id="tabEditorGeneralBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.tabGeneral">🏢 Allgemein & Hardware</button>
+            <button type="button" id="tabEditorObjectsBtn" class="btn btn-sm btn-secondary">📡 <span data-i18n="editorModal.tabObjects">KOs</span> (<span id="editorKoCount">0</span>)</button>
+            <button type="button" id="tabEditorParamsBtn" class="btn btn-sm btn-secondary">⚙️ <span data-i18n="editorModal.tabParams">Parameter</span> (<span id="editorParamCount">0</span>)</button>
           </div>
 
           <!-- 1. General & Hardware Tab -->
           <div id="editorTabGeneral">
             <div class="form-row-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
               <div>
-                <label class="editor-label">Hersteller-Name *</label>
-                <input type="text" id="edMfgName" class="editor-input" placeholder="z. B. MDT technologies">
+                <label class="editor-label" data-i18n="editorModal.mfgNameLabel">Hersteller-Name *</label>
+                <input type="text" id="edMfgName" class="editor-input" placeholder="z. B. MDT technologies" data-i18n-placeholder="editorModal.mfgNamePlaceholder">
               </div>
               <div>
-                <label class="editor-label">Hersteller-Code (Slug, lowercase) *</label>
-                <input type="text" id="edMfgCode" class="editor-input" placeholder="z. B. mdt" pattern="^[a-z0-9_-]+$">
+                <label class="editor-label" data-i18n="editorModal.mfgCodeLabel">Hersteller-Code (Slug, lowercase) *</label>
+                <input type="text" id="edMfgCode" class="editor-input" placeholder="z. B. mdt" pattern="^[a-z0-9_-]+$" data-i18n-placeholder="editorModal.mfgCodePlaceholder">
               </div>
             </div>
             <div class="form-row-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
               <div>
-                <label class="editor-label">Bestellnummer *</label>
-                <input type="text" id="edOrderNumber" class="editor-input" placeholder="z. B. AKS-0816.04">
+                <label class="editor-label" data-i18n="editorModal.orderNumberLabel">Bestellnummer *</label>
+                <input type="text" id="edOrderNumber" class="editor-input" placeholder="z. B. AKS-0816.04" data-i18n-placeholder="editorModal.orderNumberPlaceholder">
               </div>
               <div>
-                <label class="editor-label">Gerätename *</label>
-                <input type="text" id="edDevName" class="editor-input" placeholder="z. B. Schaltaktor 8-fach 16A">
+                <label class="editor-label" data-i18n="editorModal.devNameLabel">Gerätename *</label>
+                <input type="text" id="edDevName" class="editor-input" placeholder="z. B. Schaltaktor 8-fach 16A" data-i18n-placeholder="editorModal.devNamePlaceholder">
               </div>
             </div>
             <div style="margin-bottom: 0.75rem;">
-              <label class="editor-label">Produktbeschreibung</label>
-              <textarea id="edDescription" class="editor-input" rows="2" placeholder="Optionale Beschreibung des Geräts..."></textarea>
+              <label class="editor-label" data-i18n="editorModal.descLabel">Produktbeschreibung</label>
+              <textarea id="edDescription" class="editor-input" rows="2" placeholder="Optionale Beschreibung des Geräts..." data-i18n-placeholder="editorModal.descPlaceholder"></textarea>
             </div>
             <div class="form-row-3" style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
               <div>
-                <label class="editor-label">Hardware-Name</label>
-                <input type="text" id="edHwName" class="editor-input" placeholder="z. B. AKS-0816">
+                <label class="editor-label" data-i18n="editorModal.hwNameLabel">Hardware-Name</label>
+                <input type="text" id="edHwName" class="editor-input" placeholder="z. B. AKS-0816" data-i18n-placeholder="editorModal.hwNamePlaceholder">
               </div>
               <div>
-                <label class="editor-label">HW-Version</label>
+                <label class="editor-label" data-i18n="editorModal.hwVersionLabel">HW-Version</label>
                 <input type="text" id="edHwVersion" class="editor-input" placeholder="1.0">
               </div>
               <div>
-                <label class="editor-label">Busstrom (mA)</label>
+                <label class="editor-label" data-i18n="editorModal.busCurrentLabel">Busstrom (mA)</label>
                 <input type="number" step="0.5" id="edBusCurrent" class="editor-input" placeholder="10.0">
               </div>
             </div>
             <div class="form-row-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
               <div>
-                <label class="editor-label">Applikations-ID (lowercase)</label>
-                <input type="text" id="edAppId" class="editor-input" placeholder="z. B. mdt_aks-0816_v1">
+                <label class="editor-label" data-i18n="editorModal.appIdLabel">Applikations-ID (lowercase)</label>
+                <input type="text" id="edAppId" class="editor-input" placeholder="z. B. mdt_aks-0816_v1" data-i18n-placeholder="editorModal.appIdPlaceholder">
               </div>
               <div>
-                <label class="editor-label">Applikations-Version / Maske</label>
+                <label class="editor-label" data-i18n="editorModal.appVersionLabel">Applikations-Version / Maske</label>
                 <input type="text" id="edAppVersion" class="editor-input" placeholder="1.0 (MV-07B0)">
               </div>
             </div>
@@ -594,10 +598,10 @@
           <!-- 2. Communication Objects Tab -->
           <div id="editorTabObjects" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
-              <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;">Kommunikationsobjekte (KOs)</h4>
+              <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;" data-i18n="editorModal.koHeading">Kommunikationsobjekte (KOs)</h4>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" id="editorKoSearch" placeholder="🔍 KO suchen (Nr, Name, DPT)..." class="editor-input" style="width: 220px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
-                <button type="button" id="editorAddKoBtn" class="btn btn-sm btn-primary">➕ Objekt</button>
+                <input type="text" id="editorKoSearch" placeholder="🔍 KO suchen (Nr, Name, DPT)..." data-i18n-placeholder="editorModal.koSearchPlaceholder" class="editor-input" style="width: 220px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                <button type="button" id="editorAddKoBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.addKoBtn">➕ Objekt</button>
               </div>
             </div>
             <div id="editorKoPagination" class="editor-pagination" style="display: none; margin-bottom: 0.75rem;"></div>
@@ -610,13 +614,13 @@
           <!-- 3. Parameters Tab -->
           <div id="editorTabParams" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
-              <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;">Geräteparameter &amp; Menüstruktur</h4>
-              <button type="button" id="editorAddParamBtn" class="btn btn-sm btn-primary">➕ Parameter</button>
+              <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;" data-i18n="editorModal.paramHeading">Geräteparameter &amp; Menüstruktur</h4>
+              <button type="button" id="editorAddParamBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.addParamBtn">➕ Parameter</button>
             </div>
             <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-              <input type="text" id="editorParamSearch" placeholder="🔍 Parameter suchen (ID, Name, Text)..." class="editor-input" style="flex: 1; min-width: 180px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+              <input type="text" id="editorParamSearch" placeholder="🔍 Parameter suchen (ID, Name, Text)..." data-i18n-placeholder="editorModal.paramSearchPlaceholder" class="editor-input" style="flex: 1; min-width: 180px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
               <select id="editorParamPageFilter" class="editor-input" style="width: 200px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
-                <option value="">Alle Seiten / Menüs</option>
+                <option value="" data-i18n="editorModal.paramAllPages">Alle Seiten / Menüs</option>
               </select>
             </div>
             <div id="editorParamPagination" class="editor-pagination" style="display: none; margin-bottom: 0.75rem;"></div>
@@ -632,13 +636,13 @@
           <div class="editor-code-header" style="padding: 0.5rem 1rem; background: #0d121f; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #38bdf8;">device.yaml</span>
-              <span id="editorValidationBadge" class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;">✓ Valide (Schema v1)</span>
+              <span id="editorValidationBadge" class="badge" style="background: rgba(16,185,129,0.15); color: #10b981;" data-i18n="editorModal.validSchema">✓ Valide (Schema v1)</span>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <a href="/api/v1/schema/konfix-device-v1.json" target="_blank" class="btn-text-link" style="font-size: 0.75rem; color: #64748b; text-decoration: underline;">
+              <a href="/api/v1/schema/konfix-device-v1.json" target="_blank" class="btn-text-link" style="font-size: 0.75rem; color: #64748b; text-decoration: underline;" data-i18n="editorModal.schemaDocLink">
                 Schema Doku
               </a>
-              <button type="button" id="editorFormatBtn" class="btn btn-sm btn-ghost" title="Neu formatieren">🔄 Formatieren</button>
+              <button type="button" id="editorFormatBtn" class="btn btn-sm btn-ghost" title="Neu formatieren" data-i18n="editorModal.formatBtn">🔄 Formatieren</button>
             </div>
           </div>
           <div id="editorErrorBox" style="display: none; padding: 0.4rem 0.75rem; background: rgba(239,68,68,0.15); border-bottom: 1px solid rgba(239,68,68,0.3); color: #f87171; font-size: 0.75rem; font-family: monospace;"></div>
@@ -654,35 +658,35 @@
   <div class="modal-backdrop" id="publishCatalogModal">
     <div class="modal">
       <div class="modal-header">
-        <h3>🚀 Im Katalog veröffentlichen</h3>
+        <h3 data-i18n="publishModal.title">🚀 Im Katalog veröffentlichen</h3>
         <button class="modal-close" id="closePublishBtn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">
+        <p class="modal-desc" data-i18n="publishModal.desc">
           Übertrage deine im Editor erstellte Gerätedefinition direkt in den zentralen KoNfiX-Katalog.
         </p>
 
         <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="color: #94a3b8;">Gerät:</span>
+            <span style="color: #94a3b8;" data-i18n="publishModal.deviceLabel">Gerät:</span>
             <strong id="publishDevTitle" style="color: #fff;">-</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="color: #94a3b8;">Bestellnummer:</span>
+            <span style="color: #94a3b8;" data-i18n="publishModal.orderNumberLabel">Bestellnummer:</span>
             <code id="publishDevOrder" style="color: #38bdf8;">-</code>
           </div>
           <div style="display: flex; justify-content: space-between;">
-            <span style="color: #94a3b8;">Hersteller:</span>
+            <span style="color: #94a3b8;" data-i18n="publishModal.manufacturerLabel">Hersteller:</span>
             <span id="publishDevMfg" style="color: #cbd5e1;">-</span>
           </div>
         </div>
 
         <div style="margin-bottom: 1rem;">
-          <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;">
+          <label style="display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem;" data-i18n="publishModal.editCodeLabel">
             🔑 Bearbeitungscode (falls Gerät schon im Katalog existiert):
           </label>
-          <input type="text" id="publishEditCodeInput" placeholder="z. B. a1b2c3d4e5f60718" style="width: 100%; padding: 0.55rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(56,189,248,0.3); border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
-          <small style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+          <input type="text" id="publishEditCodeInput" placeholder="z. B. a1b2c3d4e5f60718" data-i18n-placeholder="publishModal.editCodePlaceholder" style="width: 100%; padding: 0.55rem 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid rgba(56,189,248,0.3); border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+          <small style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.25rem;" data-i18n="publishModal.editCodeHint">
             Wird für neue Geräte automatisch neu erzeugt oder bei vorhandenen Geräten geprüft.
           </small>
         </div>
@@ -690,15 +694,15 @@
         <div class="consent-box" style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
           <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;">
             <input type="checkbox" id="publishConsentCheckbox" checked style="margin-top: 0.2rem; cursor: pointer;">
-            <span>Ich bestätige, dass die Gerätedefinition korrekt ist und veröffentlicht werden darf.</span>
+            <span data-i18n="publishModal.consent">Ich bestätige, dass die Gerätedefinition korrekt ist und veröffentlicht werden darf.</span>
           </label>
         </div>
 
         <div id="publishStatusBox" style="margin-bottom: 1rem; display: none;"></div>
 
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-          <button type="button" id="cancelPublishBtn" class="btn btn-secondary">Abbrechen</button>
-          <button type="button" id="submitPublishBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;">
+          <button type="button" id="cancelPublishBtn" class="btn btn-secondary" data-i18n="publishModal.cancelBtn">Abbrechen</button>
+          <button type="button" id="submitPublishBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;" data-i18n="publishModal.publishBtn">
             Veröffentlichen
           </button>
         </div>
@@ -708,16 +712,17 @@
 
   <footer class="footer">
     <div class="container footer-content">
-      <p>KoNfiX-Database &copy; 2026 &bull; KNX-kompatibles REST-Katalogsystem (AGPL-3.0)</p>
+      <p data-i18n="footer.copyright" data-i18n-html="true">KoNfiX-Database &copy; 2026 &bull; KNX-kompatibles REST-Katalogsystem (AGPL-3.0)</p>
       <div class="footer-links">
-        <a href="/docs">OpenAPI Spec</a>
-        <a href="/api/v1/devices">JSON API</a>
-        <button id="openLegalBtn" style="background: none; border: none; color: inherit; font-size: inherit; cursor: pointer; text-decoration: underline; padding: 0;">Rechtliche Hinweise &amp; Disclaimer</button>
-        <a href="https://github.com" target="_blank">GitHub Repository</a>
+        <a href="/docs" data-i18n="footer.openapi">OpenAPI Spec</a>
+        <a href="/api/v1/devices" data-i18n="footer.jsonApi">JSON API</a>
+        <button id="openLegalBtn" style="background: none; border: none; color: inherit; font-size: inherit; cursor: pointer; text-decoration: underline; padding: 0;" data-i18n="footer.legalNotice">Rechtliche Hinweise &amp; Disclaimer</button>
+        <a href="https://github.com" target="_blank" data-i18n="footer.github">GitHub Repository</a>
       </div>
     </div>
   </footer>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/vendor/js-yaml.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
