@@ -1,11 +1,11 @@
-# isort: skip_file
+import secrets
 from typing import Annotated, Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.v1.auth import verify_admin_key, verify_api_key
+from app.api.v1.auth import verify_admin_key, verify_api_key, is_admin_request, is_admin_authenticated
 from app.database import get_db
 from app.models import Device, Manufacturer, CommunicationObject, Parameter
 from app.schemas.device import (
@@ -249,17 +249,26 @@ def get_device(order_number: str, db: Annotated[Session, Depends(get_db)]):
     return _to_device_response(device)
 
 
+from pydantic import BaseModel
+
+class VerifyCodeRequest(BaseModel):
+    edit_code: Optional[str] = None
+
+
 @router.patch(
     "/devices/{order_number:path}",
     response_model=DeviceResponse,
-    summary="Update device metadata and manufacturer link (Admin)",
-    description="Aktualisiert die Metadaten eines Geräts sowie die offizielle Hersteller-Quelle (source_url)."
+    summary="Update device metadata and manufacturer link (Creator or Admin)",
+    description="Aktualisiert die Metadaten eines Geräts sowie die offizielle Hersteller-Quelle (source_url). Erfordert den Bearbeitungs-Code des Geräts oder Admin-Rechte."
 )
 def update_device(
     order_number: str,
     update_data: DeviceUpdateRequest,
     db: Session = DB_SESSION_DEPENDENCY,
-    _authorized: bool = Depends(verify_admin_key)
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code", description="Bearbeitungs-Code des Geräts"),
+    edit_code: str | None = Query(None, description="Bearbeitungs-Code via Query-Parameter"),
+    x_api_key: str | None = Header(None, alias="X-API-Key", description="Admin-Key"),
+    authorization: str | None = Header(None, description="Admin-Key via Bearer")
 ):
     device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
     if not device:
@@ -267,6 +276,26 @@ def update_device(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
+
+    has_admin_key = is_admin_request(x_api_key=x_api_key, authorization=authorization)
+    is_open_admin = is_admin_authenticated(x_api_key=x_api_key, authorization=authorization)
+    provided_code = update_data.edit_code or x_edit_code or edit_code
+
+    if provided_code:
+        # Caller provided an edit code: must match device's token unless they have a valid admin key
+        if not device.edit_token or not secrets.compare_digest(str(provided_code).strip(), str(device.edit_token).strip()):
+            if not has_admin_key:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Ungültiger oder fehlender Bearbeitungs-Code (edit_code) für dieses Gerät."
+                )
+    else:
+        # No edit code provided: requires admin authentication (or open mode if no admin key configured)
+        if not is_open_admin:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Nicht autorisiert: Bitte Admin-Key oder Bearbeitungs-Code angeben."
+            )
 
     if update_data.name is not None:
         device.name = update_data.name.strip()
@@ -284,6 +313,40 @@ def update_device(
     db.commit()
     db.refresh(device)
     return _to_device_response(device)
+
+
+@router.post(
+    "/devices/{order_number:path}/verify-code",
+    summary="Verify device edit code",
+    description="Prüft, ob der angegebene Bearbeitungs-Code für ein Gerät gültig ist."
+)
+def verify_device_edit_code(
+    order_number: str,
+    verify_data: Optional[VerifyCodeRequest] = None,
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code"),
+    edit_code: str | None = Query(None),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
+    db: Session = DB_SESSION_DEPENDENCY
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    has_admin_key = is_admin_request(x_api_key=x_api_key, authorization=authorization)
+    provided_code = (verify_data.edit_code if verify_data else None) or x_edit_code or edit_code
+
+    if has_admin_key:
+        return {"valid": True, "status": "valid", "role": "admin", "order_number": device.order_number}
+
+    if device.edit_token and provided_code and secrets.compare_digest(str(provided_code).strip(), str(device.edit_token).strip()):
+        return {"valid": True, "status": "valid", "role": "creator", "order_number": device.order_number}
+
+    return {"valid": False, "status": "invalid", "role": None, "order_number": device.order_number}
+
 
 
 @router.delete(

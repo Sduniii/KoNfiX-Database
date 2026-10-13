@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://konfix.sduni.de/schemas/konfix-device-v1.json
+$schema: https://konfix.sduni.de/schemas/konfix-device-v1.json
+konfix_version: '1.0'
+
+# Hersteller-Informationen
+manufacturer:
+  code: openknx                # Eindeutiger Slug in Kleinbuchstaben (z. B. 'mdt', 'openknx', 'gira', 'abb')
+  name: OpenKNX Community      # Offizieller Herstellername
+  legacy_knx_id: M-00FA        # Optionale historische KNX-Hersteller-ID
+
+# Geräte-Stammdaten
+device:
+  order_number: OFM-DEMO-01    # Eindeutige Bestellnummer / Artikelnummer
+  name: KoNfiX Demo Schaltaktor 4-fach
+  description: Beispielhafte KoNfiX-Gerätedefinition für lokale Entwicklung und Web-Editor
+  hardware:
+    name: OFM-DEMO-HW
+    version: '1.0'
+    bus_current_ma: 10.0
+
+# Applikationsprogramm
+application:
+  id: openknx_demo_v1
+  name: Demo Schalten 4f
+  version: '1.0'
+  mask_version: MV-07B0
+
+# Kommunikationsobjekte (KOs)
+communication_objects:
+  - number: 1
+    name: Kanal A Schalten
+    function: Ein/Aus
+    dpt: DPT-1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: true
+      write: true
+      transmit: false
+      update: false
+  - number: 2
+    name: Kanal A Status
+    function: Rückmeldung
+    dpt: DPT-1.001
+    size: 1 Bit
+    flags:
+      communication: true
+      read: true
+      write: false
+      transmit: true
+      update: false
+
+# Parameter & Menüs
+parameters:
+  - id: param_relay_mode_a
+    name: Betriebsart Kanal A
+    text: Relais-Funktion Kanal A
+    type: enum
+    default: normal
+    page: Kanal A
+    section: Grundeinstellungen
+    options:
+      - value: normal
+        label: Normaler Schaltbetrieb (Schließer)
+      - value: inverted
+        label: Invertierter Schaltbetrieb (Öffner)
+      - value: staircase
+        label: Treppenlichtfunktion
+  - id: param_staircase_time_a
+    name: Treppenlichtzeit Kanal A (Sekunden)
+    text: Einschaltdauer für Treppenlicht
+    type: number
+    default: 120
+    page: Kanal A
+    section: Zeitfunktionen
+    conditions:
+      - param_id: param_relay_mode_a
+        when_values:
+          - staircase

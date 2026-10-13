@@ -8,13 +8,12 @@ def get_configured_admin_key() -> str:
     return settings.ADMIN_KEY or settings.API_KEY
 
 
-def verify_admin_key(
-    x_api_key: str | None = Header(None, description="Admin API-Key / Passwort im Header 'X-API-Key'"),
-    authorization: str | None = Header(None, description="Admin API-Key / Passwort als Bearer Token")
+def is_admin_authenticated(
+    x_api_key: str | None = None,
+    authorization: str | None = None
 ) -> bool:
     admin_key = get_configured_admin_key()
     if not admin_key:
-        # Kein Admin-Key konfiguriert -> Offener Modus (z. B. lokale Entwicklung)
         return True
 
     token = x_api_key
@@ -24,7 +23,36 @@ def verify_admin_key(
         else:
             token = authorization.strip()
 
-    if not token or not secrets.compare_digest(token, admin_key):
+    if not token:
+        return False
+    return secrets.compare_digest(token, admin_key)
+
+
+def is_admin_request(
+    x_api_key: str | None = None,
+    authorization: str | None = None
+) -> bool:
+    admin_key = get_configured_admin_key()
+    if not admin_key:
+        return False
+
+    token = x_api_key
+    if not token and authorization:
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+        else:
+            token = authorization.strip()
+
+    if not token:
+        return False
+    return secrets.compare_digest(token, admin_key)
+
+
+def verify_admin_key(
+    x_api_key: str | None = Header(None, description="Admin API-Key / Passwort im Header 'X-API-Key'"),
+    authorization: str | None = Header(None, description="Admin API-Key / Passwort als Bearer Token")
+) -> bool:
+    if not is_admin_authenticated(x_api_key=x_api_key, authorization=authorization):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ungültiger oder fehlender Admin-Key (Header 'X-API-Key' oder 'Authorization: Bearer <token>')"

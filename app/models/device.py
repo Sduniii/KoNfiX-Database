@@ -16,6 +16,7 @@ class Device(Base):
     bus_current_ma = Column(Float, nullable=True)
     source_url = Column(String(1024), nullable=True)
     yaml_content = Column(Text, nullable=True) # Optional legacy/cached YAML representation
+    edit_token = Column(String(64), nullable=True, index=True) # Secret token for creator/importer edit permissions
     
     manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"), nullable=False)
     

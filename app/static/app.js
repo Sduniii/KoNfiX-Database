@@ -28,6 +28,152 @@ function getAuthHeaders(extraHeaders = {}) {
   return headers;
 }
 
+// Device Ownership & Edit Code Storage (Local only)
+function getMyDeviceCodes() {
+  try {
+    return JSON.parse(localStorage.getItem("konfix_my_device_codes") || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function getMyDeviceCode(orderNumber) {
+  if (!orderNumber) return null;
+  const codes = getMyDeviceCodes();
+  return codes[orderNumber] || null;
+}
+
+function setMyDeviceCode(orderNumber, code) {
+  if (!orderNumber || !code) return;
+  const codes = getMyDeviceCodes();
+  codes[orderNumber] = String(code).trim();
+  try {
+    localStorage.setItem("konfix_my_device_codes", JSON.stringify(codes));
+  } catch (_) {}
+}
+
+function isDeviceEditable(orderNumber) {
+  return isAdmin || !!getMyDeviceCode(orderNumber);
+}
+
+// ==========================================================================
+// Draft Management System (100% Offline-First / Zero Server Storage)
+// ==========================================================================
+function generateDraftCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+  for (let i = 0; i < 6; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `DFT-${suffix}`;
+}
+
+function getDrafts() {
+  try {
+    let drafts = JSON.parse(localStorage.getItem("konfix_drafts") || "{}");
+    const legacy = localStorage.getItem("konfix_sandbox_yaml");
+    if (Object.keys(drafts).length === 0 && legacy && legacy.trim()) {
+      const code = generateDraftCode();
+      drafts[code] = {
+        code: code,
+        title: "Gespeicherter Entwurf",
+        orderNumber: "DFT",
+        yaml: legacy,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem("konfix_drafts", JSON.stringify(drafts));
+      localStorage.setItem("konfix_active_draft_code", code);
+    }
+    return drafts;
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveDrafts(drafts) {
+  try {
+    localStorage.setItem("konfix_drafts", JSON.stringify(drafts));
+  } catch (_) {}
+}
+
+function getActiveDraftCode() {
+  let active = localStorage.getItem("konfix_active_draft_code");
+  const drafts = getDrafts();
+  if (!active || !drafts[active]) {
+    const keys = Object.keys(drafts);
+    if (keys.length > 0) {
+      active = keys[0];
+    } else {
+      const newDraft = createNewDraft(EDITOR_TEMPLATES.switch, "Schaltaktor Entwurf", "AKS-0416");
+      active = newDraft.code;
+    }
+    localStorage.setItem("konfix_active_draft_code", active);
+  }
+  return active;
+}
+
+function createNewDraft(yamlText = (EDITOR_TEMPLATES && EDITOR_TEMPLATES.switch ? EDITOR_TEMPLATES.switch : ""), title = "Neuer Entwurf", orderNumber = "") {
+  const drafts = getDrafts();
+  const code = generateDraftCode();
+  const draft = {
+    code: code,
+    title: title,
+    orderNumber: orderNumber,
+    yaml: yamlText,
+    updatedAt: new Date().toISOString()
+  };
+  drafts[code] = draft;
+  saveDrafts(drafts);
+  localStorage.setItem("konfix_active_draft_code", code);
+  updateDraftSelectDropdown();
+  return draft;
+}
+
+function updateDraftSelectDropdown() {
+  const select = document.getElementById("editorDraftSelect");
+  const badge = document.getElementById("editorDraftCodeBadge");
+  if (!select) return;
+
+  const drafts = getDrafts();
+  const activeCode = getActiveDraftCode();
+
+  select.innerHTML = "";
+  const sortedKeys = Object.keys(drafts).sort((a, b) => {
+    return (new Date(drafts[b].updatedAt || 0)) - (new Date(drafts[a].updatedAt || 0));
+  });
+
+  if (sortedKeys.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Kein Entwurf vorhanden";
+    select.appendChild(opt);
+  } else {
+    sortedKeys.forEach(code => {
+      const d = drafts[code];
+      const opt = document.createElement("option");
+      opt.value = code;
+      const displayTitle = d.title || (d.orderNumber ? `Gerät ${d.orderNumber}` : "Entwurf");
+      opt.textContent = `${d.code} (${displayTitle})`;
+      if (code === activeCode) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  }
+
+  if (badge) {
+    badge.textContent = activeCode || "DFT-000000";
+  }
+}
+
+function setEditorUrlHash(draftCode) {
+  if (!draftCode) return;
+  const hash = `#editor?draft=${encodeURIComponent(draftCode)}`;
+  if (window.location.hash !== hash) {
+    history.replaceState(null, "", hash);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAdminAuth();
   loadStats();
@@ -85,6 +231,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setupBatchDeleteModal();
   setupYamlModal();
   setupEditorModal();
+  setupHeroDevTools();
+  setupPublishModal();
+  checkUrlHashRouting();
 });
 
 // Admin Authentication Setup
@@ -305,8 +454,16 @@ function createDeviceCard(device) {
     </div>
   `;
 
+  const hasMyCode = !!getMyDeviceCode(device.order_number);
+  const isEditable = isAdmin || hasMyCode;
+
+  const myPill = hasMyCode ? `
+    <span class="my-device-badge" title="Du besitzt den Bearbeitungscode für dieses Gerät">🔑 Mein Gerät</span>
+  ` : '';
+
   const rightHeader = isAdmin ? `
     <div style="display: flex; align-items: center; gap: 0.35rem;">
+      ${myPill}
       <span class="order-badge">${escapeHtml(device.order_number)}</span>
       <div class="card-admin-group">
         <button type="button" class="admin-icon-btn btn-edit" title="Gerät bearbeiten" aria-label="Bearbeiten">
@@ -325,9 +482,22 @@ function createDeviceCard(device) {
         </button>
       </div>
     </div>
+  ` : (hasMyCode ? `
+    <div style="display: flex; align-items: center; gap: 0.35rem;">
+      ${myPill}
+      <span class="order-badge">${escapeHtml(device.order_number)}</span>
+      <div class="card-admin-group">
+        <button type="button" class="admin-icon-btn btn-edit" title="Gerät bearbeiten (Ersteller)" aria-label="Bearbeiten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
   ` : `
     <span class="order-badge">${escapeHtml(device.order_number)}</span>
-  `;
+  `);
 
   card.innerHTML = `
     <div class="card-top">
@@ -384,16 +554,17 @@ function createDeviceCard(device) {
   card.querySelector(".card-actions").appendChild(editSandboxBtn);
 
 
-  // Admin Event Listeners
-  if (isAdmin) {
-    const editBtn = card.querySelector(".btn-edit");
-    if (editBtn) {
-      editBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openEditDeviceModal(device);
-      });
-    }
+  // Edit Button Event Listener (Admin or Creator with edit_code)
+  const editBtn = card.querySelector(".btn-edit");
+  if (editBtn) {
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openEditDeviceModal(device);
+    });
+  }
 
+  // Admin-only Event Listeners
+  if (isAdmin) {
     const deleteBtn = card.querySelector(".btn-delete");
     if (deleteBtn) {
       deleteBtn.addEventListener("click", (e) => {
@@ -679,17 +850,34 @@ function setupDropZone() {
             if (item.status === "success") successFiles++;
             else failedFiles++;
             appendResultItem(item);
+            // Save edit codes
+            const itemCode = item.edit_code || fileData.edit_code;
+            if (item.devices_imported) {
+              for (const d of item.devices_imported) {
+                const devCode = d.edit_code || itemCode;
+                if (devCode && d.order_number) {
+                  setMyDeviceCode(d.order_number, devCode);
+                }
+              }
+            }
           }
         } else if (fileData.devices_imported) {
           const item = {
             filename: file.name,
             status: "success",
+            edit_code: fileData.edit_code,
             devices_imported: fileData.devices_imported,
             message: fileData.message || `${fileData.devices_imported.length} Geräte indexiert`
           };
           allResults.push(item);
           successFiles++;
           appendResultItem(item);
+          for (const d of fileData.devices_imported) {
+            const devCode = d.edit_code || fileData.edit_code;
+            if (devCode && d.order_number) {
+              setMyDeviceCode(d.order_number, devCode);
+            }
+          }
         }
       } catch (err) {
         failedFiles++;
@@ -721,13 +909,38 @@ function setupDropZone() {
       </span>
     `;
 
-    setTimeout(() => {
-      document.getElementById("uploadModal").classList.remove("open");
-      resetUploadUI();
-      loadStats();
-      loadManufacturers();
-      loadDevices();
-    }, allResults.length > 3 ? 4000 : 2500);
+    // Find if any edit code was generated
+    let lastFoundCode = null;
+    allResults.forEach(r => {
+      if (r.edit_code) lastFoundCode = r.edit_code;
+      if (r.devices_imported) {
+        r.devices_imported.forEach(d => {
+          if (d.edit_code) {
+            lastFoundCode = d.edit_code;
+            setMyDeviceCode(d.order_number, d.edit_code);
+          }
+        });
+      }
+    });
+
+    const editCodeBox = document.getElementById("uploadEditCodeBox");
+    const editCodeInput = document.getElementById("uploadEditCodeInput");
+    if (lastFoundCode && editCodeBox && editCodeInput) {
+      editCodeInput.value = lastFoundCode;
+      editCodeBox.style.display = "block";
+    }
+
+    loadStats();
+    loadManufacturers();
+    loadDevices();
+
+    // Auto-close only if no edit code was generated
+    if (!lastFoundCode) {
+      setTimeout(() => {
+        document.getElementById("uploadModal").classList.remove("open");
+        resetUploadUI();
+      }, allResults.length > 3 ? 4000 : 2500);
+    }
   }
 }
 
@@ -771,6 +984,25 @@ function setupUrlImport() {
       const data = await safeParseResponse(res);
       if (uploadSpinner) uploadSpinner.style.display = "none";
 
+      if (data.devices_imported) {
+        data.devices_imported.forEach(d => {
+          const code = d.edit_code || data.edit_code;
+          if (code && d.order_number) {
+            setMyDeviceCode(d.order_number, code);
+          }
+        });
+      }
+
+      const editCode = data.edit_code || (data.devices_imported && data.devices_imported[0] && data.devices_imported[0].edit_code);
+      if (editCode) {
+        const editCodeBox = document.getElementById("uploadEditCodeBox");
+        const editCodeInput = document.getElementById("uploadEditCodeInput");
+        if (editCodeBox && editCodeInput) {
+          editCodeInput.value = editCode;
+          editCodeBox.style.display = "block";
+        }
+      }
+
       statusText.innerHTML = `
         <span style="color: #10b981; font-weight: 600;">✓ Erfolgreich von Hersteller-Link indexiert!</span><br>
         Hersteller: <strong>${escapeHtml(data.manufacturer_name)}</strong><br>
@@ -778,13 +1010,16 @@ function setupUrlImport() {
         <small style="color: #94a3b8;">${storeBinaryCheckbox.checked ? "Datei wurde lokal gecacht." : "100% rechtssicher: Reines Metadaten-Indexing & Verlinkung."}</small>
       `;
 
-      setTimeout(() => {
-        document.getElementById("uploadModal").classList.remove("open");
-        resetUploadUI();
-        loadStats();
-        loadManufacturers();
-        loadDevices();
-      }, 2500);
+      loadStats();
+      loadManufacturers();
+      loadDevices();
+
+      if (!editCode) {
+        setTimeout(() => {
+          document.getElementById("uploadModal").classList.remove("open");
+          resetUploadUI();
+        }, 2500);
+      }
 
     } catch (err) {
       if (uploadSpinner) uploadSpinner.style.display = "none";
@@ -805,6 +1040,11 @@ function resetUploadUI() {
   document.getElementById("uploadFileTab").style.display = "block";
   document.getElementById("uploadUrlTab").style.display = "none";
   document.getElementById("uploadProgress").style.display = "none";
+
+  const editCodeBox = document.getElementById("uploadEditCodeBox");
+  if (editCodeBox) editCodeBox.style.display = "none";
+  const editCodeInput = document.getElementById("uploadEditCodeInput");
+  if (editCodeInput) editCodeInput.value = "";
 
   const tabFileBtn = document.getElementById("tabUploadFileBtn");
   const tabUrlBtn = document.getElementById("tabUploadUrlBtn");
@@ -864,6 +1104,7 @@ function setupEditModal() {
     const hwVersion = document.getElementById("editHardwareVersion").value.trim();
     const busCurrentStr = document.getElementById("editBusCurrent").value.trim();
     const description = document.getElementById("editDescription").value.trim();
+    const editCode = document.getElementById("editDeviceCodeInput") ? document.getElementById("editDeviceCodeInput").value.trim() : "";
 
     const payload = {
       name: name,
@@ -872,19 +1113,30 @@ function setupEditModal() {
       bus_current_ma: busCurrentStr ? parseFloat(busCurrentStr) : null,
       description: description || null
     };
+    if (editCode) {
+      payload.edit_code = editCode;
+    }
 
     saveBtn.disabled = true;
     saveBtn.textContent = "Speichere...";
     statusDiv.style.display = "none";
 
     try {
+      const headers = getAuthHeaders({ "Content-Type": "application/json" });
+      if (editCode) {
+        headers["X-Edit-Code"] = editCode;
+      }
+
       const res = await fetch(`/api/v1/devices/${encodeURIComponent(orderNumber)}`, {
         method: "PATCH",
-        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+        headers: headers,
         body: JSON.stringify(payload)
       });
 
       await safeParseResponse(res);
+      if (editCode) {
+        setMyDeviceCode(orderNumber, editCode);
+      }
       statusDiv.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gerät erfolgreich aktualisiert!</span>`;
       statusDiv.style.display = "block";
 
@@ -914,6 +1166,11 @@ function openEditDeviceModal(device) {
   document.getElementById("editBusCurrent").value = device.bus_current_ma != null ? device.bus_current_ma : "";
   document.getElementById("editDescription").value = device.description || "";
   document.getElementById("editDeviceStatus").style.display = "none";
+
+  const codeInput = document.getElementById("editDeviceCodeInput");
+  if (codeInput) {
+    codeInput.value = getMyDeviceCode(device.order_number) || "";
+  }
 
   modal.classList.add("open");
 }
@@ -1635,6 +1892,80 @@ function setupEditorModal() {
   if (closeEditorBtn && editorModal) {
     closeEditorBtn.addEventListener("click", () => {
       editorModal.classList.remove("open");
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    });
+  }
+
+  // Draft Bar Controls
+  const draftSelect = document.getElementById("editorDraftSelect");
+  const newDraftBtn = document.getElementById("editorNewDraftBtn");
+  const deleteDraftBtn = document.getElementById("editorDeleteDraftBtn");
+  const copyDraftLinkBtn = document.getElementById("editorCopyDraftLinkBtn");
+  const sharePortableBtn = document.getElementById("editorSharePortableBtn");
+
+  if (draftSelect) {
+    draftSelect.addEventListener("change", (e) => {
+      if (e.target.value) {
+        loadDraft(e.target.value, true);
+      }
+    });
+  }
+
+  if (newDraftBtn) {
+    newDraftBtn.addEventListener("click", () => {
+      const newDraft = createNewDraft(EDITOR_TEMPLATES.switch, "Neuer Entwurf");
+      loadDraft(newDraft.code, true);
+    });
+  }
+
+  if (deleteDraftBtn) {
+    deleteDraftBtn.addEventListener("click", () => {
+      const activeCode = getActiveDraftCode();
+      const drafts = getDrafts();
+      const keys = Object.keys(drafts);
+      if (keys.length <= 1) {
+        alert("Der einzige verbleibende Entwurf kann nicht gelöscht werden.");
+        return;
+      }
+      if (confirm(`Entwurf '${activeCode}' wirklich unwiderruflich löschen?`)) {
+        delete drafts[activeCode];
+        saveDrafts(drafts);
+        const remaining = Object.keys(drafts)[0];
+        localStorage.setItem("konfix_active_draft_code", remaining);
+        updateDraftSelectDropdown();
+        loadDraft(remaining, true);
+      }
+    });
+  }
+
+  if (copyDraftLinkBtn) {
+    copyDraftLinkBtn.addEventListener("click", async () => {
+      const activeCode = getActiveDraftCode();
+      const url = `${window.location.origin}${window.location.pathname}#editor?draft=${encodeURIComponent(activeCode)}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        const prev = copyDraftLinkBtn.textContent;
+        copyDraftLinkBtn.textContent = "✅ Link kopiert!";
+        setTimeout(() => { copyDraftLinkBtn.textContent = prev; }, 2000);
+      } catch (_) {
+        alert("Link: " + url);
+      }
+    });
+  }
+
+  if (sharePortableBtn && textarea) {
+    sharePortableBtn.addEventListener("click", async () => {
+      const yamlStr = textarea.value;
+      try {
+        const b64 = btoa(unescape(encodeURIComponent(yamlStr)));
+        const url = `${window.location.origin}${window.location.pathname}#editor?data=${encodeURIComponent(b64)}`;
+        await navigator.clipboard.writeText(url);
+        const prev = sharePortableBtn.textContent;
+        sharePortableBtn.textContent = "✅ Portabler Link kopiert!";
+        setTimeout(() => { sharePortableBtn.textContent = prev; }, 2500);
+      } catch (_) {
+        alert("Fehler beim Erzeugen des portablen Links");
+      }
     });
   }
 
@@ -1899,18 +2230,41 @@ function applyConditionFieldChange(el) {
   else if (condField === "when_values") updateConditionValues(type, idx, condIdx, el.value);
 }
 
-function openEditor() {
+function openEditor(targetCode = null) {
   const editorModal = document.getElementById("editorModal");
   if (!editorModal) return;
 
-  const saved = localStorage.getItem("konfix_sandbox_yaml");
-  if (saved && saved.trim()) {
-    setEditorYamlContent(saved);
-  } else {
-    setEditorYamlContent(EDITOR_TEMPLATES.switch);
-  }
+  updateDraftSelectDropdown();
+  const code = targetCode || getActiveDraftCode();
+  loadDraft(code, true);
 
   editorModal.classList.add("open");
+}
+
+function loadDraft(code, updateHash = true) {
+  const drafts = getDrafts();
+  const draft = drafts[code];
+  if (!draft) return false;
+
+  localStorage.setItem("konfix_active_draft_code", code);
+  updateDraftSelectDropdown();
+
+  const textarea = document.getElementById("editorYamlTextarea");
+  if (textarea) {
+    textarea.value = draft.yaml;
+  }
+  validateAndSyncYamlToForm(draft.yaml);
+
+  const saveStatus = document.getElementById("editorSaveStatus");
+  if (saveStatus) {
+    saveStatus.textContent = `✓ Entwurf ${draft.code} geladen`;
+    saveStatus.style.color = "#10b981";
+  }
+
+  if (updateHash) {
+    setEditorUrlHash(code);
+  }
+  return true;
 }
 
 function openDeviceInSandbox(orderNumber) {
@@ -1926,9 +2280,13 @@ function openDeviceInSandbox(orderNumber) {
       return res.text();
     })
     .then(yamlText => {
-      setEditorYamlContent(yamlText);
-      editorModal.classList.add("open");
-      if (saveStatus) saveStatus.textContent = `Geladen aus Katalog: ${orderNumber}`;
+      const myCode = getMyDeviceCode(orderNumber);
+      const title = `${orderNumber} (Katalog)`;
+      const newDraft = createNewDraft(yamlText, title, orderNumber);
+      openEditor(newDraft.code);
+      if (saveStatus) {
+        saveStatus.textContent = `Geladen aus Katalog: ${orderNumber}${myCode ? ' (Bearbeitbar mit deinem Code)' : ''}`;
+      }
     })
     .catch(err => {
       alert(`Konnte Gerät nicht in den Editor laden: ${err.message}`);
@@ -1955,11 +2313,48 @@ function setEditorYamlContent(yamlText) {
 
 function saveDraftToStorage(yamlText) {
   try {
+    const activeCode = getActiveDraftCode();
+    const drafts = getDrafts();
+    if (!drafts[activeCode]) {
+      drafts[activeCode] = {
+        code: activeCode,
+        title: "Entwurf",
+        orderNumber: "",
+        yaml: yamlText,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      drafts[activeCode].yaml = yamlText;
+      drafts[activeCode].updatedAt = new Date().toISOString();
+    }
+
+    try {
+      const parsed = jsyaml.load(yamlText);
+      if (parsed && typeof parsed === "object") {
+        if (parsed.device && parsed.device.name) {
+          drafts[activeCode].title = parsed.device.name;
+        }
+        if (parsed.device && parsed.device.order_number) {
+          drafts[activeCode].orderNumber = parsed.device.order_number;
+        }
+      }
+    } catch (_) {}
+
+    saveDrafts(drafts);
     localStorage.setItem("konfix_sandbox_yaml", yamlText);
+
     const saveStatus = document.getElementById("editorSaveStatus");
     if (saveStatus) {
       saveStatus.textContent = "✓ Automatisch lokal gespeichert";
       saveStatus.style.color = "#10b981";
+    }
+
+    const select = document.getElementById("editorDraftSelect");
+    if (select && select.querySelector(`option[value="${activeCode}"]`)) {
+      const opt = select.querySelector(`option[value="${activeCode}"]`);
+      const d = drafts[activeCode];
+      const displayTitle = d.title || (d.orderNumber ? `Gerät ${d.orderNumber}` : "Entwurf");
+      opt.textContent = `${d.code} (${displayTitle})`;
     }
   } catch (_) {}
 }
@@ -2728,6 +3123,258 @@ function syncFormToYaml() {
     }
   }
 }
+
+// ==========================================================================
+// Developer Tools (Hero Card) & Schema Actions
+// ==========================================================================
+function setupHeroDevTools() {
+  const heroBtn = document.getElementById("openEditorHeroBtn");
+  if (heroBtn) {
+    heroBtn.addEventListener("click", () => {
+      openEditor();
+    });
+  }
+
+  const resumeInput = document.getElementById("quickResumeDraftInput");
+  const resumeBtn = document.getElementById("quickResumeDraftBtn");
+  const doResume = () => {
+    if (!resumeInput) return;
+    const code = resumeInput.value.trim().toUpperCase();
+    if (!code) {
+      alert("Bitte gib einen Entwurfscode ein (z. B. DFT-7X9K2M).");
+      resumeInput.focus();
+      return;
+    }
+    const drafts = getDrafts();
+    if (drafts[code]) {
+      openEditor(code);
+    } else {
+      const newDraft = {
+        code: code,
+        title: "Neuer Entwurf",
+        orderNumber: "",
+        yaml: EDITOR_TEMPLATES.switch,
+        updatedAt: new Date().toISOString()
+      };
+      drafts[code] = newDraft;
+      saveDrafts(drafts);
+      openEditor(code);
+    }
+  };
+
+  if (resumeBtn) resumeBtn.addEventListener("click", doResume);
+  if (resumeInput) {
+    resumeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        doResume();
+      }
+    });
+  }
+
+  const copyUploadCodeBtn = document.getElementById("copyUploadEditCodeBtn");
+  if (copyUploadCodeBtn) {
+    copyUploadCodeBtn.addEventListener("click", async () => {
+      const input = document.getElementById("uploadEditCodeInput");
+      if (input && input.value) {
+        try {
+          await navigator.clipboard.writeText(input.value);
+          copyUploadCodeBtn.textContent = "✅ Kopiert!";
+          setTimeout(() => { copyUploadCodeBtn.textContent = "📋 Kopieren"; }, 2000);
+        } catch (_) {}
+      }
+    });
+  }
+}
+
+// ==========================================================================
+// Publish to Catalog Logic (From Web Editor -> API -> Database)
+// ==========================================================================
+function setupPublishModal() {
+  const modal = document.getElementById("publishCatalogModal");
+  const openBtn = document.getElementById("editorOpenPublishBtn");
+  const closeBtn = document.getElementById("closePublishBtn");
+  const cancelBtn = document.getElementById("cancelPublishBtn");
+  const submitBtn = document.getElementById("submitPublishBtn");
+  const textarea = document.getElementById("editorYamlTextarea");
+  const statusBox = document.getElementById("publishStatusBox");
+  const consent = document.getElementById("publishConsentCheckbox");
+  const editCodeInput = document.getElementById("publishEditCodeInput");
+
+  if (!modal) return;
+
+  const closeModal = () => modal.classList.remove("open");
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      if (statusBox) statusBox.style.display = "none";
+      const yamlStr = textarea ? textarea.value : "";
+      if (!yamlStr || !yamlStr.trim()) {
+        alert("Der Editor enthält keine YAML-Daten.");
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = jsyaml.load(yamlStr);
+      } catch (e) {
+        alert("Ungültiges YAML: " + e.message);
+        return;
+      }
+
+      if (!parsed || !parsed.device || !parsed.device.order_number) {
+        alert("Bitte gib im YAML mindestens eine Bestellnummer unter 'device.order_number' an.");
+        return;
+      }
+
+      const orderNumber = parsed.device.order_number;
+      const devName = parsed.device.name || "Unbenanntes Gerät";
+      const mfgName = (parsed.manufacturer && parsed.manufacturer.name) || (parsed.manufacturer && parsed.manufacturer.code) || "Unbekannt";
+
+      const tEl = document.getElementById("publishDevTitle");
+      const oEl = document.getElementById("publishDevOrder");
+      const mEl = document.getElementById("publishDevMfg");
+      if (tEl) tEl.textContent = devName;
+      if (oEl) oEl.textContent = orderNumber;
+      if (mEl) mEl.textContent = mfgName;
+
+      const existingCode = getMyDeviceCode(orderNumber);
+      if (editCodeInput) {
+        editCodeInput.value = existingCode || "";
+      }
+
+      modal.classList.add("open");
+    });
+  }
+
+  if (submitBtn) {
+    submitBtn.addEventListener("click", async () => {
+      if (consent && !consent.checked) {
+        alert("Bitte bestätige die Berechtigung zur Veröffentlichung.");
+        return;
+      }
+
+      const yamlStr = textarea ? textarea.value : "";
+      const oEl = document.getElementById("publishDevOrder");
+      const orderNumber = oEl ? oEl.textContent.trim() : "";
+      const editCode = editCodeInput ? editCodeInput.value.trim() : "";
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Veröffentliche...";
+      if (statusBox) statusBox.style.display = "none";
+
+      const headers = {
+        "Content-Type": "text/yaml; charset=utf-8"
+      };
+      if (editCode) {
+        headers["X-Edit-Code"] = editCode;
+      }
+      const adminKey = getAdminKey();
+      if (adminKey) {
+        headers["X-API-Key"] = adminKey;
+      }
+
+      try {
+        const res = await fetch("/api/v1/upload/yaml", {
+          method: "POST",
+          headers: headers,
+          body: yamlStr
+        });
+
+        const data = await safeParseResponse(res);
+
+        const newCode = data.edit_code || (data.devices_imported && data.devices_imported[0] && data.devices_imported[0].edit_code) || editCode;
+        if (newCode && orderNumber) {
+          setMyDeviceCode(orderNumber, newCode);
+        }
+
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.75rem 1rem; border-radius: 8px; color: #34d399; font-size: 0.85rem;">
+              <div style="font-weight: 600; margin-bottom: 0.25rem;">✓ Erfolgreich im Katalog veröffentlicht!</div>
+              <div>Bestellnummer: <code>${escapeHtml(orderNumber)}</code></div>
+              ${newCode ? `
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                  <strong>🔑 Dein Bearbeitungscode:</strong>
+                  <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                    <input type="text" readonly value="${escapeHtml(newCode)}" style="flex: 1; font-family: monospace; font-size: 0.85rem; padding: 0.25rem 0.5rem; background: #0f172a; border: 1px solid rgba(56,189,248,0.4); color: #38bdf8; border-radius: 4px;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${escapeHtml(newCode)}'); this.textContent='✓ Kopiert!';">📋 Kopieren</button>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+          statusBox.style.display = "block";
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Aktualisieren";
+
+        loadStats();
+        loadManufacturers();
+        loadDevices();
+      } catch (err) {
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.75rem 1rem; border-radius: 8px; color: #f87171; font-size: 0.85rem;">
+              <div style="font-weight: 600; margin-bottom: 0.25rem;">❌ Fehler beim Veröffentlichen:</div>
+              <div>${escapeHtml(err.message)}</div>
+            </div>
+          `;
+          statusBox.style.display = "block";
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Veröffentlichen";
+      }
+    });
+  }
+}
+
+// ==========================================================================
+// URL Hash Routing (#editor?draft=DFT-XXXXXX or #editor?data=...)
+// ==========================================================================
+function checkUrlHashRouting() {
+  const hash = window.location.hash;
+  if (!hash || !hash.startsWith("#editor")) return;
+
+  const queryPart = hash.replace(/^#editor\??/, "");
+  const urlParams = new URLSearchParams(queryPart);
+  const draftCode = urlParams.get("draft");
+  const dataParam = urlParams.get("data");
+
+  if (dataParam) {
+    try {
+      const decodedYaml = decodeURIComponent(escape(atob(dataParam)));
+      const newDraft = createNewDraft(decodedYaml, "Geteilter Entwurf");
+      openEditor(newDraft.code);
+      return;
+    } catch (e) {
+      console.error("Fehler beim Dekodieren des portablen Links:", e);
+    }
+  }
+
+  if (draftCode) {
+    const drafts = getDrafts();
+    if (drafts[draftCode]) {
+      openEditor(draftCode);
+    } else {
+      const newDraft = {
+        code: draftCode,
+        title: "Neuer Entwurf",
+        orderNumber: "",
+        yaml: EDITOR_TEMPLATES.switch,
+        updatedAt: new Date().toISOString()
+      };
+      drafts[draftCode] = newDraft;
+      saveDrafts(drafts);
+      openEditor(draftCode);
+    }
+  } else {
+    openEditor();
+  }
+}
+
 
 
 

@@ -32,14 +32,15 @@ def setup_test_db():
 @pytest.fixture
 def db():
     connection = test_engine.connect()
-    transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
 
     yield session
 
     session.close()
-    transaction.rollback()
     connection.close()
+    with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
 
 @pytest.fixture
 def client(db):

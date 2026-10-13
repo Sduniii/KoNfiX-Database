@@ -14,6 +14,7 @@ class ImportedDevice(BaseModel):
     hardware_version: Optional[str] = None
     bus_current_ma: Optional[float] = None
     applications: List[ImportedApplication] = []
+    edit_code: Optional[str] = None
 
 class UploadResponse(BaseModel):
     status: str = "success"
@@ -26,6 +27,7 @@ class UploadResponse(BaseModel):
     manufacturer_name: str
     manufacturer_code: Optional[str] = None
     devices_imported: List[ImportedDevice]
+    edit_code: Optional[str] = None
 
 class BatchItemResult(BaseModel):
     filename: str
@@ -38,6 +40,7 @@ class BatchItemResult(BaseModel):
     manufacturer_name: Optional[str] = None
     manufacturer_code: Optional[str] = None
     devices_imported: List[ImportedDevice] = []
+    edit_code: Optional[str] = None
 
 class BatchUploadResponse(BaseModel):
     status: str = "success"
@@ -52,5 +55,14 @@ class UrlImportRequest(BaseModel):
     url: str
     store_binary: bool = False
     filename: Optional[str] = None
+    edit_code: Optional[str] = None
+
+
+class YamlUploadJsonRequest(BaseModel):
+    yaml: str
+    filename: Optional[str] = None
+    source_url: Optional[str] = None
+    edit_code: Optional[str] = None
+
 
 

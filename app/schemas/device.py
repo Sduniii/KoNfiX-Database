@@ -94,6 +94,7 @@ class DeviceUpdateRequest(BaseModel):
     hardware_version: Optional[str] = None
     bus_current_ma: Optional[float] = None
     source_url: Optional[str] = None
+    edit_code: Optional[str] = None
 
 class BatchDeleteRequest(BaseModel):
     order_numbers: List[str]

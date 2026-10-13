@@ -16,11 +16,18 @@ def init_db():
     # Ensure DB file and schema exist
     ensure_database_ready()
 
-    # Self-healing migration: Add source_url column if not present in legacy SQLite DBs
+    # Self-healing migration: Add source_url and edit_token columns if not present in legacy SQLite DBs
     from sqlalchemy import text
     try:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE devices ADD COLUMN source_url VARCHAR(1024)"))
+            conn.commit()
+    except Exception:
+        pass  # Column already exists
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN edit_token VARCHAR(64)"))
             conn.commit()
     except Exception:
         pass  # Column already exists
@@ -145,10 +152,20 @@ if static_dir.exists():
 # Include API Routers
 app.include_router(api_v1_router)
 
+@app.get("/schema.json", include_in_schema=False)
 @app.get("/schemas/konfix-device-v1.json", include_in_schema=False)
-def serve_schema_direct():
+def serve_schema_direct(download: bool = False):
     from app.api.v1.schema import get_konfix_device_schema
-    return get_konfix_device_schema()
+    return get_konfix_device_schema(download=download)
+
+
+@app.get("/template.yaml", include_in_schema=False)
+@app.get("/schemas/konfix-template.yaml", include_in_schema=False)
+@app.get("/schemas/template.yaml", include_in_schema=False)
+def serve_template_direct():
+    from app.api.v1.schema import get_konfix_template_yaml
+    return get_konfix_template_yaml()
+
 
 
 # Root Web Frontend

@@ -22,7 +22,7 @@ from fastapi import (
 from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
-from app.api.v1.auth import verify_upload_permission
+from app.api.v1.auth import verify_upload_permission, is_admin_request
 from app.config import settings
 from app.database import get_db
 from app.models import (
@@ -41,6 +41,7 @@ from app.schemas.upload import (
     ImportedDevice,
     UploadResponse,
     UrlImportRequest,
+    YamlUploadJsonRequest,
 )
 from app.services.knxprod_parser import extract_knxprods_from_zip, parse_knxprod_bytes
 from app.services.storage import storage_service, sanitize_filename
@@ -51,7 +52,23 @@ logger = logging.getLogger(__name__)
 DB_GET_DEPENDENCY = Depends(get_db)
 FILE_OPEN = File(..., description="Die .knxprod-Datei als Binärdatei (Multipart-Formularfeld 'file')")
 
-router = APIRouter(tags=["Upload (.knxprod)"])
+router = APIRouter(tags=["Upload (.knxprod / .yaml)"])
+
+
+def _verify_device_edit_permission(device: Device, edit_code: str | None, is_admin: bool) -> bool:
+    if is_admin:
+        return True
+    if not device.edit_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Gerät '{device.order_number}' existiert bereits ohne Bearbeitungs-Code. Bitte Administrator kontaktieren oder Admin-Key angeben."
+        )
+    if not edit_code or not secrets.compare_digest(str(edit_code).strip(), str(device.edit_token).strip()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Gerät '{device.order_number}' existiert bereits. Zum Aktualisieren ist der Bearbeitungs-Code (edit_code) des Erstellers oder ein Admin-Key erforderlich."
+        )
+    return True
 
 
 def _validate_safe_url(url_str: str) -> str:
@@ -136,6 +153,98 @@ async def _read_upload_file_capped(file: UploadFile, max_bytes: int | None = Non
 
 
 @router.post(
+    "/upload/yaml",
+    response_model=UploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload KoNfiX-YAML device definition (raw text/yaml, multipart file, or JSON)",
+    description=(
+        "Dedizierter Uploader für KoNfiX-YAML-Gerätedefinitionen. Akzeptiert rohen YAML-Text "
+        "(Content-Type: text/yaml oder application/x-yaml), Multipart/Form-Data (Feld 'file') "
+        "oder JSON ({'yaml': '...'}). Erzeugt bei neuen Geräten einen Bearbeitungs-Code (edit_code) "
+        "und prüft bei bestehenden Geräten die Berechtigung via Header 'X-Edit-Code'."
+    )
+)
+async def upload_yaml(
+    request: Request,
+    db: Session = DB_GET_DEPENDENCY,
+    x_file_name: str | None = Header(None, alias="X-File-Name", description="Optionaler Dateiname der YAML-Datei"),
+    filename: str | None = Query(None, description="Optionaler Dateiname via Query-Parameter"),
+    x_source_url: str | None = Header(None, alias="X-Source-URL", description="Optionale Hersteller-URL"),
+    source_url: str | None = Query(None, description="Optionale Hersteller-URL via Query-Parameter"),
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code", description="Bearbeitungs-Code des Geräts"),
+    edit_code: str | None = Query(None, description="Bearbeitungs-Code via Query-Parameter"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
+    _authorized: bool = Depends(verify_upload_permission)
+):
+    content_type = request.headers.get("content-type", "").lower()
+    resolved_filename = unquote(x_file_name) if x_file_name else (filename or "device.yaml")
+    resolved_source_url = unquote(x_source_url) if x_source_url else source_url
+    resolved_edit_code = x_edit_code or edit_code
+    is_admin = is_admin_request(x_api_key=x_api_key, authorization=authorization)
+    file_bytes: bytes = b""
+
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ungültiges JSON-Format")
+        yaml_content = body.get("yaml") or body.get("content")
+        if not yaml_content:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="JSON muss ein 'yaml'-Feld enthalten")
+        file_bytes = yaml_content.encode("utf-8")
+        if body.get("filename"):
+            resolved_filename = body["filename"]
+        if body.get("source_url"):
+            resolved_source_url = body["source_url"]
+        if body.get("edit_code"):
+            resolved_edit_code = body["edit_code"]
+    elif "multipart/form-data" in content_type:
+        form = await request.form()
+        upload_field = form.get("file") or form.get("yaml_file")
+        if upload_field and hasattr(upload_field, "read"):
+            if isinstance(upload_field, UploadFile):
+                file_bytes = await _read_upload_file_capped(upload_field)
+            else:
+                raw_data = await upload_field.read()
+                if len(raw_data) > settings.MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Upload überschreitet das Limit von {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB"
+                    )
+                file_bytes = raw_data
+            if hasattr(upload_field, "filename") and upload_field.filename:
+                resolved_filename = upload_field.filename
+        else:
+            raw_text = form.get("yaml") or form.get("content")
+            if raw_text and isinstance(raw_text, str):
+                file_bytes = raw_text.encode("utf-8")
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formular enthält kein gültiges 'file' oder 'yaml' Feld")
+        if form.get("edit_code"):
+            resolved_edit_code = str(form.get("edit_code")).strip()
+        if form.get("source_url"):
+            resolved_source_url = str(form.get("source_url")).strip()
+    else:
+        file_bytes = await _read_request_body_capped(request)
+
+    if not file_bytes or not file_bytes.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Keine YAML-Daten empfangen.")
+
+    if not resolved_filename.lower().endswith((".yaml", ".yml")):
+        resolved_filename += ".yaml"
+
+    return _process_single_knxprod(
+        file_bytes,
+        resolved_filename,
+        db,
+        source_url=resolved_source_url,
+        edit_code=resolved_edit_code,
+        is_admin=is_admin
+    )
+
+
+@router.post(
     "/upload",
     response_model=Union[UploadResponse, BatchUploadResponse],
     status_code=status.HTTP_201_CREATED,
@@ -151,16 +260,22 @@ async def _read_upload_file_capped(file: UploadFile, max_bytes: int | None = Non
 async def upload_knxprod(
     request: Request,
     db: Session = DB_GET_DEPENDENCY,
-    x_file_name: str | None = Header(None, description="Optionaler Dateiname der .knxprod- oder .zip-Datei"),
+    x_file_name: str | None = Header(None, alias="X-File-Name", description="Optionaler Dateiname der .knxprod- oder .zip-Datei"),
     filename: str | None = Query(None, description="Optionaler Dateiname via Query-Parameter"),
-    x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
+    x_source_url: str | None = Header(None, alias="X-Source-URL", description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
     source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code", description="Bearbeitungs-Code des Geräts"),
+    edit_code: str | None = Query(None, description="Bearbeitungs-Code via Query-Parameter"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
     _authorized: bool = Depends(verify_upload_permission)
 ):
     content_type = request.headers.get("content-type", "").lower()
     file_bytes: bytes = b""
     resolved_filename = unquote(x_file_name) if x_file_name else (filename or "device.knxprod")
     resolved_source_url = unquote(x_source_url) if x_source_url else source_url
+    resolved_edit_code = x_edit_code or edit_code
+    is_admin = is_admin_request(x_api_key=x_api_key, authorization=authorization)
 
     if "application/octet-stream" in content_type or not content_type:
         # Raw binary streaming body with size cap
@@ -186,6 +301,8 @@ async def upload_knxprod(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Formular enthält kein gültiges 'file' Feld"
             )
+        if form.get("edit_code"):
+            resolved_edit_code = str(form.get("edit_code")).strip()
     else:
         # Fallback: attempt to read raw body anyway (e.g. application/zip, application/x-zip-compressed)
         file_bytes = await _read_request_body_capped(request)
@@ -206,7 +323,7 @@ async def upload_knxprod(
         )
 
     if extracted_knxprods:
-        return _process_batch_knxprods(extracted_knxprods, db)
+        return _process_batch_knxprods(extracted_knxprods, db, edit_code=resolved_edit_code, is_admin=is_admin)
 
     if resolved_filename.lower().endswith((".zip", ".knxproj")):
         raise HTTPException(
@@ -224,7 +341,15 @@ async def upload_knxprod(
             )
         )
 
-    return _process_single_knxprod(file_bytes, resolved_filename, db, source_url=resolved_source_url)
+    return _process_single_knxprod(
+        file_bytes,
+        resolved_filename,
+        db,
+        source_url=resolved_source_url,
+        edit_code=resolved_edit_code,
+        is_admin=is_admin
+    )
+
 
 
 @router.post(
@@ -237,13 +362,19 @@ async def upload_knxprod(
 async def upload_knxprod_form(
     file: UploadFile = FILE_OPEN,  
     db: Session = DB_GET_DEPENDENCY,
-    x_source_url: str | None = Header(None, description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
+    x_source_url: str | None = Header(None, alias="X-Source-URL", description="Optionale Original-Hersteller-URL (z. B. Download-Link)"),
     source_url: str | None = Query(None, description="Optionale Original-Hersteller-URL via Query-Parameter"),
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code", description="Bearbeitungs-Code des Geräts"),
+    edit_code: str | None = Query(None, description="Bearbeitungs-Code via Query-Parameter"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
     _authorized: bool = Depends(verify_upload_permission)
 ):
     content = await _read_upload_file_capped(file)
     fname = file.filename or "device.knxprod"
     resolved_source_url = unquote(x_source_url) if x_source_url else source_url
+    resolved_edit_code = x_edit_code or edit_code
+    is_admin = is_admin_request(x_api_key=x_api_key, authorization=authorization)
     try:
         extracted_knxprods = extract_knxprods_from_zip(content)
     except ValueError as e:
@@ -253,7 +384,7 @@ async def upload_knxprod_form(
         )
 
     if extracted_knxprods:
-        return _process_batch_knxprods(extracted_knxprods, db)
+        return _process_batch_knxprods(extracted_knxprods, db, edit_code=resolved_edit_code, is_admin=is_admin)
 
     if fname.lower().endswith((".zip", ".knxproj")):
         raise HTTPException(
@@ -271,7 +402,14 @@ async def upload_knxprod_form(
             )
         )
 
-    return _process_single_knxprod(content, fname, db, source_url=resolved_source_url)
+    return _process_single_knxprod(
+        content,
+        fname,
+        db,
+        source_url=resolved_source_url,
+        edit_code=resolved_edit_code,
+        is_admin=is_admin
+    )
 
 
 @router.post(
@@ -284,9 +422,14 @@ async def upload_knxprod_form(
 async def upload_knxprod_from_url(
     payload: UrlImportRequest,
     db: Session = DB_GET_DEPENDENCY,
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
     _authorized: bool = Depends(verify_upload_permission)
 ):
     safe_url = _validate_safe_url(payload.url)
+    resolved_edit_code = payload.edit_code or x_edit_code
+    is_admin = is_admin_request(x_api_key=x_api_key, authorization=authorization)
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             async with client.stream("GET", safe_url) as resp:
@@ -329,7 +472,9 @@ async def upload_knxprod_from_url(
         fname,
         db,
         source_url=safe_url,
-        store_binary=payload.store_binary
+        store_binary=payload.store_binary,
+        edit_code=resolved_edit_code,
+        is_admin=is_admin
     )
 
 
@@ -347,8 +492,15 @@ async def upload_knxprod_from_url(
 async def upload_knxprod_batch(
     files: List[UploadFile] = File(..., description="Eine oder mehrere .knxprod- oder .zip-Dateien"),
     db: Session = DB_GET_DEPENDENCY,
+    x_edit_code: str | None = Header(None, alias="X-Edit-Code"),
+    edit_code: str | None = Query(None),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
     _authorized: bool = Depends(verify_upload_permission)
 ):
+    resolved_edit_code = x_edit_code or edit_code
+    is_admin = is_admin_request(x_api_key=x_api_key, authorization=authorization)
+
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -410,7 +562,7 @@ async def upload_knxprod_batch(
         else:
             items_to_process.append((fname, content))
 
-    batch_resp = _process_batch_knxprods(items_to_process, db)
+    batch_resp = _process_batch_knxprods(items_to_process, db, edit_code=resolved_edit_code, is_admin=is_admin)
     if failed_items:
         batch_resp.results.extend(failed_items)
         batch_resp.failed_count += len(failed_items)
@@ -524,7 +676,9 @@ def _save_yaml_db(
     file_bytes: bytes,
     filename: str,
     db: Session,
-    source_url: str | None = None
+    source_url: str | None = None,
+    edit_code: str | None = None,
+    is_admin: bool = False
 ) -> UploadResponse:
     try:
         yaml_str = file_bytes.decode("utf-8")
@@ -579,7 +733,9 @@ def _save_yaml_db(
     # 3. Device
     resolved_source_url = source_url or dev_info.get("source_url")
     device = db.query(Device).filter(Device.order_number == order_number).first()
+    token_code = None
     if not device:
+        token_code = secrets.token_hex(8)
         device = Device(
             order_number=order_number,
             name=dev_info.get("name") or order_number,
@@ -589,11 +745,14 @@ def _save_yaml_db(
             bus_current_ma=dev_info.get("bus_current_ma"),
             source_url=resolved_source_url,
             manufacturer_id=manufacturer.id,
-            yaml_content=yaml_str
+            yaml_content=yaml_str,
+            edit_token=token_code
         )
         db.add(device)
         db.flush()
     else:
+        _verify_device_edit_permission(device, edit_code=edit_code, is_admin=is_admin)
+        token_code = device.edit_token
         device.name = dev_info.get("name") or device.name
         device.description = dev_info.get("description") or device.description
         device.hardware_name = dev_info.get("hardware_name") or device.hardware_name
@@ -635,7 +794,8 @@ def _save_yaml_db(
         name=device.name,
         hardware_version=device.hardware_version,
         bus_current_ma=device.bus_current_ma,
-        applications=app_responses
+        applications=app_responses,
+        edit_code=token_code
     )]
 
     return UploadResponse(
@@ -648,7 +808,8 @@ def _save_yaml_db(
         manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
         manufacturer_name=manufacturer.name,
         manufacturer_code=manufacturer.code,
-        devices_imported=imported_devices_resp
+        devices_imported=imported_devices_resp,
+        edit_code=token_code
     )
 
 
@@ -657,7 +818,9 @@ def _save_knxprod_db(
     filename: str,
     db: Session,
     source_url: str | None = None,
-    store_binary: bool = True
+    store_binary: bool = True,
+    edit_code: str | None = None,
+    is_admin: bool = False
 ) -> UploadResponse:
     # 1. Parse XML and validate ZIP structure in memory
     try:
@@ -702,9 +865,13 @@ def _save_knxprod_db(
         for dev in db.query(Device).filter(Device.order_number.in_(order_nums)).all()
     }
 
+    batch_new_token = secrets.token_hex(8)
+    primary_token = None
+
     for d in parsed.devices:
         device = existing_dev_map.get(d.order_number.upper())
         if not device:
+            dev_token = batch_new_token
             device = Device(
                 order_number=d.order_number,
                 name=d.name,
@@ -714,12 +881,15 @@ def _save_knxprod_db(
                 bus_current_ma=d.bus_current_ma,
                 source_url=source_url,
                 manufacturer_id=manufacturer.id,
-                yaml_content=d.yaml_content
+                yaml_content=d.yaml_content,
+                edit_token=dev_token
             )
             db.add(device)
             db.flush()
             existing_dev_map[d.order_number.upper()] = device
         else:
+            _verify_device_edit_permission(device, edit_code=edit_code, is_admin=is_admin)
+            dev_token = device.edit_token
             device.name = d.name or device.name
             device.description = d.description or device.description
             device.hardware_name = d.hardware_name or device.hardware_name
@@ -730,6 +900,9 @@ def _save_knxprod_db(
             device.yaml_content = d.yaml_content
             db.query(ApplicationProgram).filter(ApplicationProgram.device_id == device.id).delete()
             db.flush()
+
+        if not primary_token:
+            primary_token = dev_token
 
         app_responses = []
         for app in d.applications:
@@ -782,7 +955,8 @@ def _save_knxprod_db(
             name=device.name,
             hardware_version=device.hardware_version,
             bus_current_ma=device.bus_current_ma,
-            applications=app_responses
+            applications=app_responses,
+            edit_code=dev_token
         ))
 
     db.flush()
@@ -797,7 +971,8 @@ def _save_knxprod_db(
         manufacturer_id=manufacturer.knx_id or manufacturer.code or "unknown",
         manufacturer_name=manufacturer.name,
         manufacturer_code=manufacturer.code,
-        devices_imported=imported_devices_resp
+        devices_imported=imported_devices_resp,
+        edit_code=primary_token
     )
 
 
@@ -806,7 +981,9 @@ def _process_single_knxprod(
     filename: str,
     db: Session,
     source_url: str | None = None,
-    store_binary: bool = True
+    store_binary: bool = True,
+    edit_code: str | None = None,
+    is_admin: bool = False
 ) -> UploadResponse:
     try:
         if _is_yaml(file_bytes, filename):
@@ -814,7 +991,9 @@ def _process_single_knxprod(
                 file_bytes,
                 filename,
                 db,
-                source_url=source_url
+                source_url=source_url,
+                edit_code=edit_code,
+                is_admin=is_admin
             )
         else:
             resp = _save_knxprod_db(
@@ -822,10 +1001,15 @@ def _process_single_knxprod(
                 filename,
                 db,
                 source_url=source_url,
-                store_binary=store_binary
+                store_binary=store_binary,
+                edit_code=edit_code,
+                is_admin=is_admin
             )
         db.commit()
         return resp
+    except HTTPException:
+        db.rollback()
+        raise
     except ValueError as e:
         db.rollback()
         raise HTTPException(
@@ -845,7 +1029,12 @@ def _process_single_knxprod(
 _process_and_save_knxprod = _process_single_knxprod
 
 
-def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> BatchUploadResponse:
+def _process_batch_knxprods(
+    files: List[Tuple[str, bytes]],
+    db: Session,
+    edit_code: str | None = None,
+    is_admin: bool = False
+) -> BatchUploadResponse:
     results: List[BatchItemResult] = []
     success_count = 0
     fail_count = 0
@@ -854,9 +1043,9 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
         savepoint = db.begin_nested()
         try:
             if _is_yaml(fbytes, fname):
-                resp = _save_yaml_db(fbytes, fname, db)
+                resp = _save_yaml_db(fbytes, fname, db, edit_code=edit_code, is_admin=is_admin)
             else:
-                resp = _save_knxprod_db(fbytes, fname, db)
+                resp = _save_knxprod_db(fbytes, fname, db, edit_code=edit_code, is_admin=is_admin)
             savepoint.commit()
             success_count += 1
             results.append(BatchItemResult(
@@ -869,15 +1058,17 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
                 manufacturer_id=resp.manufacturer_id,
                 manufacturer_name=resp.manufacturer_name,
                 manufacturer_code=resp.manufacturer_code,
-                devices_imported=resp.devices_imported
+                devices_imported=resp.devices_imported,
+                edit_code=resp.edit_code
             ))
         except Exception as e:
             savepoint.rollback()
             fail_count += 1
+            err_msg = e.detail if isinstance(e, HTTPException) else str(e)
             results.append(BatchItemResult(
                 filename=os.path.basename(fname),
                 status="error",
-                message=str(e),
+                message=err_msg,
                 devices_imported=[]
             ))
 
@@ -898,4 +1089,5 @@ def _process_batch_knxprods(files: List[Tuple[str, bytes]], db: Session) -> Batc
         failed_count=fail_count,
         results=results
     )
+
 
