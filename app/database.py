@@ -70,6 +70,7 @@ def ensure_database_ready():
         Parameter,
         AssignRule,
         Translation,
+        KnxGateway,
     )
     Base.metadata.create_all(bind=engine)
 

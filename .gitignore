@@ -39,6 +39,7 @@ htmlcov/
 catalog_files/*.knxprod
 catalog_files/*.yaml
 catalog_files/*.yml
+catalog_files/openknx/
 !catalog_files/.gitkeep
 
 # IDEs

@@ -127,7 +127,7 @@ class Settings(BaseSettings):
 
     # Maximale Größe einer einzelnen XML-Datei im Archiv (Schutz vor XML-Entity-Expansion)
     # Beispiel in .env: MAX_XML_PARSE_BYTES=209715200  (200 MB)
-    MAX_XML_PARSE_BYTES: int = 20 * 1024 * 1024
+    MAX_XML_PARSE_BYTES: int = 200 * 1024 * 1024
 
     # ==========================================================================
     # 6. CORS & Netzwerk-Schnittstellen
@@ -160,6 +160,16 @@ class Settings(BaseSettings):
     KNX_LEGACY_PASSWORDS: str = ""
 
     # ==========================================================================
+    # 8. OpenKNX.Toolbox Integration
+    # ==========================================================================
+    OPENKNX_CACHE_DIR: Path = BASE_DIR / "data" / "openknx_cache"
+    OPENKNX_APPLICATIONS_URL: str = "https://go.openknx.de/toolbox-data-applications"
+    OPENKNX_RELEASES_URL: str = "https://go.openknx.de/toolbox-data-releases"
+    OPENKNX_CACHE_TTL_SECONDS: int = 3600
+    KNX_DEFAULT_GATEWAY_IP: str = "127.0.0.1"
+    KNX_DEFAULT_GATEWAY_PORT: int = 3671
+
+    # ==========================================================================
     # Dynamische Helper-Properties
     # ==========================================================================
     @property
@@ -182,3 +192,4 @@ settings = Settings()
 # Verzeichnisse für Datenbank und Dateispeicher bei Bedarf automatisch initialisieren
 os.makedirs(os.path.dirname(settings.DATABASE_URL.replace("sqlite:///", "")), exist_ok=True)
 os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+os.makedirs(settings.OPENKNX_CACHE_DIR, exist_ok=True)

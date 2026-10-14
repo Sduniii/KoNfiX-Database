@@ -53,6 +53,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
           <span data-i18n="nav.yamlEditor">🛠️ YAML-Editor</span>
         </button>
+        <button id="openOpenKnxToolboxBtn" class="btn btn-secondary" title="OpenKNX Toolbox Extra" data-i18n-title="nav.openknxToolbox">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+          <span data-i18n="nav.openknxToolbox">🧰 OpenKNX Toolbox</span>
+        </button>
         <button id="openUploadBtn" class="btn btn-primary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           <span data-i18n="nav.upload">⚡ .yaml / .knxprod Upload</span>
@@ -777,6 +781,468 @@
     </div>
   </div>
 
+  <!-- ======================================================================== -->
+  <!-- OpenKNX Toolbox Extra Modal -->
+  <!-- ======================================================================== -->
+  <div class="modal-backdrop" id="openknxToolboxModal">
+    <div class="modal modal-openknx" style="max-width: 1300px; width: 96vw; height: 92vh; display: flex; flex-direction: column;">
+      <!-- Modal Header -->
+      <div class="modal-header" style="padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;" data-i18n="openknx.title">
+            🧰 OpenKNX Toolbox
+          </h3>
+          <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+            Open Source KNX Ecosystem
+          </span>
+          <span id="openknxActiveGatewayBadge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.75rem;">
+            Gateway: Auto-Detect
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button class="modal-close" id="closeOpenKnxBtn" style="font-size: 1.5rem; line-height: 1; cursor: pointer;">&times;</button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs Bar -->
+      <div class="openknx-nav-tabs" style="display: flex; gap: 0.35rem; padding: 0.5rem 1.25rem; background: rgba(15, 23, 42, 0.7); border-bottom: 1px solid rgba(255,255,255,0.08); overflow-x: auto; flex-shrink: 0;">
+        <button type="button" class="btn btn-sm btn-primary openknx-tab-btn active" data-tab="releases" id="tabOpenknxReleasesBtn" data-i18n="openknx.tabs.releases">
+          📦 Firmware &amp; Releases
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="devices" id="tabOpenknxDevicesBtn" data-i18n="openknx.tabs.devices">
+          📡 Geräte-Manager
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="files" id="tabOpenknxFilesBtn" data-i18n="openknx.tabs.files">
+          📁 Dateimanager (FTM)
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="flash" id="tabOpenknxFlashBtn" data-i18n="openknx.tabs.flash">
+          ⚡ Firmware Flasher
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="gateways" id="tabOpenknxGatewaysBtn" data-i18n="openknx.tabs.gateways">
+          🌐 KNX Gateways
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="knxprod" id="tabOpenknxKnxprodBtn" data-i18n="openknx.tabs.knxprod">
+          📦 .knxprod Generator
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary openknx-tab-btn" data-tab="tasks" id="tabOpenknxTasksBtn" data-i18n="openknx.tabs.tasks">
+          ⏱️ Tasks &amp; Aktivitäten
+        </button>
+      </div>
+
+      <!-- Modal Content Body -->
+      <div class="openknx-modal-body" style="flex: 1; overflow-y: auto; padding: 1.25rem; min-height: 0;">
+        
+        <!-- ==================== TAB 1: RELEASES ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabReleases">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 600px;">
+              <input type="text" id="openknxReleaseSearch" class="form-control" placeholder="Modul suchen (z. B. UP1-8xSensor, LogicModule)..." data-i18n-placeholder="openknx.releases.searchPlaceholder" style="flex: 1;">
+              <select id="openknxReleaseChannel" class="form-select" style="max-width: 180px;">
+                <option value="all" data-i18n="openknx.releases.channelAll">Alle Kanäle</option>
+                <option value="release" data-i18n="openknx.releases.channelStable">Nur Stable Releases</option>
+                <option value="dev" data-i18n="openknx.releases.channelDev">Beta &amp; Dev Releases</option>
+              </select>
+            </div>
+            <button type="button" id="openknxSyncReleasesBtn" class="btn btn-secondary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span data-i18n="openknx.releases.refreshBtn">🔄 Releases aktualisieren</span>
+            </button>
+          </div>
+
+          <div id="openknxReleasesStatus" style="display: none; margin-bottom: 1rem;"></div>
+          <div id="openknxReleasesGrid" class="openknx-cards-grid">
+            <div style="text-align: center; padding: 3rem; color: #94a3b8;" data-i18n="openknx.releases.loading">
+              Lade OpenKNX Releases...
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 2: DEVICE MANAGER ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabDevices" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+              <button type="button" id="openknxScanMdnsBtn" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span data-i18n="openknx.devices.scanMdnsBtn">🔍 mDNS Netzwerk-Scan</span>
+              </button>
+              <div style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <label style="font-size: 0.85rem; color: #94a3b8;">KNX Gateway:</label>
+                <select id="openknxDeviceGatewaySelect" class="form-select-sm" style="min-width: 180px;"></select>
+              </div>
+            </div>
+            <div id="openknxDeviceScanStatus" style="font-size: 0.85rem; color: #94a3b8;"></div>
+          </div>
+
+          <div class="openknx-table-container">
+            <table class="openknx-table" id="openknxDevicesTable">
+              <thead>
+                <tr>
+                  <th data-i18n="openknx.devices.colName">Gerät / Modul</th>
+                  <th data-i18n="openknx.devices.colAddress">Phys. Adresse</th>
+                  <th data-i18n="openknx.devices.colIp">IP-Adresse</th>
+                  <th data-i18n="openknx.devices.colHardware">Hardware / Chip</th>
+                  <th data-i18n="openknx.devices.colVersion">Version</th>
+                  <th data-i18n="openknx.devices.colStatus">Status</th>
+                  <th style="text-align: right;" data-i18n="openknx.devices.colActions">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="openknxDevicesTbody">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: 2.5rem; color: #94a3b8;" data-i18n="openknx.devices.noDevices">
+                    Bislang keine OpenKNX-Geräte gefunden. Klicke auf 'mDNS Netzwerk-Scan'.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 3: FILE MANAGER ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabFiles" style="display: none;">
+          <!-- Action Bar -->
+          <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; flex: 1;">
+              <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                <label style="font-size: 0.85rem; color: #cbd5e1;" data-i18n="openknx.files.targetLabel">Ziel-Gerät:</label>
+                <input type="text" id="openknxFileTargetAddress" class="form-control-sm" placeholder="1.1.25" style="width: 100px; font-family: monospace;">
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                <label style="font-size: 0.85rem; color: #cbd5e1;" data-i18n="openknx.files.gatewayLabel">Gateway:</label>
+                <select id="openknxFileGatewaySelect" class="form-select-sm" style="min-width: 160px;"></select>
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                <label style="font-size: 0.85rem; color: #cbd5e1;">Pfad:</label>
+                <input type="text" id="openknxFilePath" class="form-control-sm" value="/" style="width: 130px; font-family: monospace;">
+              </div>
+              <button type="button" id="openknxFileListBtn" class="btn btn-sm btn-primary">
+                <span data-i18n="openknx.files.connectBtn">🔄 Verbinden &amp; Auslesen</span>
+              </button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <input type="file" id="openknxFileInput" hidden>
+              <button type="button" id="openknxFileUploadBtn" class="btn btn-sm btn-secondary" data-i18n="openknx.files.uploadBtn">
+                ⬆️ Datei hochladen
+              </button>
+              <button type="button" id="openknxFileMkdirBtn" class="btn btn-sm btn-secondary" data-i18n="openknx.files.mkdirBtn">
+                📁 Neuer Ordner
+              </button>
+              <button type="button" id="openknxFileFormatBtn" class="btn btn-sm btn-ghost" style="color: #ef4444;" data-i18n="openknx.files.formatBtn">
+                🧹 Formatieren
+              </button>
+            </div>
+          </div>
+
+          <div id="openknxFileStatus" style="display: none; margin-bottom: 0.75rem;"></div>
+
+          <div class="openknx-table-container">
+            <table class="openknx-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;" data-i18n="openknx.files.colType">Typ</th>
+                  <th data-i18n="openknx.files.colName">Name</th>
+                  <th data-i18n="openknx.files.colSize">Größe</th>
+                  <th data-i18n="openknx.files.colPath">Pfad</th>
+                  <th style="text-align: right;" data-i18n="openknx.files.colActions">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="openknxFilesTbody">
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 2.5rem; color: #94a3b8;" data-i18n="openknx.files.emptyDir">
+                    Verzeichnis ist leer oder noch nicht eingelesen.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 4: FIRMWARE FLASHER ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabFlash" style="display: none;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+            <!-- Left: Settings -->
+            <div class="openknx-panel-card">
+              <h4 style="margin-bottom: 1rem; color: #f8fafc; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                ⚙️ Flash-Konfiguration
+              </h4>
+
+              <!-- Flash Method -->
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.methodLabel">
+                  Flash-Methode:
+                </label>
+                <div style="display: flex; gap: 1rem;">
+                  <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <input type="radio" name="openknxFlashMethod" value="ota" checked>
+                    <span data-i18n="openknx.flash.methodOta">Netzwerk OTA (ESP32/RP2040)</span>
+                  </label>
+                  <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <input type="radio" name="openknxFlashMethod" value="bus">
+                    <span data-i18n="openknx.flash.methodBus">KNX Bus Flash (FTM /fw.bin)</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- OTA Targets -->
+              <div id="openknxFlashOtaFields" style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.ipLabel">
+                    Geräte-IP:
+                  </label>
+                  <input type="text" id="openknxFlashIp" class="form-control" placeholder="192.168.1.150">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.portLabel">
+                    Port:
+                  </label>
+                  <input type="number" id="openknxFlashPort" class="form-control" value="3232">
+                </div>
+              </div>
+
+              <!-- Bus Targets -->
+              <div id="openknxFlashBusFields" style="display: none; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.knxAddressLabel">
+                    Zieladresse (KNX PA):
+                  </label>
+                  <input type="text" id="openknxFlashKnxAddress" class="form-control" placeholder="1.1.25">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.gatewayLabel">
+                    KNX Gateway:
+                  </label>
+                  <select id="openknxFlashGatewaySelect" class="form-select"></select>
+                </div>
+              </div>
+
+              <!-- Firmware Source -->
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;" data-i18n="openknx.flash.sourceLabel">
+                  Firmware-Quelle:
+                </label>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
+                  <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <input type="radio" name="openknxFlashSource" value="release" checked>
+                    <span data-i18n="openknx.flash.sourceRelease">Aus OpenKNX Release wählen</span>
+                  </label>
+                  <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <input type="radio" name="openknxFlashSource" value="upload">
+                    <span data-i18n="openknx.flash.sourceUpload">Lokale .bin Datei</span>
+                  </label>
+                </div>
+
+                <div id="openknxFlashReleaseSelectWrap" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                  <div>
+                    <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.flash.selectRepo">Repository / Modul:</label>
+                    <select id="openknxFlashRepoSelect" class="form-select"></select>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.flash.selectTag">Release Version:</label>
+                    <select id="openknxFlashTagSelect" class="form-select"></select>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.flash.selectAsset">Firmware-Datei (.bin):</label>
+                    <select id="openknxFlashAssetSelect" class="form-select"></select>
+                  </div>
+                </div>
+
+                <div id="openknxFlashFileUploadWrap" style="display: none; margin-top: 0.5rem;">
+                  <input type="file" id="openknxFlashLocalFile" accept=".bin,.hex" class="form-control">
+                </div>
+              </div>
+
+              <button type="button" id="openknxStartFlashBtn" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
+                <span data-i18n="openknx.flash.startBtn">⚡ Flash-Vorgang starten</span>
+              </button>
+            </div>
+
+            <!-- Right: Live Monitor & Logs -->
+            <div class="openknx-panel-card" style="display: flex; flex-direction: column;">
+              <h4 style="margin-bottom: 0.75rem; color: #f8fafc; font-size: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                <span data-i18n="openknx.flash.progressTitle">Flash-Fortschritt:</span>
+                <span id="openknxFlashPercent" style="font-family: monospace; color: #38bdf8;">0%</span>
+              </h4>
+
+              <!-- Progress bar -->
+              <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; height: 16px; overflow: hidden; margin-bottom: 0.75rem;">
+                <div id="openknxFlashProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #10b981); transition: width 0.3s ease;"></div>
+              </div>
+
+              <div id="openknxFlashStatusText" style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.75rem;">
+                Bereit zum Flashen.
+              </div>
+
+              <h5 style="margin-bottom: 0.35rem; color: #cbd5e1; font-size: 0.85rem;" data-i18n="openknx.flash.logsTitle">
+                Echtzeit-Log:
+              </h5>
+              <div id="openknxFlashLogs" style="flex: 1; min-height: 200px; max-height: 320px; overflow-y: auto; background: #070c16; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.78rem; color: #38bdf8; white-space: pre-wrap;">
+[Bereit] Wähle ein Zielgerät und starte den Vorgang.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 5: GATEWAYS ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabGateways" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button type="button" id="openknxDiscoverGatewaysBtn" class="btn btn-primary">
+                <span data-i18n="openknx.gateways.discoverBtn">🌐 Gateways im Netzwerk suchen</span>
+              </button>
+              <button type="button" id="openknxToggleAddGatewayBtn" class="btn btn-secondary">
+                <span data-i18n="openknx.gateways.addBtn">➕ Gateway hinzufügen</span>
+              </button>
+            </div>
+            <div id="openknxGatewaysStatus" style="font-size: 0.85rem; color: #94a3b8;"></div>
+          </div>
+
+          <!-- Add Gateway Form -->
+          <div id="openknxAddGatewayFormWrap" class="openknx-panel-card" style="display: none; margin-bottom: 1rem;">
+            <h4 style="margin-bottom: 0.75rem; color: #f8fafc; font-size: 0.95rem;" data-i18n="openknx.gateways.modalTitle">
+              KNX Gateway konfigurieren
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div>
+                <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.gateways.nameLabel">Bezeichnung:</label>
+                <input type="text" id="openknxGwName" class="form-control" placeholder="z. B. Weinzierl 731">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.gateways.hostLabel">IP / Hostname:</label>
+                <input type="text" id="openknxGwHost" class="form-control" placeholder="192.168.1.10">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.gateways.portLabel">Port:</label>
+                <input type="number" id="openknxGwPort" class="form-control" value="3671">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.gateways.protocolLabel">Protokoll:</label>
+                <select id="openknxGwProtocol" class="form-select">
+                  <option value="tunneling">Tunneling (UDP Unicast)</option>
+                  <option value="routing">Routing (UDP Multicast)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: #94a3b8;" data-i18n="openknx.gateways.addressLabel">Eigene KNX-Adresse:</label>
+                <input type="text" id="openknxGwAddress" class="form-control" value="15.15.250">
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; color: #cbd5e1;">
+                <input type="checkbox" id="openknxGwDefault" checked>
+                <span data-i18n="openknx.gateways.isDefaultLabel">Als Standard-Gateway für Bus-Operationen verwenden</span>
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" id="openknxCancelAddGwBtn" class="btn btn-sm btn-secondary" data-i18n="openknx.gateways.cancelBtn">Abbrechen</button>
+                <button type="button" id="openknxSaveGatewayBtn" class="btn btn-sm btn-primary" data-i18n="openknx.gateways.saveBtn">Speichern</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="openknx-table-container">
+            <table class="openknx-table" id="openknxGatewaysTable">
+              <thead>
+                <tr>
+                  <th data-i18n="openknx.gateways.colName">Name</th>
+                  <th data-i18n="openknx.gateways.colHost">Host &amp; Port</th>
+                  <th data-i18n="openknx.gateways.colProtocol">Protokoll</th>
+                  <th data-i18n="openknx.gateways.colAddress">Phys. Adresse</th>
+                  <th data-i18n="openknx.gateways.colDefault">Standard</th>
+                  <th style="text-align: right;" data-i18n="openknx.gateways.colActions">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="openknxGatewaysTbody">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 2.5rem; color: #94a3b8;" data-i18n="openknx.gateways.noGateways">
+                    Keine Gateways konfiguriert. Suche im Netzwerk oder füge manuell eins hinzu.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 6: .KNXPROD GENERATOR ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabKnxprod" style="display: none;">
+          <div style="max-width: 800px; margin: 0 auto;">
+            <div class="openknx-panel-card" style="margin-bottom: 1.25rem;">
+              <h4 style="margin-bottom: 0.5rem; color: #f8fafc; font-size: 1.05rem;" data-i18n="openknx.knxprod.title">
+                OpenKNX .knxprod Generator
+              </h4>
+              <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.25rem;" data-i18n="openknx.knxprod.desc">
+                Erstelle aus einer OpenKNX Hardware-XML und optionalen Baggages eine vollständige ETS-kompatible .knxprod-Datei.
+              </p>
+
+              <!-- Dropzone -->
+              <div id="openknxXmlDropzone" class="openknx-dropzone" style="margin-bottom: 1rem;">
+                <input type="file" id="openknxXmlFileInput" accept=".xml" hidden>
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
+                <div style="font-weight: 600; color: #f8fafc; margin-bottom: 0.25rem;" id="openknxXmlFilename" data-i18n="openknx.knxprod.dropzoneTitle">
+                  OpenKNX XML-Datei hier ablegen
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8;" data-i18n="openknx.knxprod.dropzoneSub">
+                  oder klicken zum Auswählen (.xml)
+                </div>
+              </div>
+
+              <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.8rem; color: #cbd5e1; display: block; margin-bottom: 0.35rem;" data-i18n="openknx.knxprod.mfgIdLabel">
+                  Hersteller-ID:
+                </label>
+                <input type="text" id="openknxXmlMfgId" class="form-control" value="M-00FA" style="max-width: 200px; font-family: monospace;">
+              </div>
+
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button type="button" id="openknxGenerateKnxprodBtn" class="btn btn-primary">
+                  <span data-i18n="openknx.knxprod.generateBtn">📦 .knxprod generieren &amp; herunterladen</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="openknxKnxprodStatus" style="display: none;"></div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 7: TASKS & ACTIVITIES ==================== -->
+        <div class="openknx-tab-panel" id="openknxTabTasks" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <button type="button" id="openknxRefreshTasksBtn" class="btn btn-secondary">
+                <span data-i18n="openknx.tasks.refreshBtn">🔄 Aktualisieren</span>
+              </button>
+              <label style="font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; color: #cbd5e1;">
+                <input type="checkbox" id="openknxAutoRefreshTasks" checked>
+                <span data-i18n="openknx.tasks.autoRefresh">Auto-Refresh (alle 3s)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="openknx-table-container">
+            <table class="openknx-table" id="openknxTasksTable">
+              <thead>
+                <tr>
+                  <th data-i18n="openknx.tasks.colId">Task ID</th>
+                  <th data-i18n="openknx.tasks.colType">Typ</th>
+                  <th data-i18n="openknx.tasks.colName">Name</th>
+                  <th data-i18n="openknx.tasks.colStatus">Status</th>
+                  <th data-i18n="openknx.tasks.colProgress">Fortschritt</th>
+                  <th style="text-align: right;" data-i18n="openknx.tasks.colActions">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="openknxTasksTbody">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 2.5rem; color: #94a3b8;" data-i18n="openknx.tasks.noTasks">
+                    Keine aktiven oder vergangenen Tasks.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
     <div class="container footer-content">
       <div class="footer-brand-col">
@@ -799,6 +1265,7 @@
 
   <script src="/static/i18n.js"></script>
   <script src="/static/vendor/js-yaml.min.js"></script>
+  <script src="/static/openknx_toolbox.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
