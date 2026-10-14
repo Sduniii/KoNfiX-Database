@@ -2301,7 +2301,7 @@ function getEditorTemplate(key) {
 }
 
 let editorState = {
-  activeTab: "general", // "general", "objects", "params"
+  activeTab: "general", // "general", "objects", "params", "trans"
   isSyncing: false,
   doc: null,
   koSearch: "",
@@ -2311,6 +2311,10 @@ let editorState = {
   paramPageFilter: "",
   paramPage: 1,
   paramPageSize: 50,
+  transSearch: "",
+  transFilter: "all",
+  transPage: 1,
+  transPageSize: 50,
   debounceTimeout: null
 };
 
@@ -2332,6 +2336,9 @@ function ensureDocInit() {
   if (!editorState.doc.application) editorState.doc.application = {};
   if (!Array.isArray(editorState.doc.communication_objects)) editorState.doc.communication_objects = [];
   if (!Array.isArray(editorState.doc.parameters)) editorState.doc.parameters = [];
+  if (!editorState.doc.translations || typeof editorState.doc.translations !== "object") {
+    editorState.doc.translations = {};
+  }
 }
 
 function setupEditorModal() {
@@ -2572,11 +2579,30 @@ function setupEditorModal() {
     });
   }
 
+  const transSearchInput = document.getElementById("editorTransSearch");
+  if (transSearchInput) {
+    transSearchInput.addEventListener("input", (e) => {
+      editorState.transSearch = e.target.value.trim().toLowerCase();
+      editorState.transPage = 1;
+      renderTransCards();
+    });
+  }
+
+  const transFilterSelect = document.getElementById("editorTransFilter");
+  if (transFilterSelect) {
+    transFilterSelect.addEventListener("change", (e) => {
+      editorState.transFilter = e.target.value;
+      editorState.transPage = 1;
+      renderTransCards();
+    });
+  }
+
   // Card interactions via event delegation. The CSP (script-src 'self') blocks
   // inline onclick/oninput handlers, so dynamically rendered cards only carry
   // data-* attributes and these container-level listeners do the dispatching.
   bindEditorDelegation(document.getElementById("editorTabObjects"));
   bindEditorDelegation(document.getElementById("editorTabParams"));
+  bindEditorDelegation(document.getElementById("editorTabTrans"));
 
   // Add Item Buttons
   const addKoBtn = document.getElementById("editorAddKoBtn");
@@ -2596,6 +2622,7 @@ function setupEditorModal() {
         flags: { communication: true, read: false, write: true, transmit: false, update: false }
       });
       editorState.koPage = Math.ceil(kos.length / editorState.koPageSize) || 1;
+      updateTransEntityDatalist();
       renderKoCards();
       syncFormToYaml();
     });
@@ -2619,8 +2646,23 @@ function setupEditorModal() {
       editorState.paramPage = Math.ceil(params.length / editorState.paramPageSize) || 1;
       updateParamIdDatalist();
       updateParamPageFilterOptions();
+      updateTransEntityDatalist();
       renderParamCards();
       syncFormToYaml();
+    });
+  }
+
+  const addTransBtn = document.getElementById("editorAddTransBtn");
+  if (addTransBtn) {
+    addTransBtn.addEventListener("click", () => {
+      addNewTranslationEntity();
+    });
+  }
+
+  const autoPopulateTransBtn = document.getElementById("editorAutoPopulateTransBtn");
+  if (autoPopulateTransBtn) {
+    autoPopulateTransBtn.addEventListener("click", () => {
+      autoPopulateTranslationsFromEntities();
     });
   }
 }
@@ -2638,6 +2680,15 @@ function bindEditorDelegation(container) {
       case "delete-item":
         if (d.type === "ko") deleteKoItem(idx); else deleteParamItem(idx);
         break;
+      case "delete-trans-entity":
+        deleteTranslationEntity(d.entity);
+        break;
+      case "add-trans-lang":
+        addTranslationLang(d.entity);
+        break;
+      case "delete-trans-lang":
+        deleteTranslationLang(d.entity, d.lang);
+        break;
       case "cond-add":
         addConditionItem(d.type, idx);
         break;
@@ -2649,7 +2700,8 @@ function bindEditorDelegation(container) {
         break;
       case "page":
         if (d.target === "ko") setKoPage(parseInt(d.page, 10));
-        else setParamPage(parseInt(d.page, 10));
+        else if (d.target === "param") setParamPage(parseInt(d.page, 10));
+        else if (d.target === "trans") setTransPage(parseInt(d.page, 10));
         break;
     }
   });
@@ -2657,6 +2709,10 @@ function bindEditorDelegation(container) {
   // Text/number fields update live while typing (no re-render, focus is kept).
   container.addEventListener("input", (e) => {
     const el = e.target;
+    if (el.dataset && el.dataset.transField === "lang_text") {
+      updateTranslationText(el.dataset.entity, el.dataset.lang, el.value);
+      return;
+    }
     if (!el.dataset || !el.dataset.field) return;
     if (el.type === "checkbox" || el.tagName === "SELECT") return;
     applyFieldChange(el);
@@ -2666,6 +2722,14 @@ function bindEditorDelegation(container) {
   container.addEventListener("change", (e) => {
     const el = e.target;
     if (!el.dataset) return;
+    if (el.dataset.transField === "entity_id") {
+      renameTranslationEntity(el.dataset.origEntity, el.value);
+      return;
+    }
+    if (el.dataset.transField === "lang_code") {
+      renameTranslationLang(el.dataset.entity, el.dataset.origLang, el.value);
+      return;
+    }
     if (el.dataset.condField) {
       applyConditionFieldChange(el);
     } else if (el.dataset.field && (el.type === "checkbox" || el.tagName === "SELECT")) {
@@ -2785,10 +2849,17 @@ function setEditorYamlContent(yamlText) {
     editorState.koSearch = "";
     editorState.paramSearch = "";
     editorState.paramPageFilter = "";
+    editorState.transPage = 1;
+    editorState.transSearch = "";
+    editorState.transFilter = "all";
     const koSearchEl = document.getElementById("editorKoSearch");
     if (koSearchEl) koSearchEl.value = "";
     const pSearchEl = document.getElementById("editorParamSearch");
     if (pSearchEl) pSearchEl.value = "";
+    const transSearchEl = document.getElementById("editorTransSearch");
+    if (transSearchEl) transSearchEl.value = "";
+    const transFilterEl = document.getElementById("editorTransFilter");
+    if (transFilterEl) transFilterEl.value = "all";
     validateAndSyncYamlToForm(yamlText);
   }
 }
@@ -2849,18 +2920,20 @@ function setupEditorTabs() {
   const tabGen = document.getElementById("tabEditorGeneralBtn");
   const tabObj = document.getElementById("tabEditorObjectsBtn");
   const tabParam = document.getElementById("tabEditorParamsBtn");
+  const tabTrans = document.getElementById("tabEditorTransBtn");
   const paneGen = document.getElementById("editorTabGeneral");
   const paneObj = document.getElementById("editorTabObjects");
   const paneParam = document.getElementById("editorTabParams");
+  const paneTrans = document.getElementById("editorTabTrans");
 
   function switchTab(active) {
-    [tabGen, tabObj, tabParam].forEach(t => {
+    [tabGen, tabObj, tabParam, tabTrans].forEach(t => {
       if (t) {
         t.classList.remove("btn-primary");
         t.classList.add("btn-secondary");
       }
     });
-    [paneGen, paneObj, paneParam].forEach(p => {
+    [paneGen, paneObj, paneParam, paneTrans].forEach(p => {
       if (p) p.style.display = "none";
     });
 
@@ -2873,6 +2946,9 @@ function setupEditorTabs() {
     } else if (active === "params") {
       if (tabParam) { tabParam.classList.add("btn-primary"); tabParam.classList.remove("btn-secondary"); }
       if (paneParam) paneParam.style.display = "block";
+    } else if (active === "trans") {
+      if (tabTrans) { tabTrans.classList.add("btn-primary"); tabTrans.classList.remove("btn-secondary"); }
+      if (paneTrans) paneTrans.style.display = "block";
     }
     editorState.activeTab = active;
   }
@@ -2880,6 +2956,7 @@ function setupEditorTabs() {
   if (tabGen) tabGen.addEventListener("click", () => switchTab("general"));
   if (tabObj) tabObj.addEventListener("click", () => switchTab("objects"));
   if (tabParam) tabParam.addEventListener("click", () => switchTab("params"));
+  if (tabTrans) tabTrans.addEventListener("click", () => switchTab("trans"));
 }
 
 function getMfgCode() {
@@ -2902,6 +2979,7 @@ function parseYamlDoc(yamlStr) {
   data.application = data.application || {};
   data.communication_objects = Array.isArray(data.communication_objects) ? data.communication_objects : [];
   data.parameters = Array.isArray(data.parameters) ? data.parameters : [];
+  data.translations = (data.translations && typeof data.translations === "object") ? data.translations : {};
   return data;
 }
 
@@ -2954,8 +3032,10 @@ function validateAndSyncYamlToForm(yamlText) {
 
     updateParamIdDatalist();
     updateParamPageFilterOptions();
+    updateTransEntityDatalist();
     renderKoCards();
     renderParamCards();
+    renderTransCards();
 
     editorState.isSyncing = false;
 
@@ -3202,6 +3282,8 @@ function renderKoCards() {
     const condSummary = formatConditionsSummary(ko);
     const flags = ko.flags || { communication: true, read: false, write: true, transmit: false, update: false };
     const condHtml = renderConditionsEditorHtml("ko", realIdx, ko);
+    const hasTrans = (ko.translations && Object.keys(ko.translations).length > 0) ||
+      (editorState.doc && editorState.doc.translations && ko.id && editorState.doc.translations[ko.id] && Object.keys(editorState.doc.translations[ko.id]).length > 0);
 
     return `
       <div class="editor-item-card" data-real-idx="${realIdx}">
@@ -3209,6 +3291,7 @@ function renderKoCards() {
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <span class="editor-item-title">#${ko.number != null ? ko.number : realIdx + 1} &bull; ${escapeHtml(ko.id || '')}</span>
             ${condSummary ? `<span class="editor-badge-cond" title="${escapeHtml(condSummary)}">⚡ ${escapeHtml(condSummary)}</span>` : ''}
+            ${hasTrans ? `<span class="editor-meta-pill" title="Übersetzungen">🌐 Übersetzt</span>` : ''}
           </div>
           <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteBtnText)}" data-action="delete-item" data-type="ko" data-idx="${realIdx}">&times; ${escapeHtml(deleteBtnText)}</button>
         </div>
@@ -3374,7 +3457,8 @@ function renderParamCards() {
     const condSummary = formatConditionsSummary(param);
     const optionsHtml = renderParamOptionsHtml(param);
     const ruleCount = Array.isArray(param.assign_rules) ? param.assign_rules.length : 0;
-    const hasTrans = param.translations && Object.keys(param.translations).length > 0;
+    const hasTrans = (param.translations && Object.keys(param.translations).length > 0) ||
+      (editorState.doc && editorState.doc.translations && param.id && editorState.doc.translations[param.id] && Object.keys(editorState.doc.translations[param.id]).length > 0);
     const condHtml = renderConditionsEditorHtml("param", realIdx, param);
 
     return `
@@ -3430,6 +3514,7 @@ function renderParamCards() {
 function deleteKoItem(realIdx) {
   ensureDocInit();
   editorState.doc.communication_objects.splice(realIdx, 1);
+  updateTransEntityDatalist();
   renderKoCards();
   syncFormToYaml();
 };
@@ -3445,6 +3530,9 @@ function updateKoField(realIdx, field, value) {
   } else {
     ko[field] = value;
   }
+  if (field === "id" || field === "name") {
+    updateTransEntityDatalist();
+  }
   syncFormToYaml();
 };
 
@@ -3453,6 +3541,7 @@ function deleteParamItem(realIdx) {
   editorState.doc.parameters.splice(realIdx, 1);
   updateParamIdDatalist();
   updateParamPageFilterOptions();
+  updateTransEntityDatalist();
   renderParamCards();
   syncFormToYaml();
 };
@@ -3467,6 +3556,7 @@ function updateParamField(realIdx, field, value) {
   }
   if (field === "id" || field === "name") {
     updateParamIdDatalist();
+    updateTransEntityDatalist();
   }
   if (field === "page") {
     updateParamPageFilterOptions();
@@ -3606,6 +3696,359 @@ function setParamPage(pageNum) {
   renderParamCards();
 };
 
+function setTransPage(pageNum) {
+  editorState.transPage = pageNum;
+  renderTransCards();
+};
+
+function getEntityInfo(entityId) {
+  if (!editorState.doc) return { type: "other", name: null };
+  const cleanId = (entityId || "").toLowerCase();
+
+  // Check parameters
+  if (Array.isArray(editorState.doc.parameters)) {
+    const p = editorState.doc.parameters.find(item => item.id && item.id.toLowerCase() === cleanId);
+    if (p) {
+      return {
+        type: "param",
+        name: p.name || p.text || p.id,
+        item: p
+      };
+    }
+  }
+
+  // Check communication objects
+  if (Array.isArray(editorState.doc.communication_objects)) {
+    const ko = editorState.doc.communication_objects.find(item => item.id && item.id.toLowerCase() === cleanId);
+    if (ko) {
+      return {
+        type: "ko",
+        name: ko.name || ko.function || ko.id,
+        number: ko.number,
+        item: ko
+      };
+    }
+  }
+
+  return { type: "other", name: null };
+}
+
+function updateTransEntityDatalist() {
+  const dl = document.getElementById("editorTransEntityDatalist");
+  if (!dl || !editorState.doc) return;
+  const options = [];
+
+  if (Array.isArray(editorState.doc.parameters)) {
+    for (const p of editorState.doc.parameters) {
+      if (p.id) {
+        options.push(`<option value="${escapeHtml(p.id)}">⚙️ ${escapeHtml(p.id)}${p.name ? ' (' + escapeHtml(p.name) + ')' : ''}</option>`);
+      }
+    }
+  }
+
+  if (Array.isArray(editorState.doc.communication_objects)) {
+    for (const ko of editorState.doc.communication_objects) {
+      if (ko.id) {
+        options.push(`<option value="${escapeHtml(ko.id)}">📡 ${escapeHtml(ko.id)}${ko.name ? ' (' + escapeHtml(ko.name) + ')' : ''}</option>`);
+      }
+    }
+  }
+
+  dl.innerHTML = options.join("");
+}
+
+function renderTransCards() {
+  const list = document.getElementById("editorTransList");
+  const countBadge = document.getElementById("editorTransCount");
+  ensureDocInit();
+
+  const trObj = editorState.doc.translations || {};
+  const allEntityIds = Object.keys(trObj);
+
+  if (countBadge) countBadge.textContent = allEntityIds.length;
+  if (!list) return;
+
+  const query = editorState.transSearch || "";
+  const filterType = editorState.transFilter || "all";
+
+  let items = [];
+  for (const entityId of allEntityIds) {
+    const langMap = trObj[entityId] || {};
+    const info = getEntityInfo(entityId);
+
+    // Filter by type
+    if (filterType !== "all") {
+      if (filterType === "param" && info.type !== "param") continue;
+      if (filterType === "ko" && info.type !== "ko") continue;
+      if (filterType === "other" && info.type !== "other") continue;
+    }
+
+    // Filter by search query
+    if (query) {
+      let matched = entityId.toLowerCase().includes(query) || (info.name && info.name.toLowerCase().includes(query));
+      if (!matched) {
+        for (const [lang, txt] of Object.entries(langMap)) {
+          if (lang.toLowerCase().includes(query) || String(txt || "").toLowerCase().includes(query)) {
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) continue;
+    }
+
+    items.push({ entityId, langMap, info });
+  }
+
+  const totalItems = items.length;
+  const totalPages = Math.ceil(totalItems / editorState.transPageSize) || 1;
+  if (editorState.transPage > totalPages) editorState.transPage = totalPages;
+  if (editorState.transPage < 1) editorState.transPage = 1;
+
+  const label = typeof I18n !== "undefined" ? I18n.t("editorModal.translationsLabel") : "Übersetzungen";
+  renderPaginationBar("editorTransPagination", editorState.transPage, totalPages, totalItems, label, "trans");
+  renderPaginationBar("editorTransPaginationBottom", editorState.transPage, totalPages, totalItems, label, "trans");
+
+  if (totalItems === 0) {
+    const emptyMsg = typeof I18n !== "undefined"
+      ? (query ? `${I18n.t("editorModal.noTransFound")} (${query})` : I18n.t("editorModal.noTransFound"))
+      : `Keine Übersetzungen vorhanden oder gefunden${query ? ' für die Suche "' + escapeHtml(query) + '"' : ''}.`;
+    list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">${escapeHtml(emptyMsg)}</div>`;
+    return;
+  }
+
+  const startIdx = (editorState.transPage - 1) * editorState.transPageSize;
+  const pageItems = items.slice(startIdx, startIdx + editorState.transPageSize);
+
+  const deleteBtnText = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteItem") : "Löschen";
+  const entityIdLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.transEntityIdLabel") : "Entity-ID (lowercase)";
+  const addLangText = typeof I18n !== "undefined" ? I18n.t("editorModal.transAddLangBtn") : "➕ Sprache";
+
+  list.innerHTML = pageItems.map(({ entityId, langMap, info }) => {
+    let contextBadgeHtml = "";
+    if (info.type === "param") {
+      const badgeText = typeof I18n !== "undefined"
+        ? I18n.t("editorModal.transBadgeParam", { name: info.name })
+        : `⚙️ Parameter: ${info.name}`;
+      contextBadgeHtml = `<span class="editor-meta-pill" title="Zugehöriger Parameter" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${escapeHtml(badgeText)}</span>`;
+    } else if (info.type === "ko") {
+      const badgeText = typeof I18n !== "undefined"
+        ? I18n.t("editorModal.transBadgeKo", { num: info.number != null ? info.number : "?", name: info.name })
+        : `📡 KO #${info.number}: ${info.name}`;
+      contextBadgeHtml = `<span class="editor-meta-pill" title="Zugehöriges KO" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">${escapeHtml(badgeText)}</span>`;
+    } else {
+      const badgeText = typeof I18n !== "undefined"
+        ? I18n.t("editorModal.transBadgeCustom")
+        : "🏷️ Entität";
+      contextBadgeHtml = `<span class="editor-meta-pill" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">${escapeHtml(badgeText)}</span>`;
+    }
+
+    const langs = Object.keys(langMap);
+    const langCountBadge = `<span class="editor-meta-pill" style="color: #cbd5e1;">🌐 ${langs.length} ${langs.length === 1 ? 'Sprache' : 'Sprachen'} (${escapeHtml(langs.join(', ') || '-')})</span>`;
+
+    const langRowsHtml = langs.map(lang => {
+      const textVal = langMap[lang] || "";
+      return `
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem;">
+          <input type="text" class="editor-input" value="${escapeHtml(lang)}" data-trans-field="lang_code" data-entity="${escapeHtml(entityId)}" data-orig-lang="${escapeHtml(lang)}" style="width: 75px; text-align: center; font-weight: 600; text-transform: lowercase;" placeholder="de" maxlength="8">
+          <input type="text" class="editor-input" value="${escapeHtml(textVal)}" data-trans-field="lang_text" data-entity="${escapeHtml(entityId)}" data-lang="${escapeHtml(lang)}" style="flex: 1;" placeholder="Lokalisierter Text...">
+          <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteBtnText)}" data-action="delete-trans-lang" data-entity="${escapeHtml(entityId)}" data-lang="${escapeHtml(lang)}" style="padding: 0.2rem 0.45rem;">&times;</button>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="editor-item-card" data-entity="${escapeHtml(entityId)}">
+        <div class="editor-item-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="editor-item-title">${escapeHtml(entityId)}</span>
+            ${contextBadgeHtml}
+            ${langCountBadge}
+          </div>
+          <button type="button" class="editor-btn-delete" title="${escapeHtml(deleteBtnText)}" data-action="delete-trans-entity" data-entity="${escapeHtml(entityId)}">&times; ${escapeHtml(deleteBtnText)}</button>
+        </div>
+        <div style="margin-bottom: 0.6rem;">
+          <label class="editor-label">${escapeHtml(entityIdLabel)}</label>
+          <input type="text" list="editorTransEntityDatalist" class="editor-input" value="${escapeHtml(entityId)}" data-trans-field="entity_id" data-orig-entity="${escapeHtml(entityId)}" placeholder="z. B. openknx_p-1">
+        </div>
+        <div style="margin-bottom: 0.5rem;">
+          <label class="editor-label" style="margin-bottom: 0.35rem;">Sprachübersetzungen:</label>
+          ${langRowsHtml || '<div style="color: #64748b; font-size: 0.75rem; margin-bottom: 0.4rem;">Keine Sprachen hinterlegt. Klicke auf ➕ Sprache.</div>'}
+        </div>
+        <div style="display: flex; justify-content: flex-start; gap: 0.5rem;">
+          <button type="button" class="btn btn-sm btn-ghost" data-action="add-trans-lang" data-entity="${escapeHtml(entityId)}" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border: 1px dashed rgba(255,255,255,0.2);">
+            ${escapeHtml(addLangText)}
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function addNewTranslationEntity() {
+  ensureDocInit();
+  editorState.doc.translations = editorState.doc.translations || {};
+
+  // Find a suggested entity ID
+  let suggestedId = "";
+  if (Array.isArray(editorState.doc.parameters)) {
+    const unP = editorState.doc.parameters.find(p => p.id && !editorState.doc.translations[p.id]);
+    if (unP) suggestedId = unP.id;
+  }
+  if (!suggestedId && Array.isArray(editorState.doc.communication_objects)) {
+    const unKo = editorState.doc.communication_objects.find(ko => ko.id && !editorState.doc.translations[ko.id]);
+    if (unKo) suggestedId = unKo.id;
+  }
+  if (!suggestedId) {
+    const mfg = getMfgCode();
+    let num = 1;
+    while (editorState.doc.translations[`${mfg}_item-${num}`]) {
+      num++;
+    }
+    suggestedId = `${mfg}_item-${num}`;
+  }
+
+  // Pre-fill German and English
+  const info = getEntityInfo(suggestedId);
+  const defaultText = info.name || "";
+  editorState.doc.translations[suggestedId] = {
+    de: defaultText,
+    en: ""
+  };
+
+  editorState.transPage = 1;
+  renderTransCards();
+  renderKoCards();
+  renderParamCards();
+  syncFormToYaml();
+}
+
+function autoPopulateTranslationsFromEntities() {
+  ensureDocInit();
+  editorState.doc.translations = editorState.doc.translations || {};
+
+  let addedCount = 0;
+
+  // Add all parameters
+  if (Array.isArray(editorState.doc.parameters)) {
+    for (const p of editorState.doc.parameters) {
+      if (p.id && !editorState.doc.translations[p.id]) {
+        editorState.doc.translations[p.id] = {
+          de: p.name || p.text || p.id,
+          en: ""
+        };
+        addedCount++;
+      }
+    }
+  }
+
+  // Add all communication objects
+  if (Array.isArray(editorState.doc.communication_objects)) {
+    for (const ko of editorState.doc.communication_objects) {
+      if (ko.id && !editorState.doc.translations[ko.id]) {
+        editorState.doc.translations[ko.id] = {
+          de: ko.name || ko.function || ko.id,
+          en: ""
+        };
+        addedCount++;
+      }
+    }
+  }
+
+  if (addedCount > 0) {
+    renderTransCards();
+    renderKoCards();
+    renderParamCards();
+    syncFormToYaml();
+    const successMsg = typeof I18n !== "undefined"
+      ? I18n.t("editorModal.transAutoPopulateSuccess", { count: addedCount })
+      : `${addedCount} Übersetzungseinträge hinzugefügt.`;
+    alert(successMsg);
+  } else {
+    const noneMsg = typeof I18n !== "undefined"
+      ? I18n.t("editorModal.transAutoPopulateNone")
+      : "Alle KOs und Parameter haben bereits Übersetzungseinträge.";
+    alert(noneMsg);
+  }
+}
+
+function deleteTranslationEntity(entityId) {
+  ensureDocInit();
+  if (editorState.doc.translations && editorState.doc.translations[entityId]) {
+    delete editorState.doc.translations[entityId];
+    renderTransCards();
+    renderKoCards();
+    renderParamCards();
+    syncFormToYaml();
+  }
+}
+
+function renameTranslationEntity(origEntityId, newEntityId) {
+  ensureDocInit();
+  const cleanNew = (newEntityId || "").trim().toLowerCase();
+  if (!cleanNew || cleanNew === origEntityId) return;
+
+  if (editorState.doc.translations && editorState.doc.translations[origEntityId]) {
+    const existingData = editorState.doc.translations[origEntityId];
+    delete editorState.doc.translations[origEntityId];
+    editorState.doc.translations[cleanNew] = existingData;
+    renderTransCards();
+    renderKoCards();
+    renderParamCards();
+    syncFormToYaml();
+  }
+}
+
+function addTranslationLang(entityId) {
+  ensureDocInit();
+  if (!editorState.doc.translations || !editorState.doc.translations[entityId]) return;
+
+  const currentLangs = Object.keys(editorState.doc.translations[entityId]);
+  let nextLang = "en";
+  if (currentLangs.includes("en") && !currentLangs.includes("de")) nextLang = "de";
+  else if (currentLangs.includes("de") && currentLangs.includes("en")) {
+    if (!currentLangs.includes("fr")) nextLang = "fr";
+    else if (!currentLangs.includes("es")) nextLang = "es";
+    else if (!currentLangs.includes("it")) nextLang = "it";
+    else nextLang = `lang${currentLangs.length + 1}`;
+  }
+
+  editorState.doc.translations[entityId][nextLang] = "";
+  renderTransCards();
+  syncFormToYaml();
+}
+
+function deleteTranslationLang(entityId, lang) {
+  ensureDocInit();
+  if (editorState.doc.translations && editorState.doc.translations[entityId]) {
+    delete editorState.doc.translations[entityId][lang];
+    renderTransCards();
+    syncFormToYaml();
+  }
+}
+
+function renameTranslationLang(entityId, origLang, newLang) {
+  ensureDocInit();
+  const cleanNew = (newLang || "").trim().toLowerCase();
+  if (!cleanNew || cleanNew === origLang) return;
+
+  if (editorState.doc.translations && editorState.doc.translations[entityId]) {
+    const textVal = editorState.doc.translations[entityId][origLang] || "";
+    delete editorState.doc.translations[entityId][origLang];
+    editorState.doc.translations[entityId][cleanNew] = textVal;
+    renderTransCards();
+    syncFormToYaml();
+  }
+}
+
+function updateTranslationText(entityId, lang, text) {
+  ensureDocInit();
+  if (!editorState.doc.translations) editorState.doc.translations = {};
+  if (!editorState.doc.translations[entityId]) editorState.doc.translations[entityId] = {};
+  editorState.doc.translations[entityId][lang] = text;
+  syncFormToYaml();
+}
+
 function syncFormToYaml() {
   if (editorState.isSyncing) return;
   ensureDocInit();
@@ -3635,6 +4078,13 @@ function syncFormToYaml() {
   app.name = dev.name;
   app.version = (document.getElementById("edAppVersion")?.value || "").trim() || "1.0";
   if (!app.mask_version) app.mask_version = "MV-07B0";
+
+  // Clean empty translations object if no keys exist
+  if (editorState.doc.translations && typeof editorState.doc.translations === "object") {
+    if (Object.keys(editorState.doc.translations).length === 0) {
+      delete editorState.doc.translations;
+    }
+  }
 
   if (typeof jsyaml !== "undefined") {
     try {

@@ -59,6 +59,14 @@ class ParameterResponse(BaseModel):
     options: Optional[List[Dict[str, Any]]] = None
     conditions: Optional[List[Dict[str, Any]]] = None
 
+class TranslationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    entity_id: str
+    language: str
+    text: str
+
 class DeviceBase(BaseModel):
     order_number: str
     name: str
@@ -78,6 +86,7 @@ class DeviceResponse(DeviceBase):
     yaml_url: Optional[str] = None
     com_objects_count: int = 0
     parameters_count: int = 0
+    translations_count: int = 0
     created_at: datetime
     updated_at: datetime
 

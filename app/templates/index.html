@@ -573,6 +573,7 @@
       </div>
 
       <datalist id="editorParamIdDatalist"></datalist>
+      <datalist id="editorTransEntityDatalist"></datalist>
 
       <div class="editor-split-container" style="flex: 1; display: grid; grid-template-columns: 48% 52%; overflow: hidden; min-height: 0;">
         <!-- Left: Visual Form Editor -->
@@ -581,6 +582,7 @@
             <button type="button" id="tabEditorGeneralBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.tabGeneral">🏢 Allgemein & Hardware</button>
             <button type="button" id="tabEditorObjectsBtn" class="btn btn-sm btn-secondary">📡 <span data-i18n="editorModal.tabObjects">KOs</span> (<span id="editorKoCount">0</span>)</button>
             <button type="button" id="tabEditorParamsBtn" class="btn btn-sm btn-secondary">⚙️ <span data-i18n="editorModal.tabParams">Parameter</span> (<span id="editorParamCount">0</span>)</button>
+            <button type="button" id="tabEditorTransBtn" class="btn btn-sm btn-secondary">🌐 <span data-i18n="editorModal.tabTrans">Übersetzungen</span> (<span id="editorTransCount">0</span>)</button>
           </div>
 
           <!-- 1. General & Hardware Tab -->
@@ -668,6 +670,31 @@
               <!-- Dynamically populated Parameter cards -->
             </div>
             <div id="editorParamPaginationBottom" class="editor-pagination" style="display: none; margin-top: 0.75rem;"></div>
+          </div>
+
+          <!-- 4. Translations Tab -->
+          <div id="editorTabTrans" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
+              <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc;" data-i18n="editorModal.transHeading">🌐 Mehrsprachige Übersetzungen</h4>
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button type="button" id="editorAutoPopulateTransBtn" class="btn btn-sm btn-secondary" title="Alle nicht übersetzten KOs und Parameter übernehmen" data-i18n="editorModal.transAutoPopulateBtn">⚡ Fehlende aus KOs &amp; Parametern generieren</button>
+                <button type="button" id="editorAddTransBtn" class="btn btn-sm btn-primary" data-i18n="editorModal.addTransBtn">➕ Neue Übersetzung</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+              <input type="text" id="editorTransSearch" placeholder="🔍 Übersetzungen suchen (ID, Text, Sprache)..." data-i18n-placeholder="editorModal.transSearchPlaceholder" class="editor-input" style="flex: 1; min-width: 180px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+              <select id="editorTransFilter" class="editor-input" style="width: 190px; padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                <option value="all" data-i18n="editorModal.transFilterAll">Alle Entitäten</option>
+                <option value="param" data-i18n="editorModal.transFilterParams">Nur Parameter</option>
+                <option value="ko" data-i18n="editorModal.transFilterKos">Nur KOs</option>
+                <option value="other" data-i18n="editorModal.transFilterOther">Benutzerdefiniert / Kanäle</option>
+              </select>
+            </div>
+            <div id="editorTransPagination" class="editor-pagination" style="display: none; margin-bottom: 0.75rem;"></div>
+            <div id="editorTransList" class="editor-item-list">
+              <!-- Dynamically populated Translation cards -->
+            </div>
+            <div id="editorTransPaginationBottom" class="editor-pagination" style="display: none; margin-top: 0.75rem;"></div>
           </div>
         </div>
 

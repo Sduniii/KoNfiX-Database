@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.auth import verify_admin_key, verify_api_key, is_admin_request, is_admin_authenticated
 from app.database import get_db
-from app.models import Device, Manufacturer, CommunicationObject, Parameter
+from app.models import Device, Manufacturer, CommunicationObject, Parameter, Translation
 from app.schemas.device import (
     ApplicationProgramResponse,
     BatchDeleteRequest,
@@ -19,6 +19,7 @@ from app.schemas.device import (
     ManufacturerSummary,
     CommunicationObjectResponse,
     ParameterResponse,
+    TranslationResponse,
 )
 
 
@@ -67,6 +68,7 @@ def _to_device_response(d: Device) -> DeviceResponse:
         yaml_url=f"/api/v1/devices/{d.order_number}/yaml",
         com_objects_count=len(d.communication_objects) if d.communication_objects else 0,
         parameters_count=len(d.parameters) if d.parameters else 0,
+        translations_count=len(d.translations) if d.translations else 0,
         created_at=d.created_at,
         updated_at=d.updated_at
     )
@@ -231,6 +233,38 @@ def get_device_parameters(
         query = query.filter(or_(Parameter.name.ilike(term), Parameter.text.ilike(term)))
 
     return query.order_by(Parameter.id.asc()).all()
+
+
+@router.get(
+    "/devices/{order_number:path}/translations",
+    response_model=List[TranslationResponse],
+    summary="Get translations for device",
+    description="Liefert alle Übersetzungen eines Geräts mit optionalem Filter nach Sprache oder Entity-ID."
+)
+def get_device_translations(
+    order_number: str,
+    language: Optional[str] = Query(None, description="Filter nach Sprache (z. B. 'de', 'en')"),
+    entity_id: Optional[str] = Query(None, description="Filter nach Entity-ID"),
+    q: Optional[str] = Query(None, description="Suche im Übersetzungstext oder in Entity-ID"),
+    db: Session = DB_SESSION_DEPENDENCY
+):
+    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
+        )
+
+    query = db.query(Translation).filter(Translation.device_id == device.id)
+    if language:
+        query = query.filter(Translation.language.ilike(language.strip()))
+    if entity_id:
+        query = query.filter(Translation.entity_id.ilike(entity_id.strip()))
+    if q:
+        term = f"%{q.strip()}%"
+        query = query.filter(or_(Translation.text.ilike(term), Translation.entity_id.ilike(term)))
+
+    return query.order_by(Translation.entity_id.asc(), Translation.language.asc()).all()
 
 
 @router.get(
