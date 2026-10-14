@@ -12,6 +12,9 @@ const I18N_TRANSLATIONS = {
     },
     hero: {
       tagline: "Offene Online-Datenbank & YAML-Gerätedefinitionen für KNX / KoNfiX",
+      title: "Offene KNX-Gerätedatenbank",
+      titleAccent: "für KoNfiX",
+      subtitle: "Durchsuche offene KNX-Gerätedefinitionen, lade standardisiertes YAML für deine KoNfiX-Projekte herunter oder erstelle eigene Geräte im integrierten Web-Editor.",
       stats: {
         devices: "Geräte",
         manufacturers: "Hersteller",
@@ -340,6 +343,9 @@ const I18N_TRANSLATIONS = {
     },
     hero: {
       tagline: "Open Online Database & YAML Device Definitions for KNX / KoNfiX",
+      title: "Open KNX Device Database",
+      titleAccent: "for KoNfiX",
+      subtitle: "Browse open KNX device definitions, download standardized YAML for your KoNfiX projects, or create your own devices in the integrated web editor.",
       stats: {
         devices: "Devices",
         manufacturers: "Manufacturers",

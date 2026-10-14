@@ -186,3 +186,29 @@ def test_i18n_runtime_methods_via_node():
         cwd=Path(__file__).parent.parent
     )
     assert "OK" in result.stdout
+
+
+def test_branding_and_navbar_elements(client):
+    """Verify that hero headline is 'für KoNfiX' (without ETS) and navbar responsive classes exist."""
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+
+    # Verify hero branding
+    assert "für KoNfiX" in html
+    assert "für KoNfiX &amp; ETS" not in html
+    assert "für KoNfiX & ETS" not in html
+    assert 'data-i18n="hero.titleAccent"' in html
+    assert 'data-i18n="hero.subtitle"' in html
+
+    # Verify navbar responsive classes
+    assert "hidden-md" in html
+    assert "hidden-sm" in html
+    assert "nav-btn-text" in html
+
+    # Verify CSS navbar fixes
+    css_res = client.get("/static/style.css")
+    assert css_res.status_code == 200
+    css = css_res.text
+    assert "min-height: 4rem" in css
+    assert "flex-wrap: nowrap" in css

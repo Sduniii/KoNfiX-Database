@@ -29,11 +29,11 @@
       </div>
       <div class="nav-actions">
         <!-- Live Status Indicator -->
-        <div class="live-status-pill hidden-xs">
+        <div class="live-status-pill hidden-md">
           <span class="live-status-dot"></span>
           <span>REST API v1.0 • Ready</span>
         </div>
-        <a href="https://konfix.sduni.de" target="_blank" rel="noreferrer" class="btn btn-ghost hidden-xs">
+        <a href="https://konfix.sduni.de" target="_blank" rel="noreferrer" class="btn btn-ghost hidden-sm">
           <span>🌐 KoNfiX Suite ↗</span>
         </a>
         <div class="lang-switch" id="langSwitch" role="group" aria-label="Language selection">
@@ -45,9 +45,9 @@
             <span id="adminToggleText" data-i18n="nav.admin">🔐 Admin</span>
           </button>
         </div>
-        <a href="/docs" target="_blank" class="btn btn-secondary">
+        <a href="/docs" target="_blank" class="btn btn-secondary" title="Swagger API Doku" data-i18n-title="nav.swagger">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          <span data-i18n="nav.swagger">Swagger API Doku</span>
+          <span class="nav-btn-text" data-i18n="nav.swagger">Swagger API Doku</span>
         </a>
         <button id="openEditorNavBtn" class="btn btn-secondary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -72,11 +72,11 @@
           <span class="hero-badge-link">v1.0 Ready →</span>
         </div>
         <h1 class="hero-main-title">
-          Offene KNX-Gerätedatenbank
-          <span class="gradient-text">für KoNfiX &amp; ETS</span>
+          <span data-i18n="hero.title">Offene KNX-Gerätedatenbank</span>
+          <span class="gradient-text" data-i18n="hero.titleAccent">für KoNfiX</span>
         </h1>
-        <p class="hero-subtitle">
-          Durchsuche offene KNX-Gerätedefinitionen, lade standardisiertes YAML für deine ETS-Projekte herunter oder erstelle eigene Geräte im integrierten Web-Editor.
+        <p class="hero-subtitle" data-i18n="hero.subtitle">
+          Durchsuche offene KNX-Gerätedefinitionen, lade standardisiertes YAML für deine KoNfiX-Projekte herunter oder erstelle eigene Geräte im integrierten Web-Editor.
         </p>
       </div>
 
