@@ -765,11 +765,13 @@ const I18n = {
       const key = el.getAttribute("data-i18n");
       if (key) {
         const translation = this.t(key);
-        // If element contains HTML or is intended for text
-        if (el.getAttribute("data-i18n-html") === "true") {
-          el.innerHTML = translation;
-        } else {
-          el.textContent = translation;
+        // Only overwrite DOM if a valid translation is found and not falling back to the raw key
+        if (translation && translation !== key) {
+          if (el.getAttribute("data-i18n-html") === "true") {
+            el.innerHTML = translation;
+          } else {
+            el.textContent = translation;
+          }
         }
       }
     });
@@ -779,7 +781,10 @@ const I18n = {
     placeholderEls.forEach((el) => {
       const key = el.getAttribute("data-i18n-placeholder");
       if (key) {
-        el.setAttribute("placeholder", this.t(key));
+        const translation = this.t(key);
+        if (translation && translation !== key) {
+          el.setAttribute("placeholder", translation);
+        }
       }
     });
 
@@ -788,7 +793,10 @@ const I18n = {
     titleEls.forEach((el) => {
       const key = el.getAttribute("data-i18n-title");
       if (key) {
-        el.setAttribute("title", this.t(key));
+        const translation = this.t(key);
+        if (translation && translation !== key) {
+          el.setAttribute("title", translation);
+        }
       }
     });
 
@@ -797,7 +805,10 @@ const I18n = {
     ariaEls.forEach((el) => {
       const key = el.getAttribute("data-i18n-aria");
       if (key) {
-        el.setAttribute("aria-label", this.t(key));
+        const translation = this.t(key);
+        if (translation && translation !== key) {
+          el.setAttribute("aria-label", translation);
+        }
       }
     });
   },

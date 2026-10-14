@@ -176,6 +176,32 @@ def test_i18n_runtime_methods_via_node():
     // Test fallback for non-existent key
     assert.strictEqual(I18n.t('non.existent.key'), 'non.existent.key');
 
+    // Test applyTranslations does not overwrite element text if key is non-existent
+    global.document = { documentElement: { lang: '' } };
+    const missingEl = {
+      getAttribute: (attr) => attr === 'data-i18n' ? 'non.existent.key' : null,
+      textContent: 'Initial Preserved Text',
+      innerHTML: 'Initial Preserved Text'
+    };
+    const missingRoot = {
+      querySelectorAll: (sel) => sel === '[data-i18n]' ? [missingEl] : []
+    };
+    I18n.applyTranslations(missingRoot);
+    assert.strictEqual(missingEl.textContent, 'Initial Preserved Text');
+
+    // Test applyTranslations translates valid key
+    const validEl = {
+      getAttribute: (attr) => attr === 'data-i18n' ? 'hero.titleAccent' : null,
+      textContent: 'Initial',
+      innerHTML: 'Initial'
+    };
+    const validRoot = {
+      querySelectorAll: (sel) => sel === '[data-i18n]' ? [validEl] : []
+    };
+    I18n.currentLang = 'de';
+    I18n.applyTranslations(validRoot);
+    assert.strictEqual(validEl.textContent, 'für KoNfiX');
+
     console.log('OK');
     """
     result = subprocess.run(
@@ -212,3 +238,19 @@ def test_branding_and_navbar_elements(client):
     css = css_res.text
     assert "min-height: 4rem" in css
     assert "flex-wrap: nowrap" in css
+    assert ".brand .tagline" in css
+
+
+def test_cache_control_headers_on_static_and_root(client):
+    """Verify Cache-Control headers on root HTML and static assets to prevent stale browser caches."""
+    root_res = client.get("/")
+    assert root_res.status_code == 200
+    assert "no-cache" in root_res.headers.get("cache-control", "").lower()
+
+    js_res = client.get("/static/i18n.js")
+    assert js_res.status_code == 200
+    assert "no-cache" in js_res.headers.get("cache-control", "").lower()
+
+    css_res = client.get("/static/style.css")
+    assert css_res.status_code == 200
+    assert "no-cache" in css_res.headers.get("cache-control", "").lower()

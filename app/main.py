@@ -106,6 +106,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
     if request.url.path in ("/docs", "/redoc"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
@@ -188,5 +190,8 @@ async def serve_index():
     template_path = BASE_DIR / "app" / "templates" / "index.html"
     if template_path.exists():
         async with await anyio.open_file(template_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=await f.read())
+            return HTMLResponse(
+                content=await f.read(),
+                headers={"Cache-Control": "no-cache, must-revalidate"}
+            )
     return HTMLResponse(content="<h1>KonfiX-Catalog API online. Visit <a href='/docs'>/docs</a>.</h1>")

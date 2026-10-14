@@ -213,7 +213,9 @@ body {
   border-radius: 4px;
 }
 
+.brand .tagline,
 .tagline {
+  display: none;
   font-size: 0.72rem;
   color: var(--text-secondary);
   font-weight: 400;
@@ -1581,12 +1583,6 @@ body {
 /* ==========================================================================
    Responsive Breakpoints & Navbar Utilities
    ========================================================================== */
-@media (max-width: 1320px) {
-  .brand .tagline {
-    display: none;
-  }
-}
-
 @media (max-width: 1180px) {
   .hidden-md {
     display: none !important;
