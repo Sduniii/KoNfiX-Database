@@ -7,6 +7,7 @@ from app.api.v1.manufacturers import router as manufacturers_router
 from app.api.v1.upload import router as upload_router
 from app.api.v1.schema import router as schema_router
 from app.api.v1.openknx import router as openknx_router
+from app.api.v1.migration import router as migration_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(auth_router)
@@ -16,6 +17,7 @@ api_v1_router.include_router(devices_router)
 api_v1_router.include_router(manufacturers_router)
 api_v1_router.include_router(schema_router)
 api_v1_router.include_router(openknx_router)
+api_v1_router.include_router(migration_router)
 
 __all__ = ["api_v1_router"]
 

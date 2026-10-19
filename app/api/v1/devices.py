@@ -3,9 +3,10 @@ from typing import Annotated, Optional, List
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer, joinedload, selectinload
 
 from app.api.v1.auth import verify_admin_key, verify_api_key, is_admin_request, is_admin_authenticated
+from app.api.v1.manufacturers import invalidate_catalog_caches
 from app.database import get_db
 from app.models import Device, Manufacturer, CommunicationObject, Parameter, Translation
 from app.schemas.device import (
@@ -48,6 +49,16 @@ def _to_device_response(d: Device) -> DeviceResponse:
         for app in d.applications
     ]
 
+    com_objects_count = d.com_objects_count or (
+        len(d.communication_objects) if "communication_objects" in d.__dict__ and d.communication_objects else 0
+    )
+    parameters_count = d.parameters_count or (
+        len(d.parameters) if "parameters" in d.__dict__ and d.parameters else 0
+    )
+    translations_count = d.translations_count or (
+        len(d.translations) if "translations" in d.__dict__ and d.translations else 0
+    )
+
     return DeviceResponse(
         id=d.id,
         order_number=d.order_number,
@@ -66,9 +77,9 @@ def _to_device_response(d: Device) -> DeviceResponse:
         knxprod_file=file_info,
         applications=apps,
         yaml_url=f"/api/v1/devices/{d.order_number}/yaml",
-        com_objects_count=len(d.communication_objects) if d.communication_objects else 0,
-        parameters_count=len(d.parameters) if d.parameters else 0,
-        translations_count=len(d.translations) if d.translations else 0,
+        com_objects_count=com_objects_count,
+        parameters_count=parameters_count,
+        translations_count=translations_count,
         created_at=d.created_at,
         updated_at=d.updated_at
     )
@@ -113,7 +124,17 @@ def list_devices(
         )
 
     total = query.count()
-    devices = query.order_by(Device.name.asc()).offset((page - 1) * page_size).limit(page_size).all()
+    devices = (
+        query.options(
+            defer(Device.yaml_content),
+            joinedload(Device.manufacturer),
+            selectinload(Device.applications),
+        )
+        .order_by(Device.name.asc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
 
     return DeviceListResponse(
         total=total,
@@ -124,8 +145,15 @@ def list_devices(
 
 
 def _serve_yaml_for_device(device: Device, db: Session) -> Response:
-    from app.services.yaml_converter import device_to_konfix_yaml
-    yaml_text = device_to_konfix_yaml(device)
+    yaml_text = device.yaml_content
+    if not yaml_text or not yaml_text.strip():
+        from app.services.yaml_converter import device_to_konfix_yaml
+        yaml_text = device_to_konfix_yaml(device)
+        device.yaml_content = yaml_text
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return Response(
         content=yaml_text,
@@ -186,14 +214,14 @@ def get_device_communication_objects(
     q: Optional[str] = Query(None, description="Suche in Name oder Funktion"),
     db: Session = DB_SESSION_DEPENDENCY
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
-    if not device:
+    device_id = db.query(Device.id).filter(Device.order_number.ilike(order_number.strip())).scalar()
+    if device_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
 
-    query = db.query(CommunicationObject).filter(CommunicationObject.device_id == device.id)
+    query = db.query(CommunicationObject).filter(CommunicationObject.device_id == device_id)
     if dpt:
         query = query.filter(CommunicationObject.dpt.ilike(f"%{dpt.strip()}%"))
     if q:
@@ -216,14 +244,14 @@ def get_device_parameters(
     q: Optional[str] = Query(None, description="Suche in Parameter-Name oder Text"),
     db: Session = DB_SESSION_DEPENDENCY
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
-    if not device:
+    device_id = db.query(Device.id).filter(Device.order_number.ilike(order_number.strip())).scalar()
+    if device_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
 
-    query = db.query(Parameter).filter(Parameter.device_id == device.id)
+    query = db.query(Parameter).filter(Parameter.device_id == device_id)
     if page_name:
         query = query.filter(Parameter.page.ilike(f"%{page_name.strip()}%"))
     if param_type:
@@ -248,14 +276,14 @@ def get_device_translations(
     q: Optional[str] = Query(None, description="Suche im Übersetzungstext oder in Entity-ID"),
     db: Session = DB_SESSION_DEPENDENCY
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
-    if not device:
+    device_id = db.query(Device.id).filter(Device.order_number.ilike(order_number.strip())).scalar()
+    if device_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Gerät mit Bestellnummer '{order_number}' wurde nicht gefunden."
         )
 
-    query = db.query(Translation).filter(Translation.device_id == device.id)
+    query = db.query(Translation).filter(Translation.device_id == device_id)
     if language:
         query = query.filter(Translation.language.ilike(language.strip()))
     if entity_id:
@@ -274,7 +302,16 @@ def get_device_translations(
     description="Liefert alle technischen Details, Applikationsversionen und Download-URLs zu einem KNX-Gerät."
 )
 def get_device(order_number: str, db: Annotated[Session, Depends(get_db)]):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    device = (
+        db.query(Device)
+        .options(
+            defer(Device.yaml_content),
+            joinedload(Device.manufacturer),
+            selectinload(Device.applications),
+        )
+        .filter(Device.order_number.ilike(order_number.strip()))
+        .first()
+    )
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -304,7 +341,16 @@ def update_device(
     x_api_key: str | None = Header(None, alias="X-API-Key", description="Admin-Key"),
     authorization: str | None = Header(None, description="Admin-Key via Bearer")
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    device = (
+        db.query(Device)
+        .options(
+            defer(Device.yaml_content),
+            joinedload(Device.manufacturer),
+            selectinload(Device.applications),
+        )
+        .filter(Device.order_number.ilike(order_number.strip()))
+        .first()
+    )
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -344,8 +390,11 @@ def update_device(
     if update_data.source_url is not None:
         device.source_url = update_data.source_url.strip() if update_data.source_url else None
 
+    # Invalidate cached YAML so next download reflects updated metadata
+    device.yaml_content = None
     db.commit()
     db.refresh(device)
+    invalidate_catalog_caches()
     return _to_device_response(device)
 
 
@@ -363,7 +412,12 @@ def verify_device_edit_code(
     authorization: str | None = Header(None),
     db: Session = DB_SESSION_DEPENDENCY
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    device = (
+        db.query(Device)
+        .options(defer(Device.yaml_content))
+        .filter(Device.order_number.ilike(order_number.strip()))
+        .first()
+    )
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -393,7 +447,12 @@ def delete_device(
     db: Session = DB_SESSION_DEPENDENCY,
     _authorized: bool = Depends(verify_admin_key)
 ):
-    device = db.query(Device).filter(Device.order_number.ilike(order_number.strip())).first()
+    device = (
+        db.query(Device)
+        .options(defer(Device.yaml_content))
+        .filter(Device.order_number.ilike(order_number.strip()))
+        .first()
+    )
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -402,6 +461,7 @@ def delete_device(
 
     db.delete(device)
     db.commit()
+    invalidate_catalog_caches()
     return {
         "status": "success",
         "message": f"Gerät '{order_number}' wurde erfolgreich aus dem Katalog gelöscht."
@@ -432,7 +492,12 @@ def batch_delete_devices(
         on = raw_on.strip()
         if not on:
             continue
-        device = db.query(Device).filter(Device.order_number.ilike(on)).first()
+        device = (
+            db.query(Device)
+            .options(defer(Device.yaml_content))
+            .filter(Device.order_number.ilike(on))
+            .first()
+        )
         if not device:
             errors.append(f"Gerät mit Bestellnummer '{on}' nicht gefunden.")
             continue
@@ -441,6 +506,7 @@ def batch_delete_devices(
         deleted_order_numbers.append(on)
 
     db.commit()
+    invalidate_catalog_caches()
 
     return BatchDeleteResponse(
         deleted_count=len(deleted_order_numbers),

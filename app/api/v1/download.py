@@ -14,10 +14,17 @@ router = APIRouter(tags=["Download (.yaml)"])
 
 def _serve_device_yaml(device: Device, db: Session) -> Response:
     """
-    Delivers the KoNfiX-YAML specification for a device, synthesized on the fly
-    directly from the relational database records.
+    Delivers the KoNfiX-YAML specification for a device, serving cached yaml_content
+    directly or synthesizing and caching it from relational records on cache miss.
     """
-    yaml_text = device_to_konfix_yaml(device)
+    yaml_text = device.yaml_content
+    if not yaml_text or not yaml_text.strip():
+        yaml_text = device_to_konfix_yaml(device)
+        device.yaml_content = yaml_text
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return Response(
         content=yaml_text,

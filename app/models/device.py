@@ -1,7 +1,10 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Float, DateTime
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
+
+YAML_TEXT_TYPE = Text().with_variant(MEDIUMTEXT(), "mysql", "mariadb")
 
 
 class Device(Base):
@@ -15,10 +18,14 @@ class Device(Base):
     hardware_version = Column(String(64), nullable=True)
     bus_current_ma = Column(Float, nullable=True)
     source_url = Column(String(1024), nullable=True)
-    yaml_content = Column(Text, nullable=True) # Optional legacy/cached YAML representation
+    yaml_content = Column(YAML_TEXT_TYPE, nullable=True) # Cached YAML representation (up to 16MB on MySQL/MariaDB)
     edit_token = Column(String(64), nullable=True, index=True) # Secret token for creator/importer edit permissions
+
+    com_objects_count = Column(Integer, default=0, nullable=False)
+    parameters_count = Column(Integer, default=0, nullable=False)
+    translations_count = Column(Integer, default=0, nullable=False)
     
-    manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"), nullable=False)
+    manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"), nullable=False, index=True)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -2304,6 +2304,8 @@ let editorState = {
   activeTab: "general", // "general", "objects", "params", "trans"
   isSyncing: false,
   doc: null,
+  entityLookupMap: null,
+  dirtyTabs: { objects: true, params: true, trans: true },
   koSearch: "",
   koPage: 1,
   koPageSize: 50,
@@ -2315,8 +2317,79 @@ let editorState = {
   transFilter: "all",
   transPage: 1,
   transPageSize: 50,
-  debounceTimeout: null
+  debounceTimeout: null,
+  formSyncTimeout: null
 };
+
+function rebuildEntityLookupMap() {
+  const map = new Map();
+  if (editorState.doc) {
+    if (Array.isArray(editorState.doc.parameters)) {
+      for (const p of editorState.doc.parameters) {
+        if (p && p.id) {
+          map.set(String(p.id).toLowerCase(), {
+            type: "param",
+            name: p.name || p.text || p.id,
+            item: p
+          });
+        }
+      }
+    }
+    if (Array.isArray(editorState.doc.communication_objects)) {
+      for (const ko of editorState.doc.communication_objects) {
+        if (ko && ko.id) {
+          map.set(String(ko.id).toLowerCase(), {
+            type: "ko",
+            name: ko.name || ko.function || ko.id,
+            number: ko.number,
+            item: ko
+          });
+        }
+      }
+    }
+  }
+  editorState.entityLookupMap = map;
+}
+
+function updateEditorTabCounts() {
+  if (!editorState.doc) return;
+  const koBadge = document.getElementById("editorKoCount");
+  if (koBadge && Array.isArray(editorState.doc.communication_objects)) {
+    koBadge.textContent = editorState.doc.communication_objects.length;
+  }
+  const paramBadge = document.getElementById("editorParamCount");
+  if (paramBadge && Array.isArray(editorState.doc.parameters)) {
+    paramBadge.textContent = editorState.doc.parameters.length;
+  }
+  const transBadge = document.getElementById("editorTransCount");
+  if (transBadge && editorState.doc.translations && typeof editorState.doc.translations === "object") {
+    transBadge.textContent = Object.keys(editorState.doc.translations).length;
+  }
+}
+
+function renderActiveEditorTab() {
+  updateEditorTabCounts();
+  const active = editorState.activeTab;
+  if (active === "objects" && editorState.dirtyTabs.objects) {
+    renderKoCards();
+    editorState.dirtyTabs.objects = false;
+  } else if (active === "params" && editorState.dirtyTabs.params) {
+    renderParamCards();
+    editorState.dirtyTabs.params = false;
+  } else if (active === "trans" && editorState.dirtyTabs.trans) {
+    renderTransCards();
+    editorState.dirtyTabs.trans = false;
+  }
+}
+
+function scheduleSyncFormToYaml(delay = 250) {
+  if (editorState.isSyncing) return;
+  clearTimeout(editorState.formSyncTimeout);
+  editorState.formSyncTimeout = setTimeout(() => {
+    editorState.formSyncTimeout = null;
+    syncFormToYaml();
+  }, delay);
+}
 
 function ensureDocInit() {
   if (!editorState.doc || typeof editorState.doc !== "object") {
@@ -2472,6 +2545,7 @@ function setupEditorModal() {
   // Copy YAML
   if (copyBtn && textarea) {
     copyBtn.addEventListener("click", async () => {
+      if (editorState.formSyncTimeout) syncFormToYaml();
       try {
         await navigator.clipboard.writeText(textarea.value);
         const prev = copyBtn.textContent;
@@ -2487,6 +2561,7 @@ function setupEditorModal() {
   // Download YAML
   if (downloadBtn && textarea) {
     downloadBtn.addEventListener("click", () => {
+      if (editorState.formSyncTimeout) syncFormToYaml();
       const orderNoInput = document.getElementById("edOrderNumber");
       const orderNo = (orderNoInput && orderNoInput.value.trim()) || "device";
       const blob = new Blob([textarea.value], { type: "text/yaml;charset=utf-8" });
@@ -2513,8 +2588,8 @@ function setupEditorModal() {
     textarea.addEventListener("input", () => {
       clearTimeout(editorState.debounceTimeout);
       editorState.debounceTimeout = setTimeout(() => {
-        saveDraftToStorage(textarea.value);
         validateAndSyncYamlToForm(textarea.value);
+        saveDraftToStorage(textarea.value);
       }, 350);
     });
 
@@ -2534,7 +2609,7 @@ function setupEditorModal() {
   // Tab switching inside Editor Left Pane
   setupEditorTabs();
 
-  // General Form Input change events (GUI -> Code Sync)
+  // General Form Input change events (GUI -> Code Sync, debounced)
   const generalInputs = [
     "edMfgName", "edMfgCode", "edOrderNumber", "edDevName",
     "edDescription", "edHwName", "edHwVersion", "edBusCurrent",
@@ -2545,7 +2620,7 @@ function setupEditorModal() {
     if (el) {
       el.addEventListener("input", () => {
         if (!editorState.isSyncing) {
-          syncFormToYaml();
+          scheduleSyncFormToYaml(250);
         }
       });
     }
@@ -2843,7 +2918,6 @@ function setEditorYamlContent(yamlText) {
   const textarea = document.getElementById("editorYamlTextarea");
   if (textarea) {
     textarea.value = yamlText;
-    saveDraftToStorage(yamlText);
     editorState.koPage = 1;
     editorState.paramPage = 1;
     editorState.koSearch = "";
@@ -2861,6 +2935,7 @@ function setEditorYamlContent(yamlText) {
     const transFilterEl = document.getElementById("editorTransFilter");
     if (transFilterEl) transFilterEl.value = "all";
     validateAndSyncYamlToForm(yamlText);
+    saveDraftToStorage(yamlText);
   }
 }
 
@@ -2882,17 +2957,14 @@ function saveDraftToStorage(yamlText) {
       drafts[activeCode].updatedAt = new Date().toISOString();
     }
 
-    try {
-      const parsed = jsyaml.load(yamlText);
-      if (parsed && typeof parsed === "object") {
-        if (parsed.device && parsed.device.name) {
-          drafts[activeCode].title = parsed.device.name;
-        }
-        if (parsed.device && parsed.device.order_number) {
-          drafts[activeCode].orderNumber = parsed.device.order_number;
-        }
+    if (editorState.doc && editorState.doc.device) {
+      if (editorState.doc.device.name) {
+        drafts[activeCode].title = editorState.doc.device.name;
       }
-    } catch (_) {}
+      if (editorState.doc.device.order_number) {
+        drafts[activeCode].orderNumber = editorState.doc.device.order_number;
+      }
+    }
 
     saveDrafts(drafts);
     localStorage.setItem("konfix_sandbox_yaml", yamlText);
@@ -2951,6 +3023,7 @@ function setupEditorTabs() {
       if (paneTrans) paneTrans.style.display = "block";
     }
     editorState.activeTab = active;
+    renderActiveEditorTab();
   }
 
   if (tabGen) tabGen.addEventListener("click", () => switchTab("general"));
@@ -3030,12 +3103,12 @@ function validateAndSyncYamlToForm(yamlText) {
     setVal("edAppId", (data.application && data.application.id) || "");
     setVal("edAppVersion", (data.application && data.application.version) || "1.0");
 
+    rebuildEntityLookupMap();
     updateParamIdDatalist();
     updateParamPageFilterOptions();
     updateTransEntityDatalist();
-    renderKoCards();
-    renderParamCards();
-    renderTransCards();
+    editorState.dirtyTabs = { objects: true, params: true, trans: true };
+    renderActiveEditorTab();
 
     editorState.isSyncing = false;
 
@@ -3123,7 +3196,8 @@ function renderConditionsEditorHtml(type, realIdx, item) {
 
     let quickPillsHtml = "";
     if (paramId && editorState.doc && Array.isArray(editorState.doc.parameters)) {
-      const targetParam = editorState.doc.parameters.find(p => p.id === paramId);
+      const paramInfo = getEntityInfo(paramId);
+      const targetParam = paramInfo.type === "param" ? paramInfo.item : null;
       if (targetParam && Array.isArray(targetParam.options) && targetParam.options.length > 0) {
         quickPillsHtml = `
           <div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed rgba(255,255,255,0.06);">
@@ -3533,7 +3607,7 @@ function updateKoField(realIdx, field, value) {
   if (field === "id" || field === "name") {
     updateTransEntityDatalist();
   }
-  syncFormToYaml();
+  scheduleSyncFormToYaml(250);
 };
 
 function deleteParamItem(realIdx) {
@@ -3561,7 +3635,7 @@ function updateParamField(realIdx, field, value) {
   if (field === "page") {
     updateParamPageFilterOptions();
   }
-  syncFormToYaml();
+  scheduleSyncFormToYaml(250);
 };
 
 function addConditionItem(type, realIdx) {
@@ -3703,37 +3777,15 @@ function setTransPage(pageNum) {
 
 function getEntityInfo(entityId) {
   if (!editorState.doc) return { type: "other", name: null };
+  if (!editorState.entityLookupMap) {
+    rebuildEntityLookupMap();
+  }
   const cleanId = (entityId || "").toLowerCase();
-
-  // Check parameters
-  if (Array.isArray(editorState.doc.parameters)) {
-    const p = editorState.doc.parameters.find(item => item.id && item.id.toLowerCase() === cleanId);
-    if (p) {
-      return {
-        type: "param",
-        name: p.name || p.text || p.id,
-        item: p
-      };
-    }
-  }
-
-  // Check communication objects
-  if (Array.isArray(editorState.doc.communication_objects)) {
-    const ko = editorState.doc.communication_objects.find(item => item.id && item.id.toLowerCase() === cleanId);
-    if (ko) {
-      return {
-        type: "ko",
-        name: ko.name || ko.function || ko.id,
-        number: ko.number,
-        item: ko
-      };
-    }
-  }
-
-  return { type: "other", name: null };
+  return editorState.entityLookupMap.get(cleanId) || { type: "other", name: null };
 }
 
 function updateTransEntityDatalist() {
+  rebuildEntityLookupMap();
   const dl = document.getElementById("editorTransEntityDatalist");
   if (!dl || !editorState.doc) return;
   const options = [];
@@ -3771,40 +3823,59 @@ function renderTransCards() {
   const query = editorState.transSearch || "";
   const filterType = editorState.transFilter || "all";
 
-  let items = [];
-  for (const entityId of allEntityIds) {
-    const langMap = trObj[entityId] || {};
-    const info = getEntityInfo(entityId);
+  let totalItems = 0;
+  let pageItems = [];
 
-    // Filter by type
-    if (filterType !== "all") {
-      if (filterType === "param" && info.type !== "param") continue;
-      if (filterType === "ko" && info.type !== "ko") continue;
-      if (filterType === "other" && info.type !== "other") continue;
-    }
+  if (filterType === "all" && !query) {
+    totalItems = allEntityIds.length;
+    const totalPages = Math.ceil(totalItems / editorState.transPageSize) || 1;
+    if (editorState.transPage > totalPages) editorState.transPage = totalPages;
+    if (editorState.transPage < 1) editorState.transPage = 1;
+    const startIdx = (editorState.transPage - 1) * editorState.transPageSize;
+    const sliceIds = allEntityIds.slice(startIdx, startIdx + editorState.transPageSize);
+    pageItems = sliceIds.map(entityId => ({
+      entityId,
+      langMap: trObj[entityId] || {},
+      info: getEntityInfo(entityId)
+    }));
+  } else {
+    let items = [];
+    for (const entityId of allEntityIds) {
+      const langMap = trObj[entityId] || {};
+      const info = getEntityInfo(entityId);
 
-    // Filter by search query
-    if (query) {
-      let matched = entityId.toLowerCase().includes(query) || (info.name && info.name.toLowerCase().includes(query));
-      if (!matched) {
-        for (const [lang, txt] of Object.entries(langMap)) {
-          if (lang.toLowerCase().includes(query) || String(txt || "").toLowerCase().includes(query)) {
-            matched = true;
-            break;
+      // Filter by type
+      if (filterType !== "all") {
+        if (filterType === "param" && info.type !== "param") continue;
+        if (filterType === "ko" && info.type !== "ko") continue;
+        if (filterType === "other" && info.type !== "other") continue;
+      }
+
+      // Filter by search query
+      if (query) {
+        let matched = entityId.toLowerCase().includes(query) || (info.name && info.name.toLowerCase().includes(query));
+        if (!matched) {
+          for (const [lang, txt] of Object.entries(langMap)) {
+            if (lang.toLowerCase().includes(query) || String(txt || "").toLowerCase().includes(query)) {
+              matched = true;
+              break;
+            }
           }
         }
+        if (!matched) continue;
       }
-      if (!matched) continue;
-    }
 
-    items.push({ entityId, langMap, info });
+      items.push({ entityId, langMap, info });
+    }
+    totalItems = items.length;
+    const totalPages = Math.ceil(totalItems / editorState.transPageSize) || 1;
+    if (editorState.transPage > totalPages) editorState.transPage = totalPages;
+    if (editorState.transPage < 1) editorState.transPage = 1;
+    const startIdx = (editorState.transPage - 1) * editorState.transPageSize;
+    pageItems = items.slice(startIdx, startIdx + editorState.transPageSize);
   }
 
-  const totalItems = items.length;
   const totalPages = Math.ceil(totalItems / editorState.transPageSize) || 1;
-  if (editorState.transPage > totalPages) editorState.transPage = totalPages;
-  if (editorState.transPage < 1) editorState.transPage = 1;
-
   const label = typeof I18n !== "undefined" ? I18n.t("editorModal.translationsLabel") : "Übersetzungen";
   renderPaginationBar("editorTransPagination", editorState.transPage, totalPages, totalItems, label, "trans");
   renderPaginationBar("editorTransPaginationBottom", editorState.transPage, totalPages, totalItems, label, "trans");
@@ -3816,9 +3887,6 @@ function renderTransCards() {
     list.innerHTML = `<div style="color: #64748b; font-size: 0.82rem; padding: 1.5rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">${escapeHtml(emptyMsg)}</div>`;
     return;
   }
-
-  const startIdx = (editorState.transPage - 1) * editorState.transPageSize;
-  const pageItems = items.slice(startIdx, startIdx + editorState.transPageSize);
 
   const deleteBtnText = typeof I18n !== "undefined" ? I18n.t("editorModal.deleteItem") : "Löschen";
   const entityIdLabel = typeof I18n !== "undefined" ? I18n.t("editorModal.transEntityIdLabel") : "Entity-ID (lowercase)";
@@ -3917,9 +3985,9 @@ function addNewTranslationEntity() {
   };
 
   editorState.transPage = 1;
-  renderTransCards();
-  renderKoCards();
-  renderParamCards();
+  updateEditorTabCounts();
+  editorState.dirtyTabs = { objects: true, params: true, trans: true };
+  renderActiveEditorTab();
   syncFormToYaml();
 }
 
@@ -3956,9 +4024,9 @@ function autoPopulateTranslationsFromEntities() {
   }
 
   if (addedCount > 0) {
-    renderTransCards();
-    renderKoCards();
-    renderParamCards();
+    updateEditorTabCounts();
+    editorState.dirtyTabs = { objects: true, params: true, trans: true };
+    renderActiveEditorTab();
     syncFormToYaml();
     const successMsg = typeof I18n !== "undefined"
       ? I18n.t("editorModal.transAutoPopulateSuccess", { count: addedCount })
@@ -3976,9 +4044,9 @@ function deleteTranslationEntity(entityId) {
   ensureDocInit();
   if (editorState.doc.translations && editorState.doc.translations[entityId]) {
     delete editorState.doc.translations[entityId];
-    renderTransCards();
-    renderKoCards();
-    renderParamCards();
+    updateEditorTabCounts();
+    editorState.dirtyTabs = { objects: true, params: true, trans: true };
+    renderActiveEditorTab();
     syncFormToYaml();
   }
 }
@@ -3992,9 +4060,9 @@ function renameTranslationEntity(origEntityId, newEntityId) {
     const existingData = editorState.doc.translations[origEntityId];
     delete editorState.doc.translations[origEntityId];
     editorState.doc.translations[cleanNew] = existingData;
-    renderTransCards();
-    renderKoCards();
-    renderParamCards();
+    updateEditorTabCounts();
+    editorState.dirtyTabs = { objects: true, params: true, trans: true };
+    renderActiveEditorTab();
     syncFormToYaml();
   }
 }
@@ -4046,10 +4114,12 @@ function updateTranslationText(entityId, lang, text) {
   if (!editorState.doc.translations) editorState.doc.translations = {};
   if (!editorState.doc.translations[entityId]) editorState.doc.translations[entityId] = {};
   editorState.doc.translations[entityId][lang] = text;
-  syncFormToYaml();
+  scheduleSyncFormToYaml(250);
 }
 
 function syncFormToYaml() {
+  clearTimeout(editorState.formSyncTimeout);
+  editorState.formSyncTimeout = null;
   if (editorState.isSyncing) return;
   ensureDocInit();
 
@@ -4205,6 +4275,7 @@ function setupPublishModal() {
 
   if (openBtn) {
     openBtn.addEventListener("click", () => {
+      if (editorState.formSyncTimeout) syncFormToYaml();
       if (statusBox) statusBox.style.display = "none";
       const yamlStr = textarea ? textarea.value : "";
       if (!yamlStr || !yamlStr.trim()) {

@@ -4,6 +4,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 from xml.etree import ElementTree as ET
 
+_YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+_YAML_DUMPER = getattr(yaml, "CSafeDumper", yaml.SafeDumper)
+
+
 
 def generate_manufacturer_code(name: Optional[str], legacy_id: Optional[str] = None) -> str:
     """
@@ -527,6 +531,116 @@ def extract_parameters_from_xml_node(
     return parameters
 
 
+def build_konfix_yaml_header(
+    manufacturer_code: str,
+    manufacturer_name: str,
+    legacy_knx_id: Optional[str],
+    order_number: str,
+    device_name: str,
+    description: Optional[str] = None,
+    hardware_name: Optional[str] = None,
+    hardware_version: Optional[str] = None,
+    bus_current_ma: Optional[float] = None,
+    application_id: Optional[str] = None,
+    application_name: Optional[str] = None,
+    application_version: Optional[str] = None,
+    mask_version: Optional[str] = None,
+    source_url: Optional[str] = None,
+) -> str:
+    mfg_code_clean = (manufacturer_code or "generic").lower().strip()
+    sanitized_app_id = sanitize_id(application_id or f"{mfg_code_clean}_{order_number}", mfg_code_clean)
+
+    header_doc: Dict[str, Any] = {
+        "$schema": "https://db.konfix.sduni.de/schemas/konfix-device-v1.json",
+        "konfix_version": "1.0",
+        "manufacturer": {
+            "code": mfg_code_clean,
+            "name": manufacturer_name,
+        },
+        "device": {
+            "order_number": str(order_number).strip(),
+            "name": device_name,
+            "description": description or "",
+            "hardware": {
+                "name": hardware_name or device_name,
+                "version": str(hardware_version or "1.0"),
+                "bus_current_ma": bus_current_ma or 10.0,
+            }
+        }
+    }
+
+    if legacy_knx_id:
+        header_doc["manufacturer"]["legacy_knx_id"] = legacy_knx_id
+    if source_url:
+        header_doc["device"]["source_url"] = source_url
+
+    if application_name or application_id:
+        header_doc["application"] = {
+            "id": sanitized_app_id,
+            "name": application_name or device_name,
+            "version": str(application_version or "1.0"),
+            "mask_version": mask_version or "MV-07B0",
+        }
+
+    return yaml.dump(
+        header_doc,
+        Dumper=_YAML_DUMPER,
+        sort_keys=False,
+        allow_unicode=True,
+        default_flow_style=False,
+    )
+
+
+def build_konfix_yaml_body(
+    communication_objects: Optional[List[Dict[str, Any]]] = None,
+    parameters: Optional[List[Dict[str, Any]]] = None,
+    assign_rules: Optional[List[Dict[str, Any]]] = None,
+    translations: Optional[Dict[str, Dict[str, str]]] = None,
+) -> str:
+    merged_translations: Dict[str, Dict[str, str]] = {}
+    if translations:
+        for k, v in translations.items():
+            if isinstance(v, dict):
+                merged_translations[k.lower()] = v
+
+    clean_cos = []
+    for co in (communication_objects or []):
+        co_copy = dict(co)
+        if "translations" in co_copy:
+            co_tr = co_copy.pop("translations")
+            if co_tr and "id" in co_copy:
+                merged_translations.setdefault(co_copy["id"], {}).update(co_tr)
+        clean_cos.append(co_copy)
+
+    clean_params = []
+    for p in (parameters or []):
+        p_copy = dict(p)
+        if "translations" in p_copy:
+            p_tr = p_copy.pop("translations")
+            if p_tr and "id" in p_copy:
+                merged_translations.setdefault(p_copy["id"], {}).update(p_tr)
+        clean_params.append(p_copy)
+
+    body_doc: Dict[str, Any] = {
+        "communication_objects": clean_cos,
+        "parameters": clean_params,
+    }
+
+    if assign_rules:
+        body_doc["assign_rules"] = assign_rules
+
+    if merged_translations:
+        body_doc["translations"] = merged_translations
+
+    return yaml.dump(
+        body_doc,
+        Dumper=_YAML_DUMPER,
+        sort_keys=False,
+        allow_unicode=True,
+        default_flow_style=False,
+    )
+
+
 def build_konfix_yaml(
     manufacturer_code: str,
     manufacturer_name: str,
@@ -552,75 +666,29 @@ def build_konfix_yaml(
     All IDs and slugs strictly lowercase. Translations are housed in a dedicated root-level
     block keyed by entity ID.
     """
-    mfg_code_clean = (manufacturer_code or "generic").lower().strip()
-    sanitized_app_id = sanitize_id(application_id or f"{mfg_code_clean}_{order_number}", mfg_code_clean)
-
-    doc: Dict[str, Any] = {
-        "$schema": "https://db.konfix.sduni.de/schemas/konfix-device-v1.json",
-        "konfix_version": "1.0",
-        "manufacturer": {
-            "code": mfg_code_clean,
-            "name": manufacturer_name,
-        },
-        "device": {
-            "order_number": str(order_number).strip(),
-            "name": device_name,
-            "description": description or "",
-            "hardware": {
-                "name": hardware_name or device_name,
-                "version": str(hardware_version or "1.0"),
-                "bus_current_ma": bus_current_ma or 10.0,
-            }
-        }
-    }
-
-    if legacy_knx_id:
-        doc["manufacturer"]["legacy_knx_id"] = legacy_knx_id
-    if source_url:
-        doc["device"]["source_url"] = source_url
-
-    if application_name or application_id:
-        doc["application"] = {
-            "id": sanitized_app_id,
-            "name": application_name or device_name,
-            "version": str(application_version or "1.0"),
-            "mask_version": mask_version or "MV-07B0",
-        }
-
-    merged_translations: Dict[str, Dict[str, str]] = {}
-    if translations:
-        for k, v in translations.items():
-            if isinstance(v, dict):
-                merged_translations[k.lower()] = v
-
-    clean_cos = []
-    for co in (communication_objects or []):
-        co_copy = dict(co)
-        if "translations" in co_copy:
-            co_tr = co_copy.pop("translations")
-            if co_tr and "id" in co_copy:
-                merged_translations.setdefault(co_copy["id"], {}).update(co_tr)
-        clean_cos.append(co_copy)
-
-    clean_params = []
-    for p in (parameters or []):
-        p_copy = dict(p)
-        if "translations" in p_copy:
-            p_tr = p_copy.pop("translations")
-            if p_tr and "id" in p_copy:
-                merged_translations.setdefault(p_copy["id"], {}).update(p_tr)
-        clean_params.append(p_copy)
-
-    doc["communication_objects"] = clean_cos
-    doc["parameters"] = clean_params
-
-    if assign_rules:
-        doc["assign_rules"] = assign_rules
-
-    if merged_translations:
-        doc["translations"] = merged_translations
-
-    return yaml.dump(doc, sort_keys=False, allow_unicode=True, default_flow_style=False)
+    header_str = build_konfix_yaml_header(
+        manufacturer_code=manufacturer_code,
+        manufacturer_name=manufacturer_name,
+        legacy_knx_id=legacy_knx_id,
+        order_number=order_number,
+        device_name=device_name,
+        description=description,
+        hardware_name=hardware_name,
+        hardware_version=hardware_version,
+        bus_current_ma=bus_current_ma,
+        application_id=application_id,
+        application_name=application_name,
+        application_version=application_version,
+        mask_version=mask_version,
+        source_url=source_url,
+    )
+    body_str = build_konfix_yaml_body(
+        communication_objects=communication_objects,
+        parameters=parameters,
+        assign_rules=assign_rules,
+        translations=translations,
+    )
+    return header_str + body_str
 
 
 def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
@@ -630,7 +698,7 @@ def parse_konfix_yaml(yaml_content: str) -> Dict[str, Any]:
     Extracts root-level translations keyed by entity ID.
     """
     try:
-        data = yaml.safe_load(yaml_content)
+        data = yaml.load(yaml_content, Loader=_YAML_LOADER)
     except Exception as e:
         raise ValueError(f"Ungültiges YAML-Format: {e}")
 

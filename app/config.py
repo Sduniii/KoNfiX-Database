@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -59,15 +60,47 @@ class Settings(BaseSettings):
     SCHEMA_URL: str = "https://db.konfix.sduni.de/schemas/konfix-device-v1.json"
 
     # ==========================================================================
-    # 2. Datenbank-Verbindung
+    # 2. Datenbank-Verbindung (SQL-Datenbank MySQL/MariaDB/PostgreSQL oder SQLite)
     # ==========================================================================
     # SQLAlchemy-kompatibler Connection-String
     # Beispiele in .env:
-    #   DATABASE_URL=sqlite:///./data/konfix_database.db                        (Standard SQLite)
-    #   DATABASE_URL=sqlite:////var/data/konfix_database.db                     (Absoluter Pfad / Render / Docker)
-    #   DATABASE_URL=postgresql://konfix_user:geheim123@localhost:5432/konfix  (PostgreSQL Produktion)
-    #   DATABASE_URL=mysql+pymysql://konfix_user:pass@127.0.0.1:3306/konfix     (MySQL / MariaDB)
+    #   DATABASE_URL=mysql+pymysql://konfix_user:pass@127.0.0.1:3306/konfix?charset=utf8mb4  (MySQL / MariaDB)
+    #   DATABASE_URL=postgresql://konfix_user:geheim123@localhost:5432/konfix                (PostgreSQL)
+    #   DATABASE_URL=sqlite:///./data/konfix_database.db                                     (Standard SQLite)
     DATABASE_URL: str = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
+
+    # Alternativ zu DATABASE_URL können für MySQL/MariaDB (z. B. Netcup Plesk) oder PostgreSQL
+    # auch die einzelnen Verbindungsdaten angegeben werden (Sonderzeichen im Passwort werden
+    # dabei automatisch URL-kodiert):
+    DB_ENGINE: str = "mysql+pymysql"
+    DB_HOST: str = ""
+    DB_PORT: int = 3306
+    DB_NAME: str = ""
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+
+    def model_post_init(self, __context) -> None:
+        default_sqlite_url = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
+        if self.DB_HOST.strip() and self.DB_NAME.strip() and self.DATABASE_URL == default_sqlite_url:
+            engine_scheme = (self.DB_ENGINE or "mysql+pymysql").strip()
+            if engine_scheme in ("mysql", "mariadb"):
+                engine_scheme = "mysql+pymysql"
+            elif engine_scheme == "postgres":
+                engine_scheme = "postgresql"
+            user_part = quote_plus(self.DB_USER.strip()) if self.DB_USER else ""
+            pw_part = f":{quote_plus(self.DB_PASSWORD)}" if self.DB_PASSWORD else ""
+            auth_part = f"{user_part}{pw_part}@" if user_part else ""
+            port_part = f":{self.DB_PORT}" if self.DB_PORT else ""
+            query_part = "?charset=utf8mb4" if "mysql" in engine_scheme or "mariadb" in engine_scheme else ""
+            self.DATABASE_URL = f"{engine_scheme}://{auth_part}{self.DB_HOST.strip()}{port_part}/{self.DB_NAME.strip()}{query_part}"
+        elif self.DATABASE_URL.startswith(("mysql://", "mariadb://")):
+            self.DATABASE_URL = "mysql+pymysql://" + self.DATABASE_URL.split("://", 1)[1]
+            if "charset=" not in self.DATABASE_URL:
+                sep = "&" if "?" in self.DATABASE_URL else "?"
+                self.DATABASE_URL = f"{self.DATABASE_URL}{sep}charset=utf8mb4"
+        elif self.DATABASE_URL.startswith("mysql+pymysql://") and "charset=" not in self.DATABASE_URL:
+            sep = "&" if "?" in self.DATABASE_URL else "?"
+            self.DATABASE_URL = f"{self.DATABASE_URL}{sep}charset=utf8mb4"
 
     # ==========================================================================
     # 3. Dateispeicher (Katalog-Archive & YAMLs)
@@ -107,6 +140,11 @@ class Settings(BaseSettings):
     # Automatisches Laden von Demo-Geräten beim allerersten Serverstart (nur bei leerer DB)
     # Beispiel in .env: AUTO_SEED_DEMO_DATA=false (in Produktion immer false)
     AUTO_SEED_DEMO_DATA: bool = False
+
+    # Schaltet die einmalige Web-Migrationsseite unter /migrate frei.
+    # Nach erfolgreichem Durchlauf wird der Wert in der .env-Datei automatisch auf false gesetzt.
+    # Beispiel in .env: ENABLE_DB_MIGRATION=true
+    ENABLE_DB_MIGRATION: bool = False
 
     # ==========================================================================
     # 5. Upload-Limits & DoS-Schutz (in Bytes bzw. Anzahlen)
@@ -173,6 +211,11 @@ class Settings(BaseSettings):
     # Dynamische Helper-Properties
     # ==========================================================================
     @property
+    def sqlalchemy_database_url(self) -> str:
+        """Gibt die fertig aufgelöste SQLAlchemy-Datenbank-URL zurück."""
+        return self.DATABASE_URL
+
+    @property
     def knx_legacy_passwords_bytes(self) -> list[bytes]:
         """Gibt die konfigurierten Passwörter als Liste von UTF-8-Bytefolgen zurück."""
         if not self.KNX_LEGACY_PASSWORDS:
@@ -189,7 +232,11 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Verzeichnisse für Datenbank und Dateispeicher bei Bedarf automatisch initialisieren
-os.makedirs(os.path.dirname(settings.DATABASE_URL.replace("sqlite:///", "")), exist_ok=True)
+# Verzeichnisse für Datenbank (nur bei SQLite) und Dateispeicher automatisch initialisieren
+if settings.DATABASE_URL.startswith("sqlite:///") and ":memory:" not in settings.DATABASE_URL:
+    sqlite_dir = os.path.dirname(settings.DATABASE_URL.replace("sqlite:///", ""))
+    if sqlite_dir:
+        os.makedirs(sqlite_dir, exist_ok=True)
 os.makedirs(settings.STORAGE_DIR, exist_ok=True)
 os.makedirs(settings.OPENKNX_CACHE_DIR, exist_ok=True)
+

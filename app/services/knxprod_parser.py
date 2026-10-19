@@ -15,6 +15,8 @@ from app.config import settings
 from app.services.knx_master_data import resolve_manufacturer, register_custom_manufacturer
 from app.services.yaml_converter import (
     build_konfix_yaml,
+    build_konfix_yaml_header,
+    build_konfix_yaml_body,
     extract_com_objects_from_xml_node,
     extract_parameters_from_xml_node,
     extract_dynamic_tree,
@@ -399,20 +401,32 @@ def _parse_knx_xml_root(
         ))
 
     # Build full KoNfiX-YAML specification for each extracted device
+    body_yaml_cache: Dict[Tuple[int, ...], str] = {}
     for dev in devices:
         primary_app = dev.applications[0] if dev.applications else None
-        all_cos: List[Dict[str, Any]] = []
-        all_params: List[Dict[str, Any]] = []
-        all_assign_rules: List[Dict[str, Any]] = []
-        all_translations: Dict[str, Dict[str, str]] = {}
+        app_key = tuple(id(a) for a in dev.applications)
+        body_yaml = body_yaml_cache.get(app_key)
+        if body_yaml is None:
+            all_cos: List[Dict[str, Any]] = []
+            all_params: List[Dict[str, Any]] = []
+            all_assign_rules: List[Dict[str, Any]] = []
+            all_translations: Dict[str, Dict[str, str]] = {}
 
-        for a in dev.applications:
-            all_cos.extend(a.communication_objects)
-            all_params.extend(a.parameters)
-            all_assign_rules.extend(a.assign_rules)
-            all_translations.update(a.translations)
+            for a in dev.applications:
+                all_cos.extend(a.communication_objects)
+                all_params.extend(a.parameters)
+                all_assign_rules.extend(a.assign_rules)
+                all_translations.update(a.translations)
 
-        dev.yaml_content = build_konfix_yaml(
+            body_yaml = build_konfix_yaml_body(
+                communication_objects=all_cos,
+                parameters=all_params,
+                assign_rules=all_assign_rules,
+                translations=all_translations,
+            )
+            body_yaml_cache[app_key] = body_yaml
+
+        header_yaml = build_konfix_yaml_header(
             manufacturer_code=mfg_code,
             manufacturer_name=mfg_name,
             legacy_knx_id=mfg_id,
@@ -426,11 +440,8 @@ def _parse_knx_xml_root(
             application_name=primary_app.name if primary_app else None,
             application_version=primary_app.version if primary_app else None,
             mask_version=primary_app.mask_version if primary_app else None,
-            communication_objects=all_cos,
-            parameters=all_params,
-            assign_rules=all_assign_rules,
-            translations=all_translations,
         )
+        dev.yaml_content = header_yaml + body_yaml
 
     return ParsedKnxprod(
         manufacturer_id=mfg_id,

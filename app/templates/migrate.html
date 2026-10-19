@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KoNfiX-Catalog — Einmalige Datenbank-Migration</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      background: #0b0f19;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+    .mig-container {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    .mig-card {
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+    .mig-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .mig-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .mig-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .mig-badge.locked {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .mig-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .mig-stat-box {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 1.15rem;
+    }
+    .mig-stat-box h3 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.95rem;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mig-kv {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+    }
+    .mig-kv:last-child {
+      border-bottom: none;
+    }
+    .mig-kv strong {
+      color: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .mig-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+    }
+    .mig-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      background: rgba(30, 41, 59, 0.45);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .mig-check input[type="checkbox"] {
+      margin-top: 0.2rem;
+      transform: scale(1.15);
+      accent-color: #0ea5e9;
+    }
+    .mig-check small {
+      display: block;
+      color: #94a3b8;
+      margin-top: 0.2rem;
+      font-size: 0.78rem;
+    }
+    .mig-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.85rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.15s ease;
+    }
+    .mig-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .mig-log {
+      background: #060911;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      margin-top: 1rem;
+      display: none;
+    }
+    .mig-input {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(15, 23, 42, 0.8);
+      color: #f8fafc;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+      margin-top: 0.35rem;
+    }
+    .mig-back {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="mig-container">
+    <div class="mig-card">
+      <div class="mig-header">
+        <div>
+          <h1 class="mig-title">⚡ KoNfiX-Catalog Datenbank-Migration</h1>
+          <p style="color: #94a3b8; font-size: 0.88rem; margin: 0.35rem 0 0 0;">
+            Einmaliges Web-Migrationswerkzeug für Phusion Passenger / Plesk (ohne SSH/CLI)
+          </p>
+        </div>
+        <span id="migStatusBadge" class="mig-badge">🔓 ENABLE_DB_MIGRATION=true</span>
+      </div>
+
+      <div class="mig-grid">
+        <div class="mig-stat-box">
+          <h3>
+            <span>📦 Quell-Datenbank (SQLite)</span>
+            <span id="srcExistsBadge" style="font-size: 0.78rem; color: #94a3b8;">Lade...</span>
+          </h3>
+          <div class="mig-kv"><span>Pfad</span><strong id="srcPath">-</strong></div>
+          <div class="mig-kv"><span>Dateigröße</span><strong id="srcSize">-</strong></div>
+          <div class="mig-kv"><span>Hersteller / Geräte</span><strong id="srcDevices">-</strong></div>
+          <div class="mig-kv"><span>KOs / Parameter</span><strong id="srcEntities">-</strong></div>
+          <div class="mig-kv"><span>Übersetzungen</span><strong id="srcTranslations">-</strong></div>
+          <div class="mig-kv"><span>YAML-Dateien (catalog_files/)</span><strong id="srcYamlFiles">-</strong></div>
+        </div>
+
+        <div class="mig-stat-box">
+          <h3>
+            <span>🎯 Ziel-Datenbank (Aktive .env)</span>
+            <span id="tgtConnBadge" style="font-size: 0.78rem; color: #94a3b8;">Lade...</span>
+          </h3>
+          <div class="mig-kv"><span>Engine</span><strong id="tgtEngine">-</strong></div>
+          <div class="mig-kv"><span>Verbindung</span><strong id="tgtUrl" style="word-break: break-all;">-</strong></div>
+          <div class="mig-kv"><span>Hersteller / Geräte</span><strong id="tgtDevices">-</strong></div>
+          <div class="mig-kv"><span>KOs / Parameter</span><strong id="tgtEntities">-</strong></div>
+          <div class="mig-kv"><span>Übersetzungen</span><strong id="tgtTranslations">-</strong></div>
+        </div>
+      </div>
+
+      <div id="adminKeyBox" style="display: none; margin-bottom: 1rem;">
+        <label for="migAdminKey" style="font-size: 0.85rem; color: #cbd5e1; font-weight: 600;">
+          🔑 Admin-Schlüssel (ADMIN_KEY ist in .env aktiv):
+        </label>
+        <input type="password" id="migAdminKey" class="mig-input" placeholder="ADMIN_KEY eingeben..." />
+      </div>
+
+      <div class="mig-options">
+        <label class="mig-check">
+          <input type="checkbox" id="optMigrateSqlite" checked />
+          <div>
+            <strong>SQLite-Daten in Ziel-Datenbank übertragen</strong>
+            <small>Kopiert alle Hersteller, Geräte, Applikationen, KOs, Parameter, Zuweisungen und Übersetzungen aus <code>data/konfix_database.db</code> in die konfigurierte SQL-Datenbank.</small>
+          </div>
+        </label>
+
+        <label class="mig-check">
+          <input type="checkbox" id="optSyncCounts" checked />
+          <div>
+            <strong>Relationale Tabellen &amp; schnelle Zählspalten synchronisieren</strong>
+            <small>Aktualisiert <code>com_objects_count</code>, <code>parameters_count</code> und <code>translations_count</code> für maximale API-Geschwindigkeit.</small>
+          </div>
+        </label>
+
+        <label class="mig-check">
+          <input type="checkbox" id="optImportYaml" />
+          <div>
+            <strong>Zusätzlich fehlende Geräte aus <code>catalog_files/*.yaml</code> importieren</strong>
+            <small>Optional: Importiert YAML-Dateien aus dem Dateispeicher, falls diese noch nicht in der Datenbank vorhanden sind.</small>
+          </div>
+        </label>
+
+        <label class="mig-check">
+          <input type="checkbox" id="optVacuumSqlite" checked />
+          <div>
+            <strong>SQLite-Datenbank komprimieren (<code>VACUUM &amp; ANALYZE</code>)</strong>
+            <small>Bereinigt ungenutzte Freelist-Seiten in <code>data/konfix_database.db</code> (reduziert die Dateigröße um bis zu 85 %).</small>
+          </div>
+        </label>
+
+        <label class="mig-check" style="border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.08);">
+          <input type="checkbox" id="optDisableFlag" checked />
+          <div>
+            <strong>Nach erfolgreicher Migration <code>ENABLE_DB_MIGRATION=false</code> in <code>.env</code> setzen</strong>
+            <small>Schreibt automatisch <code>ENABLE_DB_MIGRATION=false</code> in die <code>.env</code>-Datei und sperrt diese Seite dauerhaft gegen unbefugte Aufrufe.</small>
+          </div>
+        </label>
+      </div>
+
+      <button type="button" id="runMigrationBtn" class="mig-btn">
+        🚀 Migration jetzt ausführen &amp; .env sperren
+      </button>
+
+      <div id="migLogOutput" class="mig-log"></div>
+
+      <div style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+        <a href="/" class="mig-back">← Zurück zum KoNfiX-Katalog</a>
+        <span style="font-size: 0.78rem; color: #64748b;">Passenger / WSGI Ready</span>
+      </div>
+    </div>
+  </div>
+  <script src="/static/migrate.js"></script>
+</body>
+</html>

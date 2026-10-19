@@ -7,6 +7,7 @@ import os
 import sys
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(PROJECT_DIR)
 
 # 1. Virtualenv / site-packages automatisch finden und einbinden
 possible_site_packages = [

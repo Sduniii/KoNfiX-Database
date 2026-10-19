@@ -345,6 +345,28 @@ class OpenKnxReleaseService:
                     db.add(db_app)
                     db.flush()
 
+            # Populate relational records and denormalized count columns
+            from app.api.v1.upload import _sync_device_records
+            all_cos = []
+            all_params = []
+            all_assign_rules = []
+            all_translations = {}
+            for a in p_dev.applications:
+                all_cos.extend(a.communication_objects)
+                all_params.extend(a.parameters)
+                all_assign_rules.extend(a.assign_rules)
+                all_translations.update(a.translations)
+            _sync_device_records(
+                db,
+                target_dev,
+                {
+                    "communication_objects": all_cos,
+                    "parameters": all_params,
+                    "assign_rules": all_assign_rules,
+                    "translations": all_translations,
+                },
+            )
+
             # Save standalone YAML in catalog_files
             yaml_filename = f"OpenKNX_{p_dev.order_number}_{tag_name}.yaml".replace("/", "_")
             if p_dev.yaml_content:
@@ -359,6 +381,8 @@ class OpenKnxReleaseService:
             })
 
         db.commit()
+        from app.api.v1.manufacturers import invalidate_catalog_caches
+        invalidate_catalog_caches()
 
         if progress_cb:
             progress_cb(100, f"{len(imported_devices)} OpenKNX-Geräte erfolgreich in den Katalog importiert!")

@@ -23,6 +23,7 @@ from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.api.v1.auth import verify_upload_permission, is_admin_request
+from app.api.v1.manufacturers import invalidate_catalog_caches
 from app.config import settings
 from app.database import get_db
 from app.models import (
@@ -669,6 +670,9 @@ def _sync_device_records(
         for i in range(0, len(trans), chunk_size):
             db.execute(insert(Translation), trans[i:i + chunk_size])
 
+    device.com_objects_count = len(cos)
+    device.parameters_count = len(params)
+    device.translations_count = len(trans)
     db.flush()
 
 
@@ -1006,6 +1010,7 @@ def _process_single_knxprod(
                 is_admin=is_admin
             )
         db.commit()
+        invalidate_catalog_caches()
         return resp
     except HTTPException:
         db.rollback()
@@ -1074,6 +1079,7 @@ def _process_batch_knxprods(
 
     if success_count > 0:
         db.commit()
+        invalidate_catalog_caches()
 
     total = len(files)
     batch_status = "success" if fail_count == 0 else ("partial" if success_count > 0 else "error")
