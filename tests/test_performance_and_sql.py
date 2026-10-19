@@ -268,3 +268,48 @@ def test_generate_connection_hint_plesk_netcup_access_denied():
     assert "Plesk" in hint
     assert "Verbindungen von beliebigen Hosts zulassen" in hint
 
+
+def test_settings_password_auto_encoding_with_special_characters():
+    from app.config import Settings
+    from sqlalchemy.engine import make_url
+
+    # Case 1: Individual variables with special characters in password
+    s1 = Settings(
+        DB_HOST="10.35.47.236",
+        DB_NAME="k212245_konfix",
+        DB_USER="k212245_konfix",
+        DB_PASSWORD="Mein@Geheimes#PW!?:123",
+    )
+    assert "%40" in s1.DATABASE_URL
+    assert "%23" in s1.DATABASE_URL
+    u1 = make_url(s1.DATABASE_URL)
+    assert u1.username == "k212245_konfix"
+    assert u1.password == "Mein@Geheimes#PW!?:123"
+    assert u1.host == "10.35.47.236"
+    assert u1.database == "k212245_konfix"
+
+    # Case 2: Raw DATABASE_URL with unencoded @ and # in password
+    raw_url = "mysql+pymysql://k212245_konfix:Secret@Pass#Word!@10.35.47.236:3306/k212245_konfix"
+    s2 = Settings(DATABASE_URL=raw_url)
+    assert "%40" in s2.DATABASE_URL
+    u2 = make_url(s2.DATABASE_URL)
+    assert u2.username == "k212245_konfix"
+    assert u2.password == "Secret@Pass#Word!"
+    assert u2.host == "10.35.47.236"
+
+
+def test_health_and_system_status_endpoints(client):
+    res_health = client.get("/health")
+    assert res_health.status_code == 200
+    data_health = res_health.json()
+    assert data_health["status"] in ("healthy", "degraded")
+    assert "database" in data_health
+    assert "active_engine" in data_health["database"]
+    assert "connected" in data_health["database"]
+
+    res_sys = client.get("/api/v1/system/status")
+    assert res_sys.status_code == 200
+    data_sys = res_sys.json()
+    assert data_sys["status"] == data_health["status"]
+    assert data_sys["database"]["active_engine"] == data_health["database"]["active_engine"]
+

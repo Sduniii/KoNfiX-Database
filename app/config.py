@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote_plus
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -86,27 +86,37 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = ""
 
     def model_post_init(self, __context) -> None:
-        default_sqlite_url = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
-        if self.DB_HOST.strip() and self.DB_NAME.strip() and self.DATABASE_URL == default_sqlite_url:
+        is_sqlite = self.DATABASE_URL.startswith("sqlite:")
+        if self.DB_HOST.strip() and self.DB_NAME.strip() and is_sqlite:
             engine_scheme = (self.DB_ENGINE or "mysql+pymysql").strip()
             if engine_scheme in ("mysql", "mariadb"):
                 engine_scheme = "mysql+pymysql"
             elif engine_scheme == "postgres":
                 engine_scheme = "postgresql"
-            user_part = quote_plus(self.DB_USER.strip()) if self.DB_USER else ""
-            pw_part = f":{quote_plus(self.DB_PASSWORD)}" if self.DB_PASSWORD else ""
+            user_part = quote_plus(unquote_plus(self.DB_USER.strip())) if self.DB_USER else ""
+            pw_part = f":{quote_plus(unquote_plus(self.DB_PASSWORD))}" if self.DB_PASSWORD else ""
             auth_part = f"{user_part}{pw_part}@" if user_part else ""
             port_part = f":{self.DB_PORT}" if self.DB_PORT else ""
             query_part = "?charset=utf8mb4" if "mysql" in engine_scheme or "mariadb" in engine_scheme else ""
             self.DATABASE_URL = f"{engine_scheme}://{auth_part}{self.DB_HOST.strip()}{port_part}/{self.DB_NAME.strip()}{query_part}"
-        elif self.DATABASE_URL.startswith(("mysql://", "mariadb://")):
-            self.DATABASE_URL = "mysql+pymysql://" + self.DATABASE_URL.split("://", 1)[1]
-            if "charset=" not in self.DATABASE_URL:
+        elif not self.DATABASE_URL.startswith("sqlite:"):
+            if self.DATABASE_URL.startswith(("mysql://", "mariadb://")):
+                self.DATABASE_URL = "mysql+pymysql://" + self.DATABASE_URL.split("://", 1)[1]
+
+            # Safely normalize and auto-encode credentials in DATABASE_URL if special characters exist
+            if "://" in self.DATABASE_URL:
+                scheme, rest = self.DATABASE_URL.split("://", 1)
+                if "@" in rest:
+                    creds, target = rest.rsplit("@", 1)
+                    if ":" in creds:
+                        user, pwd = creds.split(":", 1)
+                        clean_user = quote_plus(unquote_plus(user))
+                        clean_pwd = quote_plus(unquote_plus(pwd))
+                        self.DATABASE_URL = f"{scheme}://{clean_user}:{clean_pwd}@{target}"
+
+            if "mysql" in self.DATABASE_URL and "charset=" not in self.DATABASE_URL:
                 sep = "&" if "?" in self.DATABASE_URL else "?"
                 self.DATABASE_URL = f"{self.DATABASE_URL}{sep}charset=utf8mb4"
-        elif self.DATABASE_URL.startswith("mysql+pymysql://") and "charset=" not in self.DATABASE_URL:
-            sep = "&" if "?" in self.DATABASE_URL else "?"
-            self.DATABASE_URL = f"{self.DATABASE_URL}{sep}charset=utf8mb4"
 
     # ==========================================================================
     # 3. Dateispeicher (Katalog-Archive & YAMLs)

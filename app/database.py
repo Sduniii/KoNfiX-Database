@@ -60,6 +60,45 @@ def get_last_db_error() -> str | None:
     return _LAST_DB_ERROR
 
 
+def get_database_status_info() -> dict:
+    """
+    Liefert den aktuellen Betriebsmodus der Datenbank für UI-Badges und Health-Checks:
+    - active_engine: 'mysql' | 'sqlite' | 'postgresql' | ...
+    - configured_engine: 'mysql' | 'sqlite' | ...
+    - fallback_active: bool
+    - connected: bool
+    - devices_count: int
+    - manufacturers_count: int
+    """
+    configured_scheme = settings.DATABASE_URL.split("://", 1)[0] if "://" in settings.DATABASE_URL else "sqlite"
+    active_dialect = engine.dialect.name
+    info = {
+        "active_engine": active_dialect,
+        "configured_engine": configured_scheme,
+        "is_sqlite": active_dialect == "sqlite",
+        "is_mysql": active_dialect in ("mysql", "mariadb"),
+        "fallback_active": _FALLBACK_ACTIVE,
+        "last_error": _LAST_DB_ERROR,
+        "connected": False,
+        "devices_count": 0,
+        "manufacturers_count": 0,
+    }
+    try:
+        from app.models import Device, Manufacturer
+        db = SessionLocal()
+        try:
+            info["devices_count"] = db.query(func.count(Device.id)).scalar() or 0
+            info["manufacturers_count"] = db.query(func.count(Manufacturer.id)).scalar() or 0
+            info["connected"] = True
+        finally:
+            db.close()
+    except Exception as exc:
+        info["connected"] = False
+        if not info["last_error"]:
+            info["last_error"] = str(exc)
+    return info
+
+
 def get_sqlite_path() -> Path | None:
     if settings.DATABASE_URL.startswith("sqlite:///") and ":memory:" not in settings.DATABASE_URL:
         raw_path = settings.DATABASE_URL.replace("sqlite:///", "")

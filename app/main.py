@@ -156,6 +156,20 @@ if static_dir.exists():
 # Include API Routers
 app.include_router(api_v1_router)
 
+
+@app.get("/health", tags=["System"], summary="Health check & active database status")
+@app.get("/api/v1/system/status", tags=["System"], summary="System and active database status")
+def health_status():
+    from app.database import get_database_status_info
+    db_info = get_database_status_info()
+    return {
+        "status": "healthy" if db_info["connected"] else "degraded",
+        "app_name": settings.APP_NAME,
+        "app_version": settings.APP_VERSION,
+        "database": db_info,
+    }
+
+
 @app.get("/schema.json", include_in_schema=False)
 @app.get("/schemas/konfix-device-v1.json", include_in_schema=False)
 def serve_schema_direct(download: bool = False):

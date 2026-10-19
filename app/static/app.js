@@ -176,8 +176,40 @@ function setEditorUrlHash(draftCode) {
   }
 }
 
+async function initDatabaseStatusBadge() {
+  const pill = document.getElementById("liveDbStatusPill");
+  const dot = document.getElementById("liveDbStatusDot");
+  const text = document.getElementById("liveDbStatusText");
+  if (!pill || !text) return;
+
+  try {
+    const res = await fetch("/health");
+    if (!res.ok) return;
+    const data = await res.json();
+    const db = data.database || {};
+    const count = db.devices_count || 0;
+
+    if (db.fallback_active) {
+      if (dot) dot.style.background = "#f59e0b";
+      text.textContent = `🟡 Fallback: SQLite • ${count} Geräte`;
+      pill.title = `Achtung: Externe SQL-Datenbank (${db.configured_engine}) nicht erreichbar. SQLite-Fallback aktiv. Fehler: ${db.last_error || "Verbindungsfehler"}`;
+    } else if (db.active_engine === "mysql" || db.is_mysql) {
+      if (dot) dot.style.background = "#10b981";
+      text.textContent = `🟢 MySQL • ${count} Geräte`;
+      pill.title = `KoNfiX läuft auf MySQL / MariaDB (${count} Geräte online).`;
+    } else {
+      if (dot) dot.style.background = "#38bdf8";
+      text.textContent = `🔵 SQLite • ${count} Geräte`;
+      pill.title = `KoNfiX läuft auf lokaler SQLite-Datenbank (${count} Geräte online).`;
+    }
+  } catch (_) {
+    // Keep default static text
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAdminAuth();
+  initDatabaseStatusBadge();
   loadStats();
   loadManufacturers();
   loadDevices();
