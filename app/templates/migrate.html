@@ -187,6 +187,10 @@
         <span id="migStatusBadge" class="mig-badge">🔓 ENABLE_DB_MIGRATION=true</span>
       </div>
 
+      <div id="fallbackBanner" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: #fbbf24; line-height: 1.45;">
+        ⚠️ <strong>Aktiver SQLite-Fallback:</strong> Die in der <code>.env</code> konfigurierte SQL-Datenbank ist derzeit nicht erreichbar. Die Anwendung läuft vorübergehend mit der lokalen SQLite-Datenbank weiter, damit der Katalog online bleibt und kein 500-Fehler auftritt.
+      </div>
+
       <div class="mig-grid">
         <div class="mig-stat-box">
           <h3>
@@ -211,6 +215,7 @@
           <div class="mig-kv"><span>Hersteller / Geräte</span><strong id="tgtDevices">-</strong></div>
           <div class="mig-kv"><span>KOs / Parameter</span><strong id="tgtEntities">-</strong></div>
           <div class="mig-kv"><span>Übersetzungen</span><strong id="tgtTranslations">-</strong></div>
+          <div id="tgtHintBox" style="display: none; margin-top: 0.75rem; padding: 0.65rem 0.85rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; font-size: 0.8rem; color: #fca5a5; line-height: 1.45;"></div>
         </div>
       </div>
 

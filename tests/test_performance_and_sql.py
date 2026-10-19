@@ -234,3 +234,37 @@ def test_web_migration_page_and_auto_env_lock(client, tmp_path: Path, monkeypatc
     assert dev_json["com_objects_count"] == 1
     assert dev_json["parameters_count"] == 1
 
+
+def test_ensure_database_ready_resilient_fallback_on_sql_failure(monkeypatch, tmp_path: Path):
+    import app.database as db_mod
+    from app.config import settings
+
+    fallback_db = tmp_path / "fallback.db"
+    monkeypatch.setattr(db_mod, "get_sqlite_path", lambda: fallback_db)
+
+    # Set DATABASE_URL to an unreachable MySQL endpoint
+    bad_mysql_url = "mysql+pymysql://k212245_konfix:wrongpass@127.0.0.1:59999/k212245_konfix"
+    monkeypatch.setattr(settings, "DATABASE_URL", bad_mysql_url)
+    db_mod.engine = db_mod._build_engine(bad_mysql_url)
+    db_mod.SessionLocal.configure(bind=db_mod.engine)
+
+    # Calling ensure_database_ready must not raise an exception, but gracefully fall back to SQLite
+    db_mod.ensure_database_ready(force=True)
+
+    assert db_mod.is_db_fallback_active() is True
+    assert db_mod.get_last_db_error() is not None
+    assert "sqlite" in str(db_mod.engine.url)
+
+
+def test_generate_connection_hint_plesk_netcup_access_denied():
+    from app.api.v1.migration import _generate_connection_hint
+
+    error_msg = "(pymysql.err.OperationalError) (1045, \"Access denied for user 'k212245_konfix'@'10.35.47.235' (using password: YES)\")"
+    hint = _generate_connection_hint(error_msg)
+
+    assert hint is not None
+    assert "k212245_konfix" in hint
+    assert "10.35.47.235" in hint
+    assert "Plesk" in hint
+    assert "Verbindungen von beliebigen Hosts zulassen" in hint
+

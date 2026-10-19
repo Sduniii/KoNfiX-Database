@@ -12,51 +12,56 @@ from sqlalchemy.orm import defer
 
 from app.api.v1 import api_v1_router
 from app.config import BASE_DIR, settings
-from app.database import Base, engine, ensure_database_ready
+from app.database import Base, ensure_database_ready
 
 _INDEX_HTML_CACHE: Optional[Tuple[float, str]] = None
 
 
 def init_db():
-    # Ensure DB file and schema exist
-    ensure_database_ready()
-
-    # Self-healing check for legacy manufacturer entries
-    from app.database import SessionLocal
-    from app.models import Manufacturer, Device
-    db = SessionLocal()
     try:
-        m_0083 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0083").first()
-        if m_0083 and "gira" in m_0083.name.lower():
-            m_0083.name = "MDT technologies"
-            # Ensure Gira exists as M-0008
-            m_0008 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0008").first()
-            if not m_0008:
-                m_0008 = Manufacturer(knx_id="M-0008", name="GIRA Giersiepen")
-                db.add(m_0008)
-                db.flush()
-            # Reassign any Gira demo devices (e.g. 216800) to M-0008
-            gira_devices = (
-                db.query(Device)
-                .options(defer(Device.yaml_content))
-                .filter(Device.order_number == "216800")
-                .all()
-            )
-            for dev in gira_devices:
-                dev.manufacturer_id = m_0008.id
-            db.commit()
+        # Ensure DB file and schema exist (with resilient SQLite fallback)
+        ensure_database_ready()
 
-        # Populate sample data only if explicitly enabled in configuration
-        if settings.AUTO_SEED_DEMO_DATA and db.query(Device.id).first() is None:
-            try:
-                from scripts.seed_sample_data import seed_database
-                seed_database()
-            except Exception as seed_err:
-                print("Automatic seed skipped:", seed_err)
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
+        # Self-healing check for legacy manufacturer entries
+        from app.database import SessionLocal
+        from app.models import Manufacturer, Device
+
+        db = SessionLocal()
+        try:
+            m_0083 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0083").first()
+            if m_0083 and "gira" in m_0083.name.lower():
+                m_0083.name = "MDT technologies"
+                # Ensure Gira exists as M-0008
+                m_0008 = db.query(Manufacturer).filter(Manufacturer.knx_id == "M-0008").first()
+                if not m_0008:
+                    m_0008 = Manufacturer(knx_id="M-0008", name="GIRA Giersiepen")
+                    db.add(m_0008)
+                    db.flush()
+                # Reassign any Gira demo devices (e.g. 216800) to M-0008
+                gira_devices = (
+                    db.query(Device)
+                    .options(defer(Device.yaml_content))
+                    .filter(Device.order_number == "216800")
+                    .all()
+                )
+                for dev in gira_devices:
+                    dev.manufacturer_id = m_0008.id
+                db.commit()
+
+            # Populate sample data only if explicitly enabled in configuration
+            if settings.AUTO_SEED_DEMO_DATA and db.query(Device.id).first() is None:
+                try:
+                    from scripts.seed_sample_data import seed_database
+                    seed_database()
+                except Exception as seed_err:
+                    print("Automatic seed skipped:", seed_err)
+        except Exception as query_err:
+            db.rollback()
+            print(f"[KoNfiX DB] Warnung bei init_db Datenabgleich: {query_err}")
+        finally:
+            db.close()
+    except Exception as fatal_err:
+        print(f"[KoNfiX DB] Fehler in init_db (nicht-fatal, App startet weiter): {fatal_err}")
 
 
 # Ensure DB schema exists on import (required for WSGI / Phusion Passenger)

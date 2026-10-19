@@ -48,6 +48,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 _DB_INITIALIZED: bool = False
+_FALLBACK_ACTIVE: bool = False
+_LAST_DB_ERROR: str | None = None
+
+
+def is_db_fallback_active() -> bool:
+    return _FALLBACK_ACTIVE
+
+
+def get_last_db_error() -> str | None:
+    return _LAST_DB_ERROR
 
 
 def get_sqlite_path() -> Path | None:
@@ -57,32 +67,10 @@ def get_sqlite_path() -> Path | None:
     return None
 
 
-def ensure_database_ready(force: bool = False):
+def _setup_schema_and_columns(eng) -> None:
     """
-    Self-healing check (runs once on startup or when force=True):
-    Stellt sicher, dass das DB-Verzeichnis existiert und alle relationalen
-    Tabellen sowie Spalten (SQLite, MySQL/MariaDB, PostgreSQL) bereitstehen.
+    Initialisiert Tabellen und stellt idempotente Spaltenmigrationen bereit.
     """
-    global _DB_INITIALIZED
-    db_path = get_sqlite_path()
-
-    if _DB_INITIALIZED and not force:
-        if db_path is None or (db_path.exists() and db_path.stat().st_size > 0):
-            return
-
-    needs_init = False
-    if db_path:
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        if not db_path.exists() or db_path.stat().st_size == 0:
-            needs_init = True
-
-    if needs_init:
-        try:
-            engine.dispose()
-        except Exception:
-            pass
-
-    # Ensure all tables exist
     from app.models import (  # noqa: F401
         Manufacturer,
         Device,
@@ -93,11 +81,10 @@ def ensure_database_ready(force: bool = False):
         Translation,
         KnxGateway,
     )
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=eng)
 
-    # Idempotent column checks before issuing ALTER TABLE
     try:
-        inspector = inspect(engine)
+        inspector = inspect(eng)
         device_cols = {c["name"] for c in inspector.get_columns("devices")}
         mfg_cols = {c["name"] for c in inspector.get_columns("manufacturers")}
 
@@ -116,7 +103,7 @@ def ensure_database_ready(force: bool = False):
             pending_migrations.append("ALTER TABLE manufacturers ADD COLUMN code VARCHAR(64)")
 
         if pending_migrations:
-            with engine.connect() as conn:
+            with eng.connect() as conn:
                 for sql in pending_migrations:
                     try:
                         conn.execute(text(sql))
@@ -125,8 +112,8 @@ def ensure_database_ready(force: bool = False):
                         pass
 
         # Ensure MEDIUMTEXT on MySQL/MariaDB for existing tables
-        if engine.dialect.name in ("mysql", "mariadb"):
-            with engine.connect() as conn:
+        if eng.dialect.name in ("mysql", "mariadb"):
+            with eng.connect() as conn:
                 try:
                     conn.execute(text("ALTER TABLE devices MODIFY COLUMN yaml_content MEDIUMTEXT NULL"))
                     conn.commit()
@@ -135,9 +122,72 @@ def ensure_database_ready(force: bool = False):
     except Exception:
         pass
 
-    # Self-healing: Migriere ggf. bestehende Geräte in relationale Tabellen & aktualisiere Zähler
-    _migrate_devices_to_relational()
-    _DB_INITIALIZED = True
+
+def ensure_database_ready(force: bool = False):
+    """
+    Self-healing check (runs once on startup or when force=True):
+    Stellt sicher, dass das DB-Verzeichnis existiert und alle relationalen
+    Tabellen sowie Spalten (SQLite, MySQL/MariaDB, PostgreSQL) bereitstehen.
+    Falls eine externe SQL-Datenbank (MySQL/PostgreSQL) nicht erreichbar ist
+    (z. B. falsches Passwort, Benutzer-Host-Beschränkung in Plesk),
+    wird ein robuster SQLite-Fallback aktiviert, damit die Webanwendung
+    (inklusive Migrationsseite) unter Phusion Passenger ohne 500-Fehler bootet.
+    """
+    global _DB_INITIALIZED, _FALLBACK_ACTIVE, _LAST_DB_ERROR, engine, SessionLocal
+    db_path = get_sqlite_path()
+
+    if _DB_INITIALIZED and not force:
+        if db_path is None or (db_path.exists() and db_path.stat().st_size > 0):
+            return
+
+    needs_init = False
+    if db_path:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        if not db_path.exists() or db_path.stat().st_size == 0:
+            needs_init = True
+
+    if needs_init:
+        try:
+            engine.dispose()
+        except Exception:
+            pass
+
+    try:
+        _setup_schema_and_columns(engine)
+        _migrate_devices_to_relational()
+        _DB_INITIALIZED = True
+        _FALLBACK_ACTIVE = False
+        _LAST_DB_ERROR = None
+    except Exception as exc:
+        _LAST_DB_ERROR = str(exc)
+        print(f"[KoNfiX DB] Warnung: Datenbank-Initialisierung fehlgeschlagen ({exc}).")
+
+        # Wenn eine externe SQL-Datenbank fehlschlägt, auf lokale SQLite zurückfallen
+        if "sqlite" not in str(engine.url):
+            print(
+                "[KoNfiX DB] Externe SQL-Datenbank nicht erreichbar. "
+                "Aktiviere temporären SQLite-Fallback, um Passenger-500-Fehler zu vermeiden."
+            )
+            from app.config import BASE_DIR
+
+            fallback_url = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+            engine = _build_engine(fallback_url)
+            SessionLocal.configure(bind=engine)
+            _FALLBACK_ACTIVE = True
+
+            try:
+                _setup_schema_and_columns(engine)
+                _migrate_devices_to_relational()
+                _DB_INITIALIZED = True
+            except Exception as fb_err:
+                print(f"[KoNfiX DB] SQLite-Fallback Schema-Fehler: {fb_err}")
+        else:
+            # Reines SQLite-Problem (z. B. Dateisystem-Berechtigungen)
+            pass
 
 
 def _migrate_devices_to_relational():

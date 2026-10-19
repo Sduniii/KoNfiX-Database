@@ -138,10 +138,38 @@ def disable_migration_flag_in_env(env_path: Optional[Path] = None) -> Path:
     return target_env
 
 
+def _generate_connection_hint(error_msg: Optional[str]) -> Optional[str]:
+    if not error_msg:
+        return None
+    err_lower = error_msg.lower()
+    if "1045" in error_msg or "access denied" in err_lower:
+        match = re.search(r"for user '([^']+)'@'([^']+)'", error_msg)
+        user_info = f" für Benutzer '{match.group(1)}' von Host '{match.group(2)}'" if match else ""
+        return (
+            f"MySQL-Zugriff verweigert{user_info}. "
+            "Netcup/Plesk-Lösung: Im Plesk-Panel unter 'Datenbanken' -> 'Benutzerverwaltung' "
+            "beim Datenbank-Benutzer die Zugriffskontrolle von 'Nur lokale Verbindungen' auf "
+            "'Verbindungen von beliebigen Hosts zulassen (%)' umstellen oder in der .env "
+            "DB_HOST=127.0.0.1 bzw. DB_HOST=localhost sowie das Passwort prüfen."
+        )
+    if "can't connect" in err_lower or "connection refused" in err_lower:
+        return (
+            "Verbindung zum Datenbank-Server fehlgeschlagen. "
+            "Bitte DB_HOST und DB_PORT in der .env überprüfen (z. B. 127.0.0.1 oder Hostname laut Plesk)."
+        )
+    if "unknown database" in err_lower or "1049" in error_msg:
+        return (
+            "Die angegebene Datenbank existiert nicht. Bitte im Plesk-Panel unter 'Datenbanken' "
+            "prüfen, ob der Datenbankname (DB_NAME) exakt übereinstimmt."
+        )
+    return None
+
+
 def _inspect_db_counts(db_url: str) -> Dict[str, Any]:
     info: Dict[str, Any] = {
         "connected": False,
         "error": None,
+        "hint": None,
         "manufacturers_count": 0,
         "devices_count": 0,
         "com_objects_count": 0,
@@ -162,6 +190,7 @@ def _inspect_db_counts(db_url: str) -> Dict[str, Any]:
         eng.dispose()
     except Exception as exc:
         info["error"] = str(exc)
+        info["hint"] = _generate_connection_hint(str(exc))
     return info
 
 
@@ -236,6 +265,8 @@ def get_migration_status():
             "is_separate_target": is_separate_target,
             **target_counts,
         },
+        "fallback_active": db_module.is_db_fallback_active(),
+        "last_db_error": db_module.get_last_db_error(),
     }
 
 
@@ -276,10 +307,20 @@ def run_database_migration(
     sqlite_exists = SOURCE_SQLITE_PATH.exists() and SOURCE_SQLITE_PATH.stat().st_size > 0
     source_url = f"sqlite:///{SOURCE_SQLITE_PATH.resolve()}" if sqlite_exists else ""
 
+    # Vorab-Prüfung: Ist die Ziel-Datenbank erreichbar?
+    target_check = _inspect_db_counts(target_url)
+    if not target_check["connected"]:
+        err_hint = f" {target_check['hint']}" if target_check.get("hint") else ""
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ziel-Datenbank ({_mask_db_url(target_url)}) nicht erreichbar: {target_check['error']}.{err_hint}",
+        )
+
     try:
         # 1. Ziel-Schema initialisieren & Spalten prüfen
         logs.append(f"Initialisiere Ziel-Datenbank ({_mask_db_url(target_url)})...")
-        ensure_database_ready(force=True)
+        tgt_eng = db_module._build_engine(target_url)
+        db_module._setup_schema_and_columns(tgt_eng)
         logs.append("✓ Tabellen-Schema und Zählspalten (inkl. MEDIUMTEXT für MySQL/MariaDB) bereit.")
 
         # 2. Daten aus lokaler SQLite-Datenbank in Ziel-DB migrieren (wenn unterschiedlich)
@@ -289,6 +330,13 @@ def run_database_migration(
             logs.append("✓ Alle Hersteller, Geräte, KOs, Parameter, Zuweisungen und Übersetzungen aus SQLite übertragen.")
         elif payload.migrate_from_sqlite and target_url == source_url:
             logs.append("ℹ️ Quell- und Ziel-Datenbank sind identisch (SQLite) – überspringe Kopiervorgang.")
+
+        # Re-bind aktive Engine und SessionLocal an die Ziel-Datenbank
+        db_module.engine = tgt_eng
+        db_module.SessionLocal.configure(bind=tgt_eng)
+        db_module._FALLBACK_ACTIVE = False
+        db_module._LAST_DB_ERROR = None
+        db_module._DB_INITIALIZED = True
 
         # 3. Optional: YAML-Dateien aus catalog_files/ importieren
         if payload.import_yaml_files:

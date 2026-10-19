@@ -30,6 +30,11 @@ document.addEventListener("DOMContentLoaded", () => {
         adminKeyBox.style.display = "block";
       }
 
+      const fallbackBanner = document.getElementById("fallbackBanner");
+      if (fallbackBanner) {
+        fallbackBanner.style.display = data.fallback_active ? "block" : "none";
+      }
+
       const src = data.source_sqlite || {};
       setText("srcExistsBadge", src.exists ? "✓ Gefunden" : "Nicht vorhanden");
       setText("srcPath", src.path ? src.path.split("/").slice(-2).join("/") : "-");
@@ -40,12 +45,30 @@ document.addEventListener("DOMContentLoaded", () => {
       setText("srcYamlFiles", `${data.yaml_files_count || 0} Dateien`);
 
       const tgt = data.target_db || {};
-      setText("tgtConnBadge", tgt.connected ? "✓ Verbunden" : `⚠️ Fehler: ${tgt.error || "Nicht verbunden"}`);
+      setText("tgtConnBadge", tgt.connected ? "✓ Verbunden" : `⚠️ Nicht verbunden`);
       setText("tgtEngine", tgt.engine || "-");
       setText("tgtUrl", tgt.masked_url || "-");
       setText("tgtDevices", `${tgt.manufacturers_count || 0} / ${tgt.devices_count || 0}`);
       setText("tgtEntities", `${tgt.com_objects_count || 0} / ${tgt.parameters_count || 0}`);
       setText("tgtTranslations", `${tgt.translations_count || 0}`);
+
+      const tgtHintBox = document.getElementById("tgtHintBox");
+      if (tgtHintBox) {
+        if (!tgt.connected && (tgt.error || tgt.hint)) {
+          tgtHintBox.style.display = "block";
+          tgtHintBox.innerHTML = `<strong>⚠️ Verbindungsfehler:</strong> ${tgt.error || ""}${tgt.hint ? `<br><br>💡 <em>${tgt.hint}</em>` : ""}`;
+        } else {
+          tgtHintBox.style.display = "none";
+        }
+      }
+
+      if (!tgt.connected && tgt.is_external_sql) {
+        runBtn.disabled = true;
+        runBtn.title = "Ziel-Datenbank ist nicht erreichbar. Bitte Zugangsdaten in .env prüfen.";
+      } else {
+        runBtn.disabled = false;
+        runBtn.title = "";
+      }
     } catch (e) {
       logBox.style.display = "block";
       logBox.textContent = `Fehler beim Laden des Status: ${e.message}`;
