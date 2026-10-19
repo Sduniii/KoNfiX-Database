@@ -26,13 +26,19 @@ def _build_engine(db_url: str):
         return eng
 
     # SQL Database (MySQL / MariaDB / PostgreSQL) with connection pool health checks
-    return create_engine(
-        db_url,
-        pool_pre_ping=True,
-        pool_recycle=1800,
-        pool_size=5,
-        max_overflow=10,
-    )
+    try:
+        return create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            pool_size=5,
+            max_overflow=10,
+        )
+    except (ImportError, ModuleNotFoundError) as err:
+        print(f"[KoNfiX DB] Warnung: Datenbank-Treiber konnte nicht geladen werden ({err}). Fallback auf lokale SQLite-Datenbank.")
+        from app.config import BASE_DIR
+        fallback_url = f"sqlite:///{BASE_DIR}/data/konfix_database.db"
+        return _build_engine(fallback_url)
 
 
 engine = _build_engine(settings.DATABASE_URL)
